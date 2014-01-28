@@ -1,9 +1,7 @@
 name:          cell
-category:      (none)
 version:       0.1.0.0
 cabal-version: >= 1.8
 license:       BSD3
-stability:     none
 
 build-type:    Simple
 tested-with:   GHC >= 7.4.1
@@ -12,37 +10,43 @@ source-repository head
   type: git
   location: git://github.com/mfpi/haskell-game.git
 
-flag cell
-  default: True
+Test-Suite test-tiled
+  type: exitcode-stdio-1.0
+  main-is: tests/Tiled.hs
+  build-depends: base,
+    htiled,
+    containers,
+    netwire
+  default-language:    Haskell2010
 
 library 
-  exposed-modules:
-    Game.Map
-    Game.Unit
-    Game.Input.Input
-    Game.Render.Render
-    Game.Render.Map
+    exposed-modules:
+        Game.Map
+        Game.Unit
+        Game.Input.Input
+        Game.Render.Render
+        Game.Render.Map
 
-  build-depends:
-    base,
-    linear >= 1.4,
-    containers >= 0.4 && < 0.5,
-    lens >= 3.10.1,
-    bimap >= 0.2.4,
-    mtl        >= 2.0.1 && < 2.2,
-    random     >= 1.0.*,
-    hsnoise >= 0.0.2,
-    vector >= 0.10.9,
-    OpenGL >= 2.9.0.1,
-    GLFW-b >= 1.4.6,
-    array >= 0.4.0.1,
-    bytestring >= 0.10.0.2,
-    pretty >= 1.1.1.0,
-    filepath >= 1.3.0.1,
-    storable-tuple >= 0.0.2,
-    parallel >= 3.2.0.4,
-    stm >= 2.4.2,
-    netwire >= 5.0.0
+    build-depends:
+        base,
+        linear >= 1.4,
+        containers >= 0.5,
+        lens >= 3.10.1,
+        bimap >= 0.2.4,
+        mtl        >= 2.0.1 && < 2.2,
+        random     >= 1.0,
+        hsnoise >= 0.0.2,
+        vector >= 0.10.9,
+        OpenGL >= 2.9.0.1,
+        GLFW-b >= 1.4.6,
+        array >= 0.4.0.1,
+        bytestring >= 0.10.0.2,
+        pretty >= 1.1.1.0,
+        filepath >= 1.3.0.1,
+        storable-tuple >= 0.0.2,
+        parallel >= 3.2.0.4,
+        stm >= 2.4.2,
+        netwire >= 5.0.0
 
 executable cell
   build-depends:
@@ -68,9 +72,8 @@ executable cell
     storable-tuple >= 0.0.2,
     OpenGLRaw >= 1.4.0.2,
     parallel >= 3.2.0.4,
-    netwire >= 5.0.0,
-    FTGL>=1.333
+    netwire >= 5.0.0
 
   ghc-options: -rtsopts -threaded -fprof-auto
---  ghc-options: -threaded -O2
   main-is: main.hs
+

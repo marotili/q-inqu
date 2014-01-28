@@ -1,5 +1,5 @@
 {-# LANGUAGE NamedFieldPuns, ScopedTypeVariables, FlexibleContexts, NoMonomorphismRestriction,
-	FlexibleInstances, Rank2Types, RankNTypes #-}
+	FlexibleInstances, Rank2Types, RankNTypes, TypeFamilies, GADTs #-}
 module Game.Input.Input where
 
 import Control.Monad.Identity (Identity)
@@ -11,6 +11,7 @@ import qualified Control.Wire as W
 import Prelude hiding ((.), until, when)
 import Control.Monad.Reader hiding (when)
 import qualified Data.Map as Map
+import qualified Data.Bimap as Bimap
 import qualified Data.Set as Set
 import Data.Maybe
 import Control.Arrow
@@ -33,7 +34,7 @@ integral2D x' =
 		       	x' `seq` (Right x', integral2D (x' + (dxy * dt2)))
 		       	where
 		        	dt = realToFrac (dtime ds)
-		        	dt2 :: (Fractional a) => V2 a
+		        	--dt2 :: (Fractional a) => V2 a
 		        	dt2 = pure dt
 
 keyDownEvent :: GLFW.Key -> Wire s () (ReaderT Input IO) a (a, Event a)
@@ -249,3 +250,164 @@ stepGame w' session' input = do
 --		unit2' <- asks unit2
 --		let pa = unitInstancePerformAttack unit1' unit2'
 --		return (Right pa, pure pa)
+
+--type ObjectId = Int
+--data BaseDoor = BaseDoor
+--	{ baseDoorId :: ObjectId
+--	}
+
+--data BaseDoorState = BaseDoorState
+--	{ baseDoorIsOpening :: Bool
+--	, baseDoorIsClosing :: Bool
+--	, baseDoorOpen :: Bool
+--	}
+
+--data Triggerable where
+--	Triggerable :: Triggerable_ a => a -> Triggerable
+
+--instance Triggerable_ Triggerable where
+--	isActive w (Trigger t) = isActive w t
+--	activate w (Trigger t) = activate w t
+
+--class Triggerable_ a where
+--	isActive :: World -> a -> Bool
+--	canBeActivated :: World -> a -> Bool
+--	canBeReset :: World -> a -> Bool
+
+--	activate :: World -> a -> World
+--	reset :: World -> a -> World
+
+--data Trigger = 
+--	  BaseTrigger 
+--	{ triggerId :: ObjectId 
+--	}
+--	| InputTrigger 
+--	{ triggerId :: ObjectId 
+--	}
+
+--data BaseTriggerState = BaseTriggerState 
+--	{ baseTriggerActive :: Bool
+--	--, baseTriggerTarget :: Triggerable
+--	}
+--data InputTriggerState = InputTriggerState
+--	{ inputTriggerActive :: Bool
+--	, inputTriggerSource :: Triggerable
+--	}
+
+data Controller = Controller
+	{ currentTime :: Float
+	, duration :: Float
+	}
+
+--currentControl = from + (to - from)*(currentTime/duration)
+
+data Switch = Switch
+	{ switchState :: Bool
+	}
+
+data Door = Door
+	{ doorId :: Int
+	, doorOpen :: Bool -- open or closed
+	}
+
+data WorldDelta = WorldDelta
+	{ updatedDoors :: [Door]
+	}
+
+deltaDoor door = WorldDelta { updatedDoors = [door] }
+
+data DoorController =
+
+data Controllers = Controllers
+	{ doorControllers :: [(Door, Controller, Wire NominalDiffTime () IO Controller (Either Controller WorldDelta))]
+	}
+
+runControllers :: (Monoid s) => Wire s e m Controllers Controllers
+runControllers = mkPure runControllers_
+
+runControllers_ ds controllers = Right newControllers
+		where
+			newControllers = fmap (\(door, (control', w')) -> (door, control', w')) $ zip (fmap (\(a, b, c) -> a) doorControls) runWires
+			runWires = fmap (\(door, control, w) -> stepWire w ds control) doorControls
+			doorControls = doorControllers controllers
+
+
+
+--mkDoorController Door -> Wire NominalDiffTime () IO Controller (Either Controller WorldDelta)
+mkDoorController door = (door, Controller 0 4, 
+		fmap Left controllerFor W.--> 
+		pure (Right . deltaDoor $ Door { doorId = doorId door, doorOpen = True })
+	)
+
+-- door closed -> control -> door open
+
+--doorIsOpen = mkPure $ \door -> if doorOpen door 
+--			then (Right door, doorIsOpen) 
+--			else (Left (), doorIsOpen)
+
+--openDoor :: Wire s () m Door WorldDelta
+--openDoor = doorIsOpen <|> (controller . fmap animControl W.id) W.--> 
+
+data World = World
+	{ switch1 :: Switch
+	, door1 :: Door
+	, controllers :: Controllers
+	}
+
+-- runs until currentTime >= duration
+controllerFor :: (Monoid s, HasTime Float s, Monad m) => Wire s () m Controller Controller
+controllerFor = mkGen $ \s a -> do
+		let newCont = a { currentTime = (currentTime a + dtime s) }
+		return $ if currentTime newCont >= duration newCont then	
+			(Left (), controllerFor)
+		else
+			(Right newCont, controllerFor)
+
+
+--instance Triggerable_ BaseTrigger where
+--	isActive world trigger = (baseTriggerActive state)
+--		where
+--			state = (_worldBaseTriggerState world) Map.! (triggerId trigger)
+
+--	activate world trigger = world { _worldBaseTriggerState = newState }
+--		where
+--			baseTriggerState = (_worldBaseTriggerState world) Map.! (triggerId trigger)
+--			newState = Map.empty
+
+--instance Triggerable_ InputTrigger where
+--	isActive world trigger = inputActive && (inputTriggerActive state)
+--		where
+--			inputActive = isActive world (inputTriggerSource state)
+--			state = (_worldInputTriggerState world) Map.! (triggerId trigger)
+
+--data World = World
+--	{ worldName :: String
+--	--, worldDoors :: [Door]
+--	, worldTriggers :: [Triggerable]
+--	, _worldBaseDoorState :: Map.Map ObjectId BaseDoorState
+--	, _worldBaseTriggerState :: Map.Map ObjectId BaseTriggerState
+--	, _worldInputTriggerState :: Map.Map ObjectId InputTriggerState
+--	}
+
+--test = asSoonAs . once . Event ActivateTrigger
+
+--mySession = clockSession <*> pure WorldDelta
+
+--canTrigger :: Wire (Timed NominalDiffTime WorldDelta) 
+
+
+-- delta states network synchronisation wires actions user input
+
+-- World State: the current world synchronized with server
+-- World delta state: world state + interpolation
+
+-- wires should not store local data
+
+		-- filterTreshold . liftA2 (,) startPos pos 
+		-- <|> noEvent . mouseButtonDown GLFW.MouseButton'1 
+		-- W.--> mouseClick
+
+-- synchronized: other user actions, positions, states
+
+
+-- not synchronized: user input

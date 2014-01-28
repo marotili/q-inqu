@@ -18,7 +18,6 @@ import qualified FRP.Netwire as NW
 import qualified Data.Set as Set
 
 import qualified Graphics.UI.GLFW          as GLFW
-import Graphics.Rendering.FTGL
 
 --import Game.Render
 --import Game.Cell
@@ -60,7 +59,6 @@ data State = State
     , stateRenderContext :: Render.RenderContext
     , stateCam :: Camera
     , stateGameMap :: RMap.Map
-    , stateFont :: Font
     }
 
 type Demo = RWST Env () State IO
@@ -121,11 +119,6 @@ main = do
 
         renderContext <- Render.newRenderContext m
 
-        font <- liftIO $ do
-          f <- createTextureFont "ASMAN.TTF"
-          setFontFaceSize f 72 72
-          return f
-
         let zDistClosest  = 10
             zDistFarthest = zDistClosest + 20
             zDist         = zDistClosest + ((zDistFarthest - zDistClosest) / 2)
@@ -153,7 +146,6 @@ main = do
               , stateRenderContext = renderContext
               , stateCam = newDefaultCamera (fromIntegral fbWidth) (fromIntegral fbHeight)
               , stateGameMap = (newMap m)
-              , stateFont = font
               }
         runDemo env state
 
@@ -424,8 +416,6 @@ draw = do
   let cam = asks stateCam state
 
   liftIO $ Render.render win rc cam
-
-  liftIO $ renderFont (asks stateFont state) "This is a test" All
 
   return()
 
