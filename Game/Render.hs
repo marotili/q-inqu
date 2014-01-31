@@ -49,11 +49,9 @@ newRenderContext gameMap renderMap = do
 	--let imgHeight = 217
 	case image of
 		(Left s) -> do
-			print s
 			exitWith (ExitFailure 1)
 		(Right s) -> case s of
 			(ImageRGBA8 (Image imgWidth imgHeight dat)) -> do
-				print $ (imgWidth, imgHeight)
 				V.unsafeWith dat $ \ptr -> do
 					texImage2D Texture2D NoProxy 0 RGBA8 
 						(TextureSize2D (fromIntegral imgWidth) (fromIntegral imgHeight)) 0 

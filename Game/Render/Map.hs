@@ -154,7 +154,7 @@ newWorldRenderContext gameMap renderMap = do
 	uploadFromVec GL.ArrayBuffer (buffers!!0) tileData
 	--print $ tileData
 
-	print $ tileColors m
+	--print $ tileColors m
 
 	uploadFromVec GL.ShaderStorageBuffer (buffers!!1) (tileCoords m)
 	uploadFromVec GL.ShaderStorageBuffer (buffers!!2) (tileColors m)
@@ -189,7 +189,7 @@ renderWorldRenderContext program wrc = do
 	GL.shaderStorageBlockBinding program 0 0
 
 	sampler <- GL.get $ GL.uniformLocation program "Tex1"
-	print sampler
+	--print sampler
 	GL.uniform sampler $= (GL.Index1 (0 :: GL.GLuint))
 	--V.unsafeWith workaround $ \ptr -> GLRaw.glUniformMatrix4fv projLoc 1 1 (castPtr ptr)
 

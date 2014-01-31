@@ -20,10 +20,11 @@ import qualified Data.Set as Set
 import qualified Graphics.UI.GLFW          as GLFW
 import Data.Tiled
 import Game.Tiled
+import Game.Input.Input
+import Game.Input.Actions
 
 --import Game.Render
 --import Game.Cell
-import Game.Input.Input
 import qualified Game.Render as Render
 import Game.Map
 import Game.Render.Map
@@ -33,6 +34,8 @@ import Game.Render.Camera
 --import Game.Graph (step, genTestGraph, Graph, test)
 import qualified Graphics.Rendering.OpenGL as GL
 import Linear
+
+import qualified Control.Monad.State as S
 
 --------------------------------------------------------------------------------
 
@@ -57,10 +60,10 @@ data State = State
     , stateDragStartY      :: !Double
     , stateDragStartXAngle :: !Double
     , stateDragStartYAngle :: !Double
-    , stateInput :: !Input
     , stateRenderContext :: Render.RenderContext
     , stateCam :: Camera
     , stateGameMap :: RMap.Map
+    , stateInput :: S.State UserInput ()
     }
 
 type Demo = RWST Env () State IO
@@ -149,7 +152,7 @@ main = do
               , stateDragStartY      = 0
               , stateDragStartXAngle = 0
               , stateDragStartYAngle = 0
-              , stateInput = inputNew
+              , stateInput = return ()
               , stateRenderContext = renderContext
               , stateCam = newDefaultCamera (fromIntegral fbWidth) (fromIntegral fbHeight)
               , stateGameMap = rm
@@ -222,7 +225,7 @@ charCallback            tc win c          = atomically $ writeTQueue tc $ EventC
 runDemo :: Env -> State -> IO ()
 runDemo env state = do
     printInstructions
-    void $ evalRWST (adjustWindow >> (run W.clockSession_ cameraPos)) env state
+    void $ evalRWST (adjustWindow >> (run W.clockSession_ userInput)) env state
 
 networkLoop w' session' = do
   (dt, session) <- W.stepSession session'
@@ -232,8 +235,8 @@ networkLoop w' session' = do
     Right x -> putStrLn ("Produced: " ++ show x)
   networkLoop w session
 
-run :: (Num a, W.Monoid e, Show a) => W.Session IO (W.Timed W.NominalDiffTime ()) ->
-        W.Wire (W.Timed W.NominalDiffTime ()) e (ReaderT Input IO) a (V2 Float) -> Demo ()
+run :: (Num a, Show a, Show b) => W.Session IO (W.Timed W.NominalDiffTime ()) ->
+        InputWire a b -> Demo ()
 run session w = do
     win <- asks envWindow
 
@@ -274,10 +277,11 @@ run session w = do
     let input = asks stateInput state
     --(session', w') <- liftIO $ step w session input
 
-    (camPos, session', w') <- liftIO $ stepGame w session input
-    case camPos of
-      Right (V2 x y) -> modify $ \s -> s { stateCam = cameraUpdatePosition (stateCam s) x y }
-      _ -> return ()
+    (actions, session', w') <- liftIO $ stepGame w session input
+    liftIO $ print actions
+    --case camPos of
+    --  Right (V2 x y) -> modify $ \s -> s { stateCam = cameraUpdatePosition (stateCam s) x y }
+    --  _ -> return ()
 
     let c = asks stateCam state
     let V2 cx cy = screenToOpenGLCoords c 0 0
@@ -344,8 +348,8 @@ processEvent ev =
                   }
 
           if (mbs == GLFW.MouseButtonState'Pressed)
-            then modify $ \s -> s { stateInput = inputMouseButtonDown (stateInput s) mb }
-            else modify $ \s -> s { stateInput = inputMouseButtonUp (stateInput s) mb }
+            then modify $ \s -> s { stateInput = (stateInput s) >> inputMouseButtonDown mb }
+            else modify $ \s -> s { stateInput = (stateInput s) >> inputMouseButtonUp mb }
 
       (EventCursorPos _ x y) -> do
           let x' = round x :: Int
@@ -372,7 +376,7 @@ processEvent ev =
           liftIO $ print (wx, wy)
           liftIO $ print $ mapSelectTile (V2 wx wy) (asks stateGameMap state)
 
-          modify $ \s -> s { stateInput = inputUpdateMousePos (stateInput s) (x, y) }
+          modify $ \s -> s { stateInput = (stateInput s) >> inputUpdateMousePos (x, y) }
 
       (EventCursorEnter _ cs) ->
           printEvent "cursor enter" [show cs]
@@ -402,10 +406,10 @@ processEvent ev =
               when (k == GLFW.Key'I) $
                 liftIO $ printInformation win
 
-              modify $ \s -> s { stateInput = inputKeyDown (stateInput s) k }
+              modify $ \s -> s { stateInput = (stateInput s) >> inputKeyDown k }
 
           when (ks == GLFW.KeyState'Released) $ do
-              modify $ \s -> s { stateInput = inputKeyUp (stateInput s) k }
+              modify $ \s -> s { stateInput = (stateInput s) >> inputKeyUp k }
 
       (EventChar _ c) ->
           printEvent "char" [show c]

@@ -1,17 +1,59 @@
 module Game.Input.Actions where
 
 import Data.Binary
+import Data.Monoid
+import Linear
 
 data Direction = 
 	  DirNorth
 	| DirEast
 	| DirSouth
 	| DirWest
+	deriving (Show, Eq)
 
 data Action = 
 	  ActionNothing
 	| ActionMove Float Float -- normalized direction
+	| ActionPickup
 	| ActionActivate Direction
+	deriving (Show, Eq)
+
+newMoveAction :: Float -> Float -> Action
+newMoveAction x y = ActionMove x' y'
+	where
+		V2 x' y' = normalize $ V2 x y
+
+-- output of wire
+newtype InputActions = InputActions [Action]
+	deriving (Show)
+
+newInputAction :: Action -> InputActions
+newInputAction action = InputActions [action]
+
+instance Monoid InputActions where
+	mempty = InputActions []
+	--mappend :: InputActions -> InputActions -> InputActions
+	mappend (InputActions []) as = as
+	mappend as (InputActions []) = as
+
+	mappend (InputActions [action@ActionNothing]) (InputActions as) = InputActions $
+		if action `elem` as then as else action:as
+
+	-- Add debug infos, two input actions should not happen
+	mappend (InputActions [action@(ActionActivate dir)]) (InputActions as) = InputActions $ 
+		if action `elem` as then as else action:as
+
+	mappend (InputActions [action@ActionPickup]) (InputActions as) = InputActions $
+		if action `elem` as then as else action:as
+
+	mappend (InputActions [ActionMove x y]) (InputActions as) = InputActions $
+		foldr (\a ls -> case a of 
+			ActionMove x' y' -> ActionMove (x+x') (y+y'):ls
+			_ -> a:ls
+			) [] as
+
+
+	mappend as1 (InputActions as2) = foldr (\a -> mappend (InputActions [a])) as1 as2
 
 instance Binary Direction where
 	put DirNorth = put (0 :: Word8)

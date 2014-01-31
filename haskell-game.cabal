@@ -149,7 +149,8 @@ executable cell
     parallel >= 3.2.0.4,
     netwire >= 5.0.0,
     JuicyPixels,
-    htiled
+    htiled,
+    binary
 
   ghc-options: -rtsopts -threaded -fprof-auto
   main-is: main.hs

@@ -113,7 +113,7 @@ programSetViewProjection program camera = do
 	(GL.UniformLocation viewLoc) <- GL.get $ GL.uniformLocation program "view"
 	--GL.uniform viewLoc $= viewMat
 
-	print (projLoc, viewLoc)
+	--print (projLoc, viewLoc)
 
 	V.unsafeWith workaround $ \ptr -> GLRaw.glUniformMatrix4fv projLoc 1 1 (castPtr ptr)
 	V.unsafeWith workaround2 $ \ptr -> GLRaw.glUniformMatrix4fv viewLoc 1 1 (castPtr ptr)
