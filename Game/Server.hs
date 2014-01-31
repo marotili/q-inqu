@@ -4,6 +4,8 @@ module Main where
 
 import Game.World
 
+import Pipes.Lift
+
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -67,9 +69,12 @@ stepWorld w' session' world' state' = do
 
 	return ((w, session), (worldManager, worldDelta), dtime dt)
 
-produceWorld :: World -> WorldManager -> WorldWire () b -> WorldSession -> 
-	Producer (Rational, WorldDelta, World) IO ()
-produceWorld world manager w session = do
+type ClientData = ((Float, Action), Rational, WorldDelta, World)
+
+produceWorld :: World -> WorldManager -> WorldWire () b -> WorldSession -> (Float, Action) ->
+	Producer ClientData IO ()
+produceWorld world manager w session action = do
+	lift $ print action
 	-- run wires
 	((w', session'), (manager', delta), dt) <- lift $ stepWorld w session world manager
 
@@ -80,56 +85,100 @@ produceWorld world manager w session = do
 	--lift $ print world'
 
 	-- Send to user
-	P.yield (realToFrac dt, delta, world')
+	P.yield (action, realToFrac dt, delta, world')
 
 	-- wait
-	lift $ threadDelay oneSecond
+	--lift $ threadDelay oneSecond
 
 	-- repeat
-	produceWorld world' manager' w' session'
+	--produceWorld world' manager' w' session' action
 
 --getDeltaTime (dt, deltaWorld, world) = dt
 --getWorld (dt, dWorld, world) = world
 
+--debug = do
+--	p <- P.await
+--	lift $ print p
+--	P.yield p
+
+game :: Input (Float, Action) -> Output C.ByteString -> IO ()
 game recvEvents output = do
 	let session = clockSession_
 	let world = newWorld
+
+	let
+		worldProducer :: (Float, Action) -> Producer ClientData IO ()
+		worldProducer = produceWorld world newWorldManager testwire session
+
+		eventProducer :: Producer (Float, Action) IO ()
+		eventProducer = P.for (fromInput recvEvents) (\a -> lift (print a) >> P.yield a)
 	runEffect $
-		--fromInput recvEvents >->
-		P.for (produceWorld world newWorldManager testwire session) PB.encode 
-		>-> toOutput output
+		P.for (P.for eventProducer worldProducer) PB.encode 
+			>-> toOutput output
 	performGC
+
+eventUpdate = do
+	P.yield (0, ActionNothing)
+	lift $ threadDelay (millisecond*1000)
+	eventUpdate
  
 main = withSocketsDo $ do
-
 	(output1, input1) <- spawn Unbounded
 	(output2, input2) <- spawn Unbounded
 
-	(sendEvents, recvEvents) <- spawn Unbounded
+	(sendEvents1, recvEvents1) <- spawn Unbounded :: IO (Output (Float, Action), Input (Float, Action))
+	--(sendEvents2, recvEvents2) <- spawn Unbounded
+	--(sendEvents3, recvEvents3) <- spawn Unbounded
 
+	let recvEvents = recvEvents1
+	--let sendEvents = sens
 	let output = output1 Monoid.<> output2
+
+	async $ do
+		runEffect $ eventUpdate >-> toOutput sendEvents1
+		performGC
+
 	a1 <- async $ game recvEvents output
 
-	serve HostIPv4 "5002" (connCb (sendEvents, input1, input2))
+	serve HostIPv4 "5002" (connCb (sendEvents1, input1, input2))
 	mapM_ wait [a1]
 
 	return ()
 
+
+forward :: Pipe (PB.ByteOffset, (Float, Action)) (Float, Action) IO ()
+forward = do
+	(_, d) <- P.await
+	lift $ print ("Hallo", d)
+	P.yield d
+	forward
+
+connCb :: (Output (Float, Action), Input C.ByteString, Input C.ByteString)
+	-> (Socket, SockAddr) 
+	-> IO ()
 connCb (sendEvents, input1, input2) (sock, addr) = do
 	print addr
 	--sClose sock
 
-	let cons = toSocket sock
-	let prod = fromSocket sock 4096
+	let toClient = toSocket sock
+	let fromClient = fromSocket sock 4096
+
+	let
+		testX :: Producer (PB.ByteOffset, (Float, Action)) IO ()
+		testX = (decodeAction fromClient >> return () >> testX) 
+
 	--runEffect $ (P.yield "Test" >-> cons)
 	a1 <- async $ do
-		runEffect $ fromInput input1 >-> cons
+		runEffect $ fromInput input1 >-> toClient
 		performGC
 	a2 <- async $ do
-		runEffect $ P.for (decodeAction prod) (P.lift . print)
+		runEffect $ testX >-> forward >-> toOutput sendEvents
 		performGC
+
 
 	mapM_ wait (a1:[a2])
 
 	return ()
+	where
+
 

@@ -27,6 +27,7 @@ import Pipes.Network.TCP
 import Pipes.Concurrent
 import Control.Concurrent.Async
 import Pipes.Binary
+import Game.Input.Actions
 
 type ProdDecoder a = (Monad m)	 
 	=> Producer B.ByteString m r
@@ -37,7 +38,7 @@ decodeDoubles = decodeMany
 decodeWorld :: ProdDecoder World
 decodeWorld = decodeMany
 
-decodeSteps :: ProdDecoder (Rational, WorldDelta, World)
+decodeSteps :: ProdDecoder ((Float, Action), Rational, WorldDelta, World)
 decodeSteps = decodeMany
 
 clientStepWorld :: WorldWire () b ->  World -> WorldManager -> Rational ->
@@ -53,11 +54,13 @@ clientStepWorld w' world' state' dt' = do
 	return (w, (worldManager, worldDelta))
 
 consumeClientWorld :: World -> WorldManager -> WorldWire () b -> 
-	Consumer (ByteOffset, (Rational, WorldDelta, World)) IO r
+	Consumer (ByteOffset, ((Float, Action), Rational, WorldDelta, World)) IO r
 consumeClientWorld world manager w = do
 	-- run wires
-	(_, (dt, serverDelta, serverWorld)) <- await
+	(_, ((userTime, action), dt, serverDelta, serverWorld)) <- await
 	(w', (manager', delta)) <- lift $ clientStepWorld w world manager dt
+
+	lift $ print (userTime, action, dt)
 
 	-- update our world state
 	let world' = applyDelta world delta
