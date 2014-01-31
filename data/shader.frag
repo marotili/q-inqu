@@ -2,11 +2,10 @@
 out vec4 color;
 in float color_in;
 
-layout(binding=0) buffer Data {
-	int data[];
-};
-
 flat in int instanceID;
+in vec2 texCoords;
+
+uniform sampler2D Tex1;
 
 uniform vec4 colors[3] = {
 	vec4(0, 1, 0, 1),
@@ -16,6 +15,8 @@ uniform vec4 colors[3] = {
 
 void main()
 {
-    color = vec4(1, 0, 0, 1);//colors[data[instanceID]];
+
+	color = texture(Tex1, texCoords);
+    // color = vec4(texCoords, 0, 1);//colors[data[instanceID]];
     // color = colors[1];
 }

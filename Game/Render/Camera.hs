@@ -74,7 +74,7 @@ cameraInverse cam vec = (invViewM !*! invProjM) !* vec
 newDefaultCamera viewportWidth viewportHeight = Camera
 	{ cameraProjection = newOrthogonalProjectionMatrix viewportWidth viewportHeight
 	, cameraPosition = V3 0 0 (-1)
-	, cameraOrientation = axisAngle (V3 0 1 0) 0 --(3.14159)
+	, cameraOrientation = axisAngle (V3 0 0 1) (3.14)
 	}
 
 cameraUpdateProjection :: Float -> Float -> Camera -> Camera
@@ -112,6 +112,8 @@ programSetViewProjection program camera = do
 	--GL.uniform projLoc $= projMat
 	(GL.UniformLocation viewLoc) <- GL.get $ GL.uniformLocation program "view"
 	--GL.uniform viewLoc $= viewMat
+
+	print (projLoc, viewLoc)
 
 	V.unsafeWith workaround $ \ptr -> GLRaw.glUniformMatrix4fv projLoc 1 1 (castPtr ptr)
 	V.unsafeWith workaround2 $ \ptr -> GLRaw.glUniformMatrix4fv viewLoc 1 1 (castPtr ptr)

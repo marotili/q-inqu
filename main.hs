@@ -18,6 +18,8 @@ import qualified FRP.Netwire as NW
 import qualified Data.Set as Set
 
 import qualified Graphics.UI.GLFW          as GLFW
+import Data.Tiled
+import Game.Tiled
 
 --import Game.Render
 --import Game.Cell
@@ -111,13 +113,18 @@ main = do
 
         (fbWidth, fbHeight) <- GLFW.getFramebufferSize win
 
-        let m = mapNew MapConfig { 
-              mapWidth = 9
-            , mapHeight = 9 
-            , mapNeighborhoodFunc = clipNeighborhood
-            }
+        --let m = mapNew MapConfig { 
+        --      mapWidth = 9
+        --    , mapHeight = 9 
+        --    , mapNeighborhoodFunc = clipNeighborhood
+        --    }
 
-        renderContext <- Render.newRenderContext m
+        tiledMap <- loadMapFile "data/sewers.tmx"
+        let m = mapNew $ mapConfigFromTiled tiledMap
+        let rm = renderMapFromTiled tiledMap
+
+
+        renderContext <- Render.newRenderContext m rm
 
         let zDistClosest  = 10
             zDistFarthest = zDistClosest + 20
@@ -145,7 +152,7 @@ main = do
               , stateInput = inputNew
               , stateRenderContext = renderContext
               , stateCam = newDefaultCamera (fromIntegral fbWidth) (fromIntegral fbHeight)
-              , stateGameMap = (newMap m)
+              , stateGameMap = rm
               }
         runDemo env state
 

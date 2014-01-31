@@ -1,6 +1,7 @@
 module Game.Render where
 
 import Graphics.Rendering.OpenGL
+--import Graphics.Rendering.OpenGL.Texturing.Filter
 import qualified Graphics.Rendering.OpenGL as GL
 --import Graphics.Rendering.OpenGL (($=))
 import qualified Graphics.UI.GLFW as GLFW
@@ -12,6 +13,10 @@ import Foreign.Ptr
 import Game.Render.Map
 import Game.Render.Render
 import Game.Render.Camera
+import Codec.Picture.Png
+import Codec.Picture
+
+import System.Exit
 
 data RenderContext = RenderContext
 	{ rcMainProgram :: Program
@@ -20,15 +25,48 @@ data RenderContext = RenderContext
 	--, rcCamera :: Camera
 	}
 
-newRenderContext gameMap = do
+newRenderContext gameMap renderMap = do
 	program <- setupShaders
 
-	wrc <- newWorldRenderContext gameMap
+	wrc <- newWorldRenderContext gameMap renderMap
 	bindWorldRenderContext wrc program
 
 	[debugBuffer] <- GL.genObjectNames 1 :: IO [GL.BufferObject]
 
 	uploadFromVec GL.ShaderStorageBuffer debugBuffer (V.fromList [0 | _ <- [0..4*6*81-1]] :: V.Vector Float)
+
+
+	-- Generate 1 texture object
+	[texObject] <- genObjectNames 1
+
+	activeTexture $= TextureUnit 0
+
+	-- Make it the "currently bound 2D texture"
+	textureBinding Texture2D $= Just texObject
+
+	image <- readPng "data/sewer_tileset.png"
+	--let imgWidth = 192
+	--let imgHeight = 217
+	case image of
+		(Left s) -> do
+			print s
+			exitWith (ExitFailure 1)
+		(Right s) -> case s of
+			(ImageRGBA8 (Image imgWidth imgHeight dat)) -> do
+				print $ (imgWidth, imgHeight)
+				V.unsafeWith dat $ \ptr -> do
+					texImage2D Texture2D NoProxy 0 RGBA8 
+						(TextureSize2D (fromIntegral imgWidth) (fromIntegral imgHeight)) 0 
+						(PixelData RGBA UnsignedByte ptr)
+					textureFilter Texture2D $= ((Nearest, Nothing), Nearest)
+			--(ImageRGB8 (Image imgWidth imgHeight dat)) ->
+			--	V.unsafeWith dat $ \ptr ->
+			--		texImage2D Texture2D NoProxy 0 RGB8
+			--			(TextureSize2D (fromIntegral imgWidth) (fromIntegral imgHeight)) 0 
+			--			(PixelData RGB UnsignedByte ptr)
+
+	--err <- get GL.errors
+	--print err
 
 	return RenderContext
 		{ rcMainProgram = program

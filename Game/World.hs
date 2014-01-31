@@ -25,7 +25,7 @@ data WorldDelta = WorldDelta
 	, wdPositionsDelta :: Map.Map ObjectId (Float, Float) -- relative
 	, wdPlayerAdd :: [Player] -- absolute
 	, wdDoorControllers :: [DoorController] -- absolute
-	} deriving (Show)
+	} deriving (Show, Eq)
 
 deltaMoveObject :: ObjectId -> (Float, Float) -> WorldContext ()
 deltaMoveObject oId dPos@(dx, dy) = writer ((), emptyDelta
@@ -75,7 +75,7 @@ data WorldManager = WorldManager
 	, wmObjectsInUse :: Map.Map ObjectId ObjectId -- Map objectInUse owningObject
  	, wmObjectRefs :: Map.Map ObjectId ObjectIds
 	, wmNextObjectId :: ObjectId
-	} deriving (Show)
+	} deriving (Show, Eq)
 
 newWorldManager = WorldManager
 	{ wmObjects = Set.empty
@@ -218,7 +218,7 @@ data World = World
 	, wSwitches :: Map.Map SwitchId Switch
 	, wPositions :: Map.Map ObjectId (Float, Float)
 	, wPlayers :: Map.Map ObjectId Player
-	} deriving (Show)
+	} deriving (Show, Eq)
 
 newWorld = World
 	{ wDoors = Map.empty
@@ -242,6 +242,9 @@ type WorldContext = DebugWorldContext
 --type WorldWire a b = Wire (Timed NominalDiffTime ()) () WorldContext a b
 type DebugWire a b = Wire (Timed NominalDiffTime ()) () DebugWorldContext a b
 type WorldWire a b = DebugWire a b 
+type WorldSession = Session IO (Timed NominalDiffTime ())
+
+--type Session = Session ()
 
 type ObjectIds = Set.Set ObjectId
 type ObjectId = Int
@@ -253,7 +256,85 @@ type PlayerId = ObjectId
 data Player = Player
 	{ playerId :: ObjectId
 	, playerName :: String
-	} deriving (Show)
+	} deriving (Show, Eq)
+
+data Door = Door
+	{ doorId :: DoorId
+	, doorOpen :: Bool
+	} deriving (Show, Eq)
+--newDoor :: DoorId -> Door
+--newDoor doorId = Door doorId False
+
+data DoorController = DoorController
+	{ doorControllerId :: DoorControllerId
+	, dcTargetDoorId :: DoorId
+	, dcTimeRunning :: Float
+	, dcTimeNeedsToOpen :: Float
+	, dcStarted :: Bool
+	} deriving (Show, Eq)
+--newDoorController :: DoorId -> DoorControllerId -> DoorController
+--newDoorController doorId dcId = DoorController dcId doorId 0 1 False
+
+data Switch = Switch
+	{ switchId :: SwitchId
+	, switchOn :: Bool
+	} deriving (Show, Eq)
+--newSwitch :: SwitchId -> Switch
+--newSwitch swithcId = Switch swithcId False
+
+instance B.Binary WorldDelta where
+	put WorldDelta
+	 	{ wdDoorsAdd
+	 	, wdPositionsDelta
+	 	, wdPlayerAdd
+	 	, wdDoorControllers
+		} = do
+			B.put wdDoorsAdd
+			B.put wdPositionsDelta
+			B.put wdPlayerAdd
+			B.put wdDoorControllers
+
+	get = do
+		a <- B.get
+		b <- B.get
+		c <- B.get
+		d <- B.get
+
+		return WorldDelta
+			{ wdDoorsAdd = a
+			, wdPositionsDelta = b
+			, wdPlayerAdd = c
+			, wdDoorControllers = d
+			}
+
+instance B.Binary World where
+	put World 
+		{ wDoors
+		, wDoorControllers
+		, wSwitches
+		, wPositions
+		, wPlayers
+		} = do
+			B.put wDoors
+			B.put wDoorControllers
+			B.put wSwitches
+			B.put wPositions
+			B.put wPlayers
+
+	get = do
+		doors <- B.get
+		doorControllers <- B.get
+		switches <- B.get
+		positions <- B.get
+		players <- B.get
+
+		return World 
+			{ wDoors = doors
+			, wDoorControllers = doorControllers
+			, wSwitches = switches
+			, wPositions = positions
+			, wPlayers = players
+			}
 
 instance B.Binary Player where
 	put (Player {playerId, playerName}) = do
@@ -264,200 +345,50 @@ instance B.Binary Player where
 		pName <- B.get
 		return (Player pId pName)
 
-data Door = Door
-	{ doorId :: DoorId
-	, doorOpen :: Bool
-	} deriving (Show)
---newDoor :: DoorId -> Door
---newDoor doorId = Door doorId False
+instance B.Binary Door where
+	put (Door { doorId, doorOpen }) = B.put doorId >> B.put doorOpen
+	get = do
+		dId <- B.get
+		dOpen <- B.get
+		return Door { doorId = dId, doorOpen = dOpen}
 
-data DoorController = DoorController
-	{ doorControllerId :: DoorControllerId
-	, dcTargetDoorId :: DoorId
-	, dcTimeRunning :: NominalDiffTime
-	, dcTimeNeedsToOpen :: NominalDiffTime
-	, dcStarted :: Bool
-	} deriving (Show)
---newDoorController :: DoorId -> DoorControllerId -> DoorController
---newDoorController doorId dcId = DoorController dcId doorId 0 1 False
+instance B.Binary DoorController where
+	put DoorController 
+		{ doorControllerId
+		, dcTargetDoorId
+		, dcTimeRunning
+		, dcTimeNeedsToOpen
+		, dcStarted
+		} = do
+			B.put doorControllerId
+			B.put dcTargetDoorId
+			B.put dcTimeRunning
+			B.put dcTimeNeedsToOpen
+			B.put dcStarted
 
-data Switch = Switch
-	{ switchId :: SwitchId
-	, switchOn :: Bool
-	} deriving (Show)
---newSwitch :: SwitchId -> Switch
---newSwitch swithcId = Switch swithcId False
+	get = do
+		dcId <- B.get
+		dcTDId <- B.get
+		dcTR <- B.get
+		dcTNTO <- B.get
+		dcS <- B.get
 
+		return DoorController 
+			{ doorControllerId = dcId
+			, dcTargetDoorId = dcTDId
+			, dcTimeRunning = dcTR
+			, dcTimeNeedsToOpen = dcTNTO
+			, dcStarted = dcS
+			}
 
+instance B.Binary Switch where
+	put Switch
+		{ switchId
+		, switchOn
+		} = B.put switchId >> B.put switchOn
 
---newWorld = World
---	{ worldDoors = Map.empty
---	, worldDoorControllers = Map.empty
---	, worldSwitches = Map.empty
---	, _objects = Set.empty
---	, _objectsInUse = Map.empty
---	, _objectRefs = Map.empty
---	, _nextObjectId = 1
---	}  
+	get = do
+		sId <- B.get
+		sOn <- B.get
+		return Switch { switchId = sId, switchOn = sOn }
 
----- TODO work with 'lens' to abstract setters
-
---type WorldWire a b = Wire (Timed NominalDiffTime ()) () (State World) a b
-
-
---lockObject = mkGenN $ \(ownerId, objectId) -> do
---	s1 <- worldLockObject ownerId objectId
---	return $ if s1 
---		then (Right (ownerId, objectId), lockObject)
---		else (Left (), lockObject)
-
---unlockObject = mkGenN $ \(ownerId, objectId) -> do
---	worldUnlockObject ownerId objectId
---	return (Right (ownerId, objectId), unlockObject)
-
---doorController = mkGenN $ \dcId -> do
---	c <- worldDoorController dcId
---	return (Right c, doorController)
-
---updateDoorController = mkGenN $ \dc -> do
---	modify $ \w -> w { worldDoorControllers = Map.insert (doorControllerId dc) dc (worldDoorControllers w) }
---	return (Right (Event ()), updateDoorController)
-
---switchDoor = mkGenN $ \dId -> do
---	worldSwitchDoor dId
---	return (Right (Event ()), switchDoor)
-
---dTime = mkGen $ \ds _ -> return $ (Right (dtime ds), dTime)
-
---runController :: DoorControllerId -> WorldWire a ()
---runController dcId = proc input -> do
---	controller <- doorController -< dcId
---	let dId = dcTargetDoorId controller
---	--lockObject W.--> inhibit () . unlockObject -< (dcId, dcId)
---	--lockObject . fmap fst W.id W.--> inhibit () . fmap fst ((unlockObject . fmap fst W.id) &&& (unlockObject . fmap snd W.id)) -< ((dcId, dId), (dcId, dcId))
---	dt <- dTime -< input
---	let time = dcTimeRunning controller + dt
---	if time >= dcTimeNeedsToOpen controller
---		then do
---			switchDoor -< dId
---			inhibit () -< input
---		else do
---			let updatedController = controller 
---				{ dcTimeRunning = time
---				, dcStarted = True
---				}		
---			updateDoorController -< updatedController
-
---	returnA -< ()
-
-
---mkWorld :: State World (ObjectId, ObjectId)
---mkWorld = do
---	put newWorld
---	door <- worldNewDoor
---	dc <- worldNewDoorController door
---	return (doorId door, doorControllerId dc)
-
---testMain = do
---	let ((dId, dcId), world) = (runState mkWorld) newWorld
---	print (dId, dcId)
-
---	let session' = clockSession_
---	loop session' world dcId
-
---	where loop session' world' dcId = do
---			(dt, session) <- stepSession session'
---			print dt
---			let (w, world) = runState (do 
---				stepWire (runController dcId) dt (Right ())
---				) world'
---			print $ fst w
---			print (worldDoors world)
---			loop session world dcId
-
--- loop: worldContext w -> worldContext' w' -> worldContext'' w''	
-
-
---worldNewSwitch :: State World Switch
---worldNewSwitch = do
---	(switch, newSwitches) <- worldNewObject worldSwitches newSwitch
---	modify $ \w -> w { worldSwitches = newSwitches }
---	return switch
-
---worldDoorController :: DoorControllerId -> State World DoorController
---worldDoorController dcId = do
---	w <- get
---	return $ (worldDoorControllers w) Map.! dcId
-
---worldNewDoorController :: Door -> State World DoorController
---worldNewDoorController Door { doorId } = do
---	(doorController, newDoorControllers) <- worldNewObject worldDoorControllers (newDoorController doorId)
---	_worldAddObjectRef (doorControllerId doorController) doorId
---	modify $ \w -> w { worldDoorControllers = newDoorControllers }
---	return doorController
-
---worldDoor :: DoorId -> State World Door
---worldDoor dId = get >>= \w -> return $ (worldDoors w) Map.! dId
-
---worldSwitchDoor :: DoorId -> State World ()
---worldSwitchDoor dId = do
---	targetDoor <- worldDoor dId
---	let updatedDoor = targetDoor { doorOpen = not (doorOpen targetDoor) }
---	modify $ \w -> w { worldDoors = Map.insert dId updatedDoor (worldDoors w) }
-
---worldNewDoor :: State World Door
---worldNewDoor = do
---	(door, newWorldDoors) <- worldNewObject worldDoors newDoor
---	modify $ \w -> w { worldDoors = newWorldDoors }
---	return door
-
---worldNewObject :: (World -> Map.Map ObjectId a) -> (ObjectId -> a) -> State World (a, Map.Map ObjectId a)
---worldNewObject getter constructor = do
---	w <- get
---	newId <- _worldGenObjectId
---	let obj = constructor newId
---	return $ (obj, Map.insert newId obj (getter w))
-
---_worldAddObject :: ObjectId -> State World ()
---_worldAddObject objectId = do
---	modify $ \w -> w { _objects = Set.insert objectId (_objects w) }
-
---_worldGenObjectId :: State World ObjectId
---_worldGenObjectId = do
---	world <- get
---	let objectId = _nextObjectId world
---	modify $ \w -> w { _nextObjectId = objectId + 1 }
---	_worldAddObject objectId
---	return objectId
-
----- TODO: reason about circular dependencies
---_worldAddObjectRef :: ObjectId -> ObjectId -> State World ()
---_worldAddObjectRef objectId targetObjectId = do
---	modify $ \w -> w { _objectRefs = newObjectRefs w }
---	where
---		newObjectRefs world = Map.alter alterRef objectId (_objectRefs world)
---		alterRef Nothing = Just $ Set.insert targetObjectId Set.empty
---		alterRef (Just ids) = Just $ Set.insert targetObjectId ids
-
---worldObjectLocked :: ObjectId -> State World Bool
---worldObjectLocked oId = get >>= (\w -> return $ if Map.member oId (_objectsInUse w) then True else False)
-
----- lock an object, returns updated world state on success, nothing on failure
---worldLockObject :: ObjectId -> ObjectId -> State World Bool
---worldLockObject ownerId objectId = do
---	world <- get
---	if objectInUse world || objectExists world
---		then return False 
---		else do
---			modify $ \world -> world { _objectsInUse = Map.insert objectId ownerId (_objectsInUse world)}
---			return True
---	where
---		objectInUse world = Map.member objectId (_objectsInUse world)
---		objectExists world = Set.member objectId (_objects world)
-
---worldUnlockObject :: ObjectId -> ObjectId -> State World ()
---worldUnlockObject ownerId objectId = do
---	w <- get
---	if (_objectsInUse w) Map.! objectId == ownerId -- only unlock if owner of object
---		then modify $ \w -> w { _objectsInUse = Map.delete objectId (_objectsInUse w) }
---		else return ()

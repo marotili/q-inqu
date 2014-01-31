@@ -1,6 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 module Game.Map (
-	Cell(..), Map, MapConfig(..), CellType(..),
+	Cell(..), Map, MapConfig(..), CellType(..), CellTile,
 	mapNumCellsWidth, mapNumCellsHeight, mapNumCells,
 	mapNew, mapConfig, mapCell,
 
@@ -9,6 +9,7 @@ module Game.Map (
 
 import qualified Data.Map as Map
 import Data.Maybe
+import Data.Int
 
 data Position = Position 
 	{ posX :: Int
@@ -22,22 +23,28 @@ data CellType =
 	| CellTypeGrass
 	deriving (Eq, Ord, Show)
 
+type CellTile = Int32 -- from tiled
+
 data Cell = Cell 
 	{ cellPos :: Position
-	, cellType :: CellType
+	, cellTile :: CellTile
 	} deriving (Eq, Ord, Show)
 
-newCell :: Position -> Cell
-newCell pos = Cell
+newCell :: CellTile -> Position -> Cell
+newCell tile pos = Cell
 	{ cellPos = pos
-	, cellType = CellTypeGrass
+	, cellTile = tile
 	}
 
 data MapConfig = MapConfig
 	{ mapWidth :: Int
 	, mapHeight :: Int
 	, mapNeighborhoodFunc :: MapConfig -> NeighborhoodFunc
+	, mapCellTiles :: Map.Map (Int, Int) CellTile
 	}
+
+instance Show MapConfig where
+	show MapConfig { mapWidth, mapHeight } = show mapWidth ++ " / " ++ show mapHeight
 
 data Map = Map
 	{ mapCells :: [[Cell]]
@@ -45,7 +52,7 @@ data Map = Map
 
 	-- accessed using wrapper function mapNeighbors
 	, _mapNeighbors :: Map.Map Cell [Cell]
-	}
+	} deriving (Show)
 
 mapNumCells :: Map -> Int
 mapNumCells m = mapNumCellsWidth m * mapNumCellsHeight m
@@ -62,7 +69,7 @@ mapCell :: (Int, Int) -> Map -> Cell
 mapCell (x, y) m = (mapCells m)!!y!!x
 
 cyclicNeighborhood :: MapConfig -> NeighborhoodFunc
-cyclicNeighborhood MapConfig { mapWidth, mapHeight } = (\(Cell { cellPos }) -> map (\f -> newCell . f $ cellPos) funcs)
+cyclicNeighborhood MapConfig { mapWidth, mapHeight } = (\(Cell { cellPos, cellTile }) -> map (\f -> newCell cellTile . f $ cellPos) funcs)
 	where
 		funcs = [topPos, topRightPos, rightPos, bottomRightPos, bottomPos, bottomLeftPos, leftPos, topLeftPos]
 
@@ -86,7 +93,7 @@ cyclicNeighborhood MapConfig { mapWidth, mapHeight } = (\(Cell { cellPos }) -> m
 
 
 clipNeighborhood :: MapConfig -> NeighborhoodFunc
-clipNeighborhood MapConfig { mapWidth, mapHeight } = (\(Cell { cellPos }) -> map newCell $ catMaybes (map ($cellPos) funcs))
+clipNeighborhood MapConfig { mapWidth, mapHeight } = (\(Cell { cellPos, cellTile }) -> map (newCell cellTile) $ catMaybes (map ($cellPos) funcs))
 	where
 		funcs = [topPos, topRightPos, rightPos, bottomRightPos, bottomPos, bottomLeftPos, leftPos, topLeftPos]
 
@@ -107,13 +114,13 @@ clipNeighborhood MapConfig { mapWidth, mapHeight } = (\(Cell { cellPos }) -> map
 type NeighborhoodFunc = Cell -> [Cell]
 
 mapNew :: MapConfig -> Map
-mapNew config@MapConfig { mapWidth, mapHeight, mapNeighborhoodFunc } = Map
+mapNew config@MapConfig { mapWidth, mapHeight, mapNeighborhoodFunc, mapCellTiles } = Map
 	{ mapCells = cells
 	, mapConfig = config
 	, _mapNeighbors = neighbors
 	}
 	where
-		cells = [[newCell (Position x y) | x <- [0..mapWidth-1]] | y <- [0..mapHeight-1]]
+		cells = [[newCell (mapCellTiles Map.! (x, y)) (Position x y) | x <- [0..mapWidth-1]] | y <- [0..mapHeight-1]]
 		neighbors = Map.fromList neighborFuncs
 
 		neighborFuncs = [(cell, mapNeighborhoodFunc config cell) | cell <- concat cells]

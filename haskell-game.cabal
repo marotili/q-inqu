@@ -10,27 +10,29 @@ source-repository head
   type: git
   location: git://github.com/mfpi/haskell-game.git
 
-Test-Suite test-tiled
-  type: exitcode-stdio-1.0
-  main-is: tests/Tiled.hs
-  build-depends: base,
-    htiled,
-    containers,
-    netwire
-  default-language:    Haskell2010
+--Test-Suite test-tiled
+--  type: exitcode-stdio-1.0
+--  main-is: tests/Tiled.hs
+--  build-depends: base,
+--    htiled,
+--    containers,
+--   netwire
+--  default-language:    Haskell2010
 
 library 
     exposed-modules:
         Game.Map
         Game.Unit
         Game.Input.Input
+        Game.Input.Actions
         Game.Render.Render
         Game.Render.Map
         Game.World
+        Game.Tiled
 
     build-depends:
         base,
-        linear >= 1.4,
+        linear >= 1.6,
         containers >= 0.5,
         lens >= 3.10.1,
         bimap >= 0.2.4,
@@ -48,7 +50,12 @@ library
         parallel >= 3.2.0.4,
         stm >= 2.4.2,
         netwire >= 5.0.0,
-        binary >= 0.5.1.1
+        binary >= 0.5.1.1,
+        pipes-network,
+        pipes,
+        pipes-binary,
+        JuicyPixels,
+        htiled
 
 executable server
     build-depends:
@@ -56,7 +63,8 @@ executable server
         cell,
         netwire >= 5.0.0 && <= 5.1,
         network >= 2.4.2.2,
-        linear >= 1.4,
+        network-simple,
+        linear >= 1.6,
         containers >= 0.5,
         lens >= 3.10.1,
         bimap >= 0.2.4,
@@ -74,7 +82,12 @@ executable server
         parallel >= 3.2.0.4,
         stm >= 2.4.2,
         netwire >= 5.0.0,
-        binary >= 0.5.1.1
+        binary >= 0.5.1.1,
+        pipes-network,
+        pipes,
+        pipes-concurrency,
+        async,
+        pipes-binary
     main-is: Game/Server.hs
 
 executable client
@@ -84,7 +97,7 @@ executable client
         netwire >= 5.0.0 && <= 5.1,
         network >= 2.4.2.2,
         network-simple >= 0.3.0,
-        linear >= 1.4,
+        linear >= 1.6,
         containers >= 0.5,
         lens >= 3.10.1,
         bimap >= 0.2.4,
@@ -102,14 +115,19 @@ executable client
         parallel >= 3.2.0.4,
         stm >= 2.4.2,
         netwire >= 5.0.0,
-        binary >= 0.5.1.1
+        binary >= 0.5.1.1,
+        pipes-network,
+        pipes,
+        pipes-concurrency,
+        async,
+        pipes-binary
     main-is: Game/Client.hs
 
 executable cell
   build-depends:
     base,
     cell,
-    linear >= 1.4,
+    linear >= 1.6,
     GLFW-b >= 1.4.6,
     transformers >= 0.3.0.0,
     mtl >= 2.1.2,
@@ -129,7 +147,9 @@ executable cell
     storable-tuple >= 0.0.2,
     OpenGLRaw >= 1.4.0.2,
     parallel >= 3.2.0.4,
-    netwire >= 5.0.0
+    netwire >= 5.0.0,
+    JuicyPixels,
+    htiled
 
   ghc-options: -rtsopts -threaded -fprof-auto
   main-is: main.hs
