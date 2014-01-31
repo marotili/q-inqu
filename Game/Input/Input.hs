@@ -96,8 +96,8 @@ directionX = pure (V2 1 0) . keyDown GLFW.Key'A . keyUp GLFW.Key'D <|>
 		pure (V2 (-1) 0) . keyDown GLFW.Key'D . keyUp GLFW.Key'A <|> 
 		pure 0
 
-directionY = pure (V2 0 (-1)) . keyDown GLFW.Key'W <|> 
-		pure (V2 0 1) . keyDown GLFW.Key'S <|> 
+directionY = pure (V2 0 (-1)) . keyDown GLFW.Key'W . keyUp GLFW.Key'S <|> 
+		pure (V2 0 1) . keyDown GLFW.Key'S. keyUp GLFW.Key'W <|> 
 		pure 0
 
 movement = moveAction . liftA2 (+) directionX directionY
@@ -117,7 +117,8 @@ userInput = proc input -> do
 	returnA -< (m, a)
 
 moveAction = mkGenN $ \(V2 x y) -> do
-	writer ((), newInputAction (newMoveAction x y))
+	Control.Monad.unless (x == 0 && y == 0) $
+		writer ((), newInputAction (newMoveAction x y))
 	return (Right (), moveAction)
 
 activateAction = mkGenN $ \_ -> do

@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, RankNTypes #-}
 
 module Main where
 
@@ -47,6 +47,13 @@ import Game.Input.Actions
 oneSecond = 1000000
 millisecond = oneSecond `div` 1000
 
+type ProdDecoder a = (Monad m)	 
+	=> Producer B.ByteString m r
+	-> Producer' (PB.ByteOffset, a) m (Either (PB.DecodingError, Producer B.ByteString m r) r)
+decodeAction :: ProdDecoder (Float, Action)
+decodeAction = PB.decodeMany
+
+
 stepWorld :: WorldWire () b -> WorldSession -> World -> WorldManager -> 
 	IO ((WorldWire () b, WorldSession), (WorldManager, WorldDelta), NominalDiffTime)
 stepWorld w' session' world' state' = do
@@ -70,7 +77,7 @@ produceWorld world manager w session = do
 	let world' = applyDelta world delta
 
 	-- debug output
-	lift $ print world'
+	--lift $ print world'
 
 	-- Send to user
 	P.yield (realToFrac dt, delta, world')
@@ -113,13 +120,13 @@ connCb (sendEvents, input1, input2) (sock, addr) = do
 	--sClose sock
 
 	let cons = toSocket sock
-	--let prod = fromSocket sock 4096
+	let prod = fromSocket sock 4096
 	--runEffect $ (P.yield "Test" >-> cons)
 	a1 <- async $ do
 		runEffect $ fromInput input1 >-> cons
 		performGC
 	a2 <- async $ do
-		--runEffect $ P.for prod (P.lift . print)
+		runEffect $ P.for (decodeAction prod) (P.lift . print)
 		performGC
 
 	mapM_ wait (a1:[a2])

@@ -4,7 +4,7 @@ module Main (main) where
 
 import GHC.Float
 
-import Control.Concurrent.STM    (TQueue, atomically, newTQueueIO, tryReadTQueue, writeTQueue)
+import Control.Concurrent.STM    (TQueue, atomically, newTQueueIO, tryReadTQueue, writeTQueue, readTQueue)
 import Control.Monad             (unless, when, void)
 import Control.Monad.Reader
 import Control.Monad.RWS.Strict  (RWST, ask, asks, evalRWST, get, liftIO, modify, put)
@@ -37,10 +37,24 @@ import Linear
 
 import qualified Control.Monad.State as S
 
+import Game.Client
+
+import Network.Simple.TCP
+import Control.Concurrent
+ 
+import Pipes as P
+import Pipes.Network.TCP
+import Pipes.Concurrent
+import Control.Concurrent.Async
+import Pipes.Binary
+import Game.World
+import qualified Pipes.Binary as PB
+
 --------------------------------------------------------------------------------
 
 data Env = Env
     { envEventsChan    :: TQueue Event
+    , envActionChan    :: TQueue (Float, InputActions)
     , envWindow        :: !GLFW.Window
     }
 
@@ -76,57 +90,84 @@ data Event =
 
 --------------------------------------------------------------------------------
 
+--actionProducer :: Producer InputActions 
+actionProducer ac = do
+    mtimeactions <- liftIO $ atomically $ readTQueue ac
+    --case mtimeactions of
+    let (time, InputActions actions) = mtimeactions
+    mapM_ (\a -> P.yield (time, a)) actions
+      --Nothing -> return ()
+        --lift . threadDelay $ 100000
+
+    actionProducer ac
+
 main :: IO ()
-main = do
+main = withSocketsDo $ do
     let width  = 640
         height = 480
 
-    eventsChan <- newTQueueIO :: IO (TQueue Event)
+    connect "127.0.0.1" "5002" $ \(sock, addr) -> do
+      let fromServer = fromSocket sock 4096
+      let toServer = toSocket sock
+      actionsChan <- newTQueueIO :: IO (TQueue (Float, InputActions))
 
-    withWindow width height "GLFW-b-demo" $ \win -> do
-        GLFW.setErrorCallback               $ Just $ errorCallback           eventsChan
-        GLFW.setWindowPosCallback       win $ Just $ windowPosCallback       eventsChan
-        GLFW.setWindowSizeCallback      win $ Just $ windowSizeCallback      eventsChan
-        GLFW.setWindowCloseCallback     win $ Just $ windowCloseCallback     eventsChan
-        GLFW.setWindowRefreshCallback   win $ Just $ windowRefreshCallback   eventsChan
-        GLFW.setWindowFocusCallback     win $ Just $ windowFocusCallback     eventsChan
-        GLFW.setWindowIconifyCallback   win $ Just $ windowIconifyCallback   eventsChan
-        GLFW.setFramebufferSizeCallback win $ Just $ framebufferSizeCallback eventsChan
-        GLFW.setMouseButtonCallback     win $ Just $ mouseButtonCallback     eventsChan
-        GLFW.setCursorPosCallback       win $ Just $ cursorPosCallback       eventsChan
-        GLFW.setCursorEnterCallback     win $ Just $ cursorEnterCallback     eventsChan
-        GLFW.setScrollCallback          win $ Just $ scrollCallback          eventsChan
-        GLFW.setKeyCallback             win $ Just $ keyCallback             eventsChan
-        GLFW.setCharCallback            win $ Just $ charCallback            eventsChan
+      async $ do
+        runEffect $ for (actionProducer actionsChan) PB.encode >-> toServer
+        performGC
 
-        GLFW.swapInterval 1
+      a1 <- async $ do
+        runEffect $ decodeSteps fromServer >-> consumeClientWorld newWorld newWorldManager testwire
+        performGC
 
-        (fbWidth, fbHeight) <- GLFW.getFramebufferSize win
+      eventsChan <- newTQueueIO :: IO (TQueue Event)
 
-        -- generate map from tiled
-        tiledMap <- loadMapFile "data/sewers.tmx"
-        let m = mapNew $ mapConfigFromTiled tiledMap
-        let rm = renderMapFromTiled tiledMap
+      withWindow width height "GLFW-b-demo" $ \win -> do
+          GLFW.setErrorCallback               $ Just $ errorCallback           eventsChan
+          GLFW.setWindowPosCallback       win $ Just $ windowPosCallback       eventsChan
+          GLFW.setWindowSizeCallback      win $ Just $ windowSizeCallback      eventsChan
+          GLFW.setWindowCloseCallback     win $ Just $ windowCloseCallback     eventsChan
+          GLFW.setWindowRefreshCallback   win $ Just $ windowRefreshCallback   eventsChan
+          GLFW.setWindowFocusCallback     win $ Just $ windowFocusCallback     eventsChan
+          GLFW.setWindowIconifyCallback   win $ Just $ windowIconifyCallback   eventsChan
+          GLFW.setFramebufferSizeCallback win $ Just $ framebufferSizeCallback eventsChan
+          GLFW.setMouseButtonCallback     win $ Just $ mouseButtonCallback     eventsChan
+          GLFW.setCursorPosCallback       win $ Just $ cursorPosCallback       eventsChan
+          GLFW.setCursorEnterCallback     win $ Just $ cursorEnterCallback     eventsChan
+          GLFW.setScrollCallback          win $ Just $ scrollCallback          eventsChan
+          GLFW.setKeyCallback             win $ Just $ keyCallback             eventsChan
+          GLFW.setCharCallback            win $ Just $ charCallback            eventsChan
 
-        -- default render context
-        renderContext <- Render.newRenderContext m rm
+          GLFW.swapInterval 1
 
-        let 
-            env = Env
-              { envEventsChan    = eventsChan
-              , envWindow        = win
-              }
-            state = State
-              { stateWindowWidth     = fbWidth
-              , stateWindowHeight    = fbHeight
-              , stateInput = return ()
-              , stateRenderContext = renderContext
-              , stateCam = newDefaultCamera (fromIntegral fbWidth) (fromIntegral fbHeight)
-              , stateGameMap = rm
-              }
-        runDemo env state
+          (fbWidth, fbHeight) <- GLFW.getFramebufferSize win
 
-    putStrLn "ended!"
+          -- generate map from tiled
+          tiledMap <- loadMapFile "data/sewers.tmx"
+          let m = mapNew $ mapConfigFromTiled tiledMap
+          let rm = renderMapFromTiled tiledMap
+
+          -- default render context
+          renderContext <- Render.newRenderContext m rm
+
+          let 
+              env = Env
+                { envEventsChan    = eventsChan
+                , envActionChan = actionsChan
+                , envWindow        = win
+                }
+              state = State
+                { stateWindowWidth     = fbWidth
+                , stateWindowHeight    = fbHeight
+                , stateInput = return ()
+                , stateRenderContext = renderContext
+                , stateCam = newDefaultCamera (fromIntegral fbWidth) (fromIntegral fbHeight)
+                , stateGameMap = rm
+                }
+          runDemo env state
+
+      --mapM_ wait [a1]
+
+      putStrLn "ended!"
 
 --------------------------------------------------------------------------------
 
@@ -208,9 +249,17 @@ run session w = do
     processEvents
 
     state <- get
+
+    userTime2 <- liftIO GLFW.getTime
+
+    let userTime = case userTime2 of Just time -> realToFrac time; Nothing -> 0
+
     -- user input
     let input = asks stateInput state -- maybe not threadsafe
-    (actions, session', w') <- liftIO $ stepInput w session input
+    (actions@(InputActions as), session', w') <- liftIO $ stepInput w session input
+
+    ac <- asks envActionChan
+    unless (null as) $ liftIO . atomically . writeTQueue ac $ (userTime, actions)
 
     -- update camera
     let c = asks stateCam state

@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, RankNTypes #-}
 
-module Main where
+module Game.Client where
 
 import Game.World
 
@@ -69,11 +69,5 @@ consumeClientWorld world manager w = do
 	-- repeat
 	consumeClientWorld world' manager' w'
 
-main = withSocketsDo $ 
-	connect "127.0.0.1" "5002" $ \(sock, addr) -> do
-		let prod = fromSocket sock 4096
-		--let cons = toSocket sock
-		a1 <- async $ do
-			runEffect $ (decodeSteps prod) >-> consumeClientWorld newWorld newWorldManager testwire
-			performGC
-		mapM_ wait [a1]
+--main = withSocketsDo $ 
+
