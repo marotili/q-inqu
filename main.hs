@@ -42,24 +42,11 @@ import qualified Control.Monad.State as S
 data Env = Env
     { envEventsChan    :: TQueue Event
     , envWindow        :: !GLFW.Window
-    , envZDistClosest  :: !Double
-    , envZDistFarthest :: !Double
     }
 
 data State = State
     { stateWindowWidth     :: !Int
     , stateWindowHeight    :: !Int
-    , stateXAngle          :: !Double
-    , stateYAngle          :: !Double
-    , stateZAngle          :: !Double
-    , stateGearZAngle      :: !Double
-    , stateZDist           :: !Double
-    , stateMouseDown       :: !Bool
-    , stateDragging        :: !Bool
-    , stateDragStartX      :: !Double
-    , stateDragStartY      :: !Double
-    , stateDragStartXAngle :: !Double
-    , stateDragStartYAngle :: !Double
     , stateRenderContext :: Render.RenderContext
     , stateCam :: Camera
     , stateGameMap :: RMap.Map
@@ -116,42 +103,22 @@ main = do
 
         (fbWidth, fbHeight) <- GLFW.getFramebufferSize win
 
-        --let m = mapNew MapConfig { 
-        --      mapWidth = 9
-        --    , mapHeight = 9 
-        --    , mapNeighborhoodFunc = clipNeighborhood
-        --    }
-
+        -- generate map from tiled
         tiledMap <- loadMapFile "data/sewers.tmx"
         let m = mapNew $ mapConfigFromTiled tiledMap
         let rm = renderMapFromTiled tiledMap
 
-
+        -- default render context
         renderContext <- Render.newRenderContext m rm
 
-        let zDistClosest  = 10
-            zDistFarthest = zDistClosest + 20
-            zDist         = zDistClosest + ((zDistFarthest - zDistClosest) / 2)
+        let 
             env = Env
               { envEventsChan    = eventsChan
               , envWindow        = win
-              , envZDistClosest  = zDistClosest
-              , envZDistFarthest = zDistFarthest
               }
             state = State
               { stateWindowWidth     = fbWidth
               , stateWindowHeight    = fbHeight
-              , stateXAngle          = 0
-              , stateYAngle          = 0
-              , stateZAngle          = 0
-              , stateGearZAngle      = 0
-              , stateZDist           = zDist
-              , stateMouseDown       = False
-              , stateDragging        = False
-              , stateDragStartX      = 0
-              , stateDragStartY      = 0
-              , stateDragStartXAngle = 0
-              , stateDragStartYAngle = 0
               , stateInput = return ()
               , stateRenderContext = renderContext
               , stateCam = newDefaultCamera (fromIntegral fbWidth) (fromIntegral fbHeight)
@@ -223,24 +190,17 @@ charCallback            tc win c          = atomically $ writeTQueue tc $ EventC
 --------------------------------------------------------------------------------
 
 runDemo :: Env -> State -> IO ()
-runDemo env state = do
-    printInstructions
-    void $ evalRWST (adjustWindow >> (run W.clockSession_ userInput)) env state
-
-networkLoop w' session' = do
-  (dt, session) <- W.stepSession session'
-  (mx, w) <- W.stepWire w' dt (Right 0)
-  case mx of
-    Left ex -> putStrLn ("Inhibited: " ++ show ex)
-    Right x -> putStrLn ("Produced: " ++ show x)
-  networkLoop w session
+runDemo env state =
+    void $ evalRWST (adjustWindow >> run W.clockSession_ userInput) env state
 
 run :: (Num a, Show a, Show b) => W.Session IO (W.Timed W.NominalDiffTime ()) ->
         InputWire a b -> Demo ()
 run session w = do
     win <- asks envWindow
 
+    -- render
     draw
+
     liftIO $ do
         GLFW.swapBuffers win
         --GL.flush  -- not necessary, but someone recommended it
@@ -248,44 +208,13 @@ run session w = do
     processEvents
 
     state <- get
-    if stateDragging state
-      then do
-          let sodx  = stateDragStartX      state
-              sody  = stateDragStartY      state
-              sodxa = stateDragStartXAngle state
-              sodya = stateDragStartYAngle state
-          (x, y) <- liftIO $ GLFW.getCursorPos win
-          let myrot = (x - sodx) / 2
-              mxrot = (y - sody) / 2
-          put $ state
-            { stateXAngle = sodxa + mxrot
-            , stateYAngle = sodya + myrot
-            }
-      else do
-          (kxrot, kyrot) <- liftIO $ getCursorKeyDirections win
-          (jxrot, jyrot) <- liftIO $ getJoystickDirections GLFW.Joystick'1
-          put $ state
-            { stateXAngle = stateXAngle state + (2 * kxrot) + (2 * jxrot)
-            , stateYAngle = stateYAngle state + (2 * kyrot) + (2 * jyrot)
-            }
+    -- user input
+    let input = asks stateInput state -- maybe not threadsafe
+    (actions, session', w') <- liftIO $ stepInput w session input
 
-    mt <- liftIO GLFW.getTime
-    modify $ \s -> s
-      { stateGearZAngle = maybe 0 (realToFrac . (100*)) mt
-      }
-
-    let input = asks stateInput state
-    --(session', w') <- liftIO $ step w session input
-
-    (actions, session', w') <- liftIO $ stepGame w session input
-    liftIO $ print actions
-    --case camPos of
-    --  Right (V2 x y) -> modify $ \s -> s { stateCam = cameraUpdatePosition (stateCam s) x y }
-    --  _ -> return ()
-
+    -- update camera
     let c = asks stateCam state
     let V2 cx cy = screenToOpenGLCoords c 0 0
-    --liftIO $ print (cameraInverse c (V4 cx cy 0 1 :: V4 Float))
 
     q <- liftIO $ GLFW.windowShouldClose win
     unless q (run session' w')
@@ -303,116 +232,43 @@ processEvents = do
 processEvent :: Event -> Demo ()
 processEvent ev =
     case ev of
-      (EventError e s) -> do
-          printEvent "error" [show e, show s]
-          win <- asks envWindow
-          liftIO $ GLFW.setWindowShouldClose win True
-
-      (EventWindowPos _ x y) ->
-          printEvent "window pos" [show x, show y]
-
-      (EventWindowSize _ width height) -> do
-          printEvent "window size" [show width, show height]
+      (EventWindowSize _ width height) ->
           modify $ \s -> s { stateCam = cameraUpdateProjection (fromIntegral width) (fromIntegral height) (stateCam s) }
-
-      (EventWindowClose _) ->
-          printEvent "window close" []
-
-      (EventWindowRefresh _) ->
-          printEvent "window refresh" []
-
-      (EventWindowFocus _ fs) ->
-          printEvent "window focus" [show fs]
-
-      (EventWindowIconify _ is) ->
-          printEvent "window iconify" [show is]
-
       (EventFramebufferSize _ width height) -> do
-          printEvent "framebuffer size" [show width, show height]
           modify $ \s -> s
             { stateWindowWidth  = width
             , stateWindowHeight = height
             }
           adjustWindow
 
-      (EventMouseButton _ mb mbs mk) -> do
-          printEvent "mouse button" [show mb, show mbs, showModifierKeys mk]
-          when (mb == GLFW.MouseButton'1) $ do
-              let pressed = mbs == GLFW.MouseButtonState'Pressed
-              modify $ \s -> s
-                { stateMouseDown = pressed
-                }
-              unless pressed $
-                modify $ \s -> s
-                  { stateDragging = False
-                  }
-
-          if (mbs == GLFW.MouseButtonState'Pressed)
-            then modify $ \s -> s { stateInput = (stateInput s) >> inputMouseButtonDown mb }
-            else modify $ \s -> s { stateInput = (stateInput s) >> inputMouseButtonUp mb }
+      (EventMouseButton _ mb mbs mk) ->
+          modify (if mbs == GLFW.MouseButtonState'Pressed
+              then \s -> s { stateInput = stateInput s >> inputMouseButtonDown mb }
+              else \s -> s { stateInput = stateInput s >> inputMouseButtonUp mb }
+            )
 
       (EventCursorPos _ x y) -> do
           let x' = round x :: Int
               y' = round y :: Int
-          -- printEvent "cursor pos" [show x', show y']
           state <- get
-
-
-          when (stateMouseDown state && not (stateDragging state)) $
-            put $ state
-              { stateDragging        = True
-              , stateDragStartX      = x
-              , stateDragStartY      = y
-              , stateDragStartXAngle = stateXAngle state
-              , stateDragStartYAngle = stateYAngle state
-              }
-
 
           let c = asks stateCam state
           let V2 cx cy = screenToOpenGLCoords c (double2Float x) (double2Float y)
           let V4 wx wy _ _ = cameraInverse c (V4 cx cy 0 1 :: V4 Float)
 
-          liftIO $ print (cx, cy)
-          liftIO $ print (wx, wy)
-          liftIO $ print $ mapSelectTile (V2 wx wy) (asks stateGameMap state)
-
-          modify $ \s -> s { stateInput = (stateInput s) >> inputUpdateMousePos (x, y) }
-
-      (EventCursorEnter _ cs) ->
-          printEvent "cursor enter" [show cs]
-
-      (EventScroll _ x y) -> do
-          let x' = round x :: Int
-              y' = round y :: Int
-          printEvent "scroll" [show x', show y']
-          env <- ask
-          modify $ \s -> s
-            { stateZDist =
-                let zDist' = stateZDist s + realToFrac (negate $ y / 2)
-                in curb (envZDistClosest env) (envZDistFarthest env) zDist'
-            }
-          adjustWindow
+          modify $ \s -> s { stateInput = stateInput s >> inputUpdateMousePos (x, y) }
 
       (EventKey win k scancode ks mk) -> do
-          --printEvent "key" [show k, show scancode, show ks, showModifierKeys mk]
           when (ks == GLFW.KeyState'Pressed) $ do
               -- Q, Esc: exit
-              when (k == GLFW.Key'Q || k == GLFW.Key'Escape) $
+              when (k == GLFW.Key'Escape) $
                 liftIO $ GLFW.setWindowShouldClose win True
-              -- ?: print instructions
-              when (k == GLFW.Key'Slash && GLFW.modifierKeysShift mk) $
-                liftIO printInstructions
-              -- i: print GLFW information
-              when (k == GLFW.Key'I) $
-                liftIO $ printInformation win
 
-              modify $ \s -> s { stateInput = (stateInput s) >> inputKeyDown k }
+              modify $ \s -> s { stateInput = stateInput s >> inputKeyDown k }
 
-          when (ks == GLFW.KeyState'Released) $ do
-              modify $ \s -> s { stateInput = (stateInput s) >> inputKeyUp k }
-
-      (EventChar _ c) ->
-          printEvent "char" [show c]
+          when (ks == GLFW.KeyState'Released) $ 
+              modify $ \s -> s { stateInput = stateInput s >> inputKeyUp k }
+      _ -> return ()
 
 adjustWindow :: Demo ()
 adjustWindow = return ()
@@ -428,204 +284,4 @@ draw = do
 
   liftIO $ Render.render win rc cam
 
-  return()
-
-getCursorKeyDirections :: GLFW.Window -> IO (Double, Double)
-getCursorKeyDirections win = do
-    x0 <- isPress `fmap` GLFW.getKey win GLFW.Key'Up
-    x1 <- isPress `fmap` GLFW.getKey win GLFW.Key'Down
-    y0 <- isPress `fmap` GLFW.getKey win GLFW.Key'Left
-    y1 <- isPress `fmap` GLFW.getKey win GLFW.Key'Right
-    let x0n = if x0 then (-1) else 0
-        x1n = if x1 then   1  else 0
-        y0n = if y0 then (-1) else 0
-        y1n = if y1 then   1  else 0
-    return (x0n + x1n, y0n + y1n)
-
-getJoystickDirections :: GLFW.Joystick -> IO (Double, Double)
-getJoystickDirections js = do
-    maxes <- GLFW.getJoystickAxes js
-    return $ case maxes of
-      (Just (x:y:_)) -> (-y, x)
-      _              -> ( 0, 0)
-
-isPress :: GLFW.KeyState -> Bool
-isPress GLFW.KeyState'Pressed   = True
-isPress GLFW.KeyState'Repeating = True
-isPress _                       = False
-
---------------------------------------------------------------------------------
-
-printInstructions :: IO ()
-printInstructions =
-    putStrLn $ render $
-      nest 4 (
-        text "------------------------------------------------------------" $+$
-        text "'?': Print these instructions"                                $+$
-        text "'i': Print GLFW information"                                  $+$
-        text ""                                                             $+$
-        text "* Mouse cursor, keyboard cursor keys, and/or joystick"        $+$
-        text "  control rotation."                                          $+$
-        text "* Mouse scroll wheel controls distance from scene."           $+$
-        text "------------------------------------------------------------"
-      )
-
-printInformation :: GLFW.Window -> IO ()
-printInformation win = do
-    version       <- GLFW.getVersion
-    versionString <- GLFW.getVersionString
-    monitorInfos  <- runMaybeT getMonitorInfos
-    joystickNames <- getJoystickNames
-    clientAPI     <- GLFW.getWindowClientAPI              win
-    cv0           <- GLFW.getWindowContextVersionMajor    win
-    cv1           <- GLFW.getWindowContextVersionMinor    win
-    cv2           <- GLFW.getWindowContextVersionRevision win
-    robustness    <- GLFW.getWindowContextRobustness      win
-    forwardCompat <- GLFW.getWindowOpenGLForwardCompat    win
-    debug         <- GLFW.getWindowOpenGLDebugContext     win
-    profile       <- GLFW.getWindowOpenGLProfile          win
-
-    putStrLn $ render $
-      nest 4 (
-        text "------------------------------------------------------------" $+$
-        text "GLFW C library:" $+$
-        nest 4 (
-          text "Version:"        <+> renderVersion version $+$
-          text "Version string:" <+> renderVersionString versionString
-        ) $+$
-        text "Monitors:" $+$
-        nest 4 (
-          renderMonitorInfos monitorInfos
-        ) $+$
-        text "Joysticks:" $+$
-        nest 4 (
-          renderJoystickNames joystickNames
-        ) $+$
-        text "OpenGL context:" $+$
-        nest 4 (
-          text "Client API:"            <+> renderClientAPI clientAPI $+$
-          text "Version:"               <+> renderContextVersion cv0 cv1 cv2 $+$
-          text "Robustness:"            <+> renderContextRobustness robustness $+$
-          text "Forward compatibility:" <+> renderForwardCompat forwardCompat $+$
-          text "Debug:"                 <+> renderDebug debug $+$
-          text "Profile:"               <+> renderProfile profile
-        ) $+$
-        text "------------------------------------------------------------"
-      )
-  where
-    renderVersion (GLFW.Version v0 v1 v2) =
-        text $ intercalate "." $ map show [v0, v1, v2]
-
-    renderVersionString =
-        text . show
-
-    renderMonitorInfos =
-        maybe (text "(error)") (vcat . map renderMonitorInfo)
-
-    renderMonitorInfo (name, (x,y), (w,h), vms) =
-        text (show name) $+$
-        nest 4 (
-          location <+> size $+$
-          fsep (map renderVideoMode vms)
-        )
-      where
-        location = int x <> text "," <> int y
-        size     = int w <> text "x" <> int h <> text "mm"
-
-    renderVideoMode (GLFW.VideoMode w h r g b rr) =
-        brackets $ res <+> rgb <+> hz
-      where
-        res = int w <> text "x" <> int h
-        rgb = int r <> text "x" <> int g <> text "x" <> int b
-        hz  = int rr <> text "Hz"
-
-    renderJoystickNames pairs =
-        vcat $ map (\(js, name) -> text (show js) <+> text (show name)) pairs
-
-    renderContextVersion v0 v1 v2 =
-        hcat [int v0, text ".", int v1, text ".", int v2]
-
-    renderClientAPI         = text . show
-    renderContextRobustness = text . show
-    renderForwardCompat     = text . show
-    renderDebug             = text . show
-    renderProfile           = text . show
-
-type MonitorInfo = (String, (Int,Int), (Int,Int), [GLFW.VideoMode])
-
-getMonitorInfos :: MaybeT IO [MonitorInfo]
-getMonitorInfos =
-    getMonitors >>= mapM getMonitorInfo
-  where
-    getMonitors :: MaybeT IO [GLFW.Monitor]
-    getMonitors = MaybeT GLFW.getMonitors
-
-    getMonitorInfo :: GLFW.Monitor -> MaybeT IO MonitorInfo
-    getMonitorInfo mon = do
-        name <- getMonitorName mon
-        vms  <- getVideoModes mon
-        MaybeT $ do
-            pos  <- liftIO $ GLFW.getMonitorPos mon
-            size <- liftIO $ GLFW.getMonitorPhysicalSize mon
-            return $ Just (name, pos, size, vms)
-
-    getMonitorName :: GLFW.Monitor -> MaybeT IO String
-    getMonitorName mon = MaybeT $ GLFW.getMonitorName mon
-
-    getVideoModes :: GLFW.Monitor -> MaybeT IO [GLFW.VideoMode]
-    getVideoModes mon = MaybeT $ GLFW.getVideoModes mon
-
-getJoystickNames :: IO [(GLFW.Joystick, String)]
-getJoystickNames =
-    catMaybes `fmap` mapM getJoystick joysticks
-  where
-    getJoystick js =
-        fmap (maybe Nothing (\name -> Just (js, name)))
-             (GLFW.getJoystickName js)
-
---------------------------------------------------------------------------------
-
-printEvent :: String -> [String] -> Demo ()
-printEvent cbname fields =
-    liftIO $ putStrLn $ cbname ++ ": " ++ unwords fields
-
-showModifierKeys :: GLFW.ModifierKeys -> String
-showModifierKeys mk =
-    "[mod keys: " ++ keys ++ "]"
-  where
-    keys = if null xs then "none" else unwords xs
-    xs = catMaybes ys
-    ys = [ if GLFW.modifierKeysShift   mk then Just "shift"   else Nothing
-         , if GLFW.modifierKeysControl mk then Just "control" else Nothing
-         , if GLFW.modifierKeysAlt     mk then Just "alt"     else Nothing
-         , if GLFW.modifierKeysSuper   mk then Just "super"   else Nothing
-         ]
-
-curb :: Ord a => a -> a -> a -> a
-curb l h x
-  | x < l     = l
-  | x > h     = h
-  | otherwise = x
-
---------------------------------------------------------------------------------
-
-joysticks :: [GLFW.Joystick]
-joysticks =
-  [ GLFW.Joystick'1
-  , GLFW.Joystick'2
-  , GLFW.Joystick'3
-  , GLFW.Joystick'4
-  , GLFW.Joystick'5
-  , GLFW.Joystick'6
-  , GLFW.Joystick'7
-  , GLFW.Joystick'8
-  , GLFW.Joystick'9
-  , GLFW.Joystick'10
-  , GLFW.Joystick'11
-  , GLFW.Joystick'12
-  , GLFW.Joystick'13
-  , GLFW.Joystick'14
-  , GLFW.Joystick'15
-  , GLFW.Joystick'16
-  ]
-
+  return ()

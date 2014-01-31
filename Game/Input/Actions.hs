@@ -78,11 +78,13 @@ instance Binary Action where
 	put (ActionActivate dir) = do
 		put (2 :: Word8)
 		put dir
+	put ActionPickup = put (3 :: Word8)
 
 	get = do
 		t <- get :: Get Word8
 		case t of 
-			0 -> return ActionNothing
+			0 -> 
+				return ActionNothing
 			1 -> do
 				x <- get
 				y <- get
@@ -90,3 +92,5 @@ instance Binary Action where
 			2 -> do
 				dir <- get
 				return $ ActionActivate dir
+			3 -> 
+				return ActionPickup	

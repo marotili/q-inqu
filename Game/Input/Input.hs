@@ -124,11 +124,11 @@ activateAction = mkGenN $ \_ -> do
 	writer ((), newInputAction (ActionActivate DirNorth))
 	return (Right (Event ()), never)
 
-stepGame :: (Num a, Show b) =>
+stepInput :: (Num a, Show b) =>
 	InputWire a b ->
 	Session IO (Timed NominalDiffTime ()) -> State UserInput () ->
 	IO (InputActions, Session IO (Timed NominalDiffTime ()), InputWire a b)
-stepGame w' session' input = do
+stepInput w' session' input = do
 	(dt, session) <- stepSession session'
 	let ((_, w), _, actions) = runRWS (
 		stepWire w' dt (Right 0)
