@@ -95,7 +95,7 @@ actionProducer ac = do
     mtimeactions <- liftIO $ atomically $ readTQueue ac
     --case mtimeactions of
     let (time, InputActions actions) = mtimeactions
-    mapM_ (\a -> P.yield (time, a)) actions
+    mapM_ (\a -> P.yield (time, a)) (Set.toList actions)
       --Nothing -> return ()
         --lift . threadDelay $ 100000
 
@@ -257,9 +257,9 @@ run session w = do
     -- user input
     let input = asks stateInput state -- maybe not threadsafe
     (actions@(InputActions as), session', w') <- liftIO $ stepInput w session input
-
+    liftIO $ print as
     ac <- asks envActionChan
-    unless (null as) $ liftIO . atomically . writeTQueue ac $ (userTime, actions)
+    unless (null (Set.toList as)) $ liftIO . atomically . writeTQueue ac $ (userTime, (actions))
 
     -- update camera
     let c = asks stateCam state

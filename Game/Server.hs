@@ -62,6 +62,8 @@ stepWorld w' session' world' state' = do
 	-- update session
 	(dt, session) <- stepSession session'
 
+	print dt
+
 	-- run wires
 	((out, w), worldManager, worldDelta) <- runRWST (
 		stepWire w' dt (Right ())
@@ -71,27 +73,39 @@ stepWorld w' session' world' state' = do
 
 type ClientData = ((Float, Action), Rational, WorldDelta, World)
 
-produceWorld :: World -> WorldManager -> WorldWire () b -> WorldSession -> (Float, Action) ->
-	Producer ClientData IO ()
-produceWorld world manager w session action = do
-	lift $ print action
+produceWorld :: World -> WorldManager -> WorldWire () b -> WorldSession ->
+	Pipe (Float, Action) ClientData IO ()
+produceWorld world manager w session = do
+	(t, action) <- P.await
+
+	let playerId = 1
+	let playerActions = if Map.member playerId (wmPlayerActions manager)
+		then wmPlayerActions manager Map.! playerId
+		else mempty
+
+	--lift $ print playerActions
+	--lift $ print action
+	let manager2 = manager { wmPlayerActions = 
+		Map.insert playerId (playerActions `mappend` (newInputAction action)) (wmPlayerActions manager) 
+		}
 	-- run wires
-	((w', session'), (manager', delta), dt) <- lift $ stepWorld w session world manager
+	((w', session'), (manager', delta), dt) <- lift $ stepWorld w session world manager2
 
 	-- update our world state
 	let world' = applyDelta world delta
+	lift $ print world'
 
 	-- debug output
 	--lift $ print world'
 
 	-- Send to user
-	P.yield (action, realToFrac dt, delta, world')
+	P.yield ((t, action), realToFrac dt, delta, world')
 
 	-- wait
 	--lift $ threadDelay oneSecond
 
 	-- repeat
-	--produceWorld world' manager' w' session' action
+	produceWorld world' manager' w' session'
 
 --getDeltaTime (dt, deltaWorld, world) = dt
 --getWorld (dt, dWorld, world) = world
@@ -107,19 +121,19 @@ game recvEvents output = do
 	let world = newWorld
 
 	let
-		worldProducer :: (Float, Action) -> Producer ClientData IO ()
+		worldProducer :: Pipe (Float, Action) ClientData IO ()
 		worldProducer = produceWorld world newWorldManager testwire session
 
 		eventProducer :: Producer (Float, Action) IO ()
 		eventProducer = P.for (fromInput recvEvents) (\a -> lift (print a) >> P.yield a)
 	runEffect $
-		P.for (P.for eventProducer worldProducer) PB.encode 
+		P.for (eventProducer >-> worldProducer) PB.encode 
 			>-> toOutput output
 	performGC
 
 eventUpdate = do
 	P.yield (0, ActionNothing)
-	lift $ threadDelay (millisecond*1000)
+	lift $ threadDelay (millisecond*100)
 	eventUpdate
  
 main = withSocketsDo $ do
@@ -149,7 +163,7 @@ main = withSocketsDo $ do
 forward :: Pipe (PB.ByteOffset, (Float, Action)) (Float, Action) IO ()
 forward = do
 	(_, d) <- P.await
-	lift $ print ("Hallo", d)
+	lift $ print d
 	P.yield d
 	forward
 

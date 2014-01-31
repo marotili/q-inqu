@@ -100,7 +100,7 @@ directionY = pure (V2 0 (-1)) . keyDown GLFW.Key'W . keyUp GLFW.Key'S <|>
 		pure (V2 0 1) . keyDown GLFW.Key'S. keyUp GLFW.Key'W <|> 
 		pure 0
 
-movement = moveAction . liftA2 (+) directionX directionY
+movement = (stopMoveAction . W.when (\(V2 x y) -> x == 0 && y == 0) <|> moveAction) . liftA2 (+) directionX directionY
 
 untilV source = W.until . fmap(\e -> ((), e)) source
 
@@ -115,6 +115,10 @@ userInput = proc input -> do
 	m <- movement -< input
 	a <- actionActivate -< input
 	returnA -< (m, a)
+
+stopMoveAction = mkGenN $ \_ -> do
+	writer ((), newInputAction ActionStopMove)
+	return (Right (), stopMoveAction)
 
 moveAction = mkGenN $ \(V2 x y) -> do
 	Control.Monad.unless (x == 0 && y == 0) $

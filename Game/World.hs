@@ -1,4 +1,4 @@
-{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE NamedFieldPuns, Arrows #-}
 module Game.World where
 
 import qualified Data.Map as Map
@@ -18,7 +18,41 @@ import Control.Wire.Unsafe.Event
 import qualified Prelude as P
 import Prelude hiding ((.), until)
 
+import Game.Input.Actions as A
+
 data DeltaAction = DeltaNew | DeltaDelete | DeltaUpdate
+
+--type WorldContext = RWS World WorldDelta WorldManager
+type DebugWorldContext = RWST World WorldDelta WorldManager IO
+type WorldContext = DebugWorldContext
+
+--type WorldWire a b = Wire (Timed NominalDiffTime ()) () WorldContext a b
+type DebugWire a b = Wire (Timed NominalDiffTime ()) () DebugWorldContext a b
+type WorldWire a b = DebugWire a b 
+type WorldSession = Session IO (Timed NominalDiffTime ())
+
+data WorldManager = WorldManager
+	{ wmObjects :: ObjectIds 
+	, wmObjectsInUse :: Map.Map ObjectId ObjectId -- Map objectInUse owningObject
+ 	, wmObjectRefs :: Map.Map ObjectId ObjectIds
+	, wmNextObjectId :: ObjectId
+	, wmPlayerActions :: Map.Map PlayerId InputActions
+	} deriving (Show, Eq)
+
+newWorldManager = WorldManager
+	{ wmObjects = Set.empty
+	, wmObjectsInUse = Map.empty
+	, wmObjectRefs = Map.empty
+	, wmNextObjectId = 1
+	, wmPlayerActions = Map.empty
+	}
+
+movingDirectionR = mkGenN $ \playerId -> do
+	wm <- get
+	let playerActions = asks wmPlayerActions wm Map.! playerId
+	let direction = A.movingDirection playerActions
+	return (Right direction, movingDirectionR)
+
 
 data WorldDelta = WorldDelta
 	{ wdDoorsAdd :: [Door] -- absolute
@@ -70,19 +104,6 @@ instance Monoid WorldDelta where
 			positions = foldr (\(k, v) m -> Map.alter (alterPos v) k m) (wdPositionsDelta wd1) (Map.toList . wdPositionsDelta $ wd2)
 			doorControllers = wdDoorControllers wd1 ++ wdDoorControllers wd2
 
-data WorldManager = WorldManager
-	{ wmObjects :: ObjectIds 
-	, wmObjectsInUse :: Map.Map ObjectId ObjectId -- Map objectInUse owningObject
- 	, wmObjectRefs :: Map.Map ObjectId ObjectIds
-	, wmNextObjectId :: ObjectId
-	} deriving (Show, Eq)
-
-newWorldManager = WorldManager
-	{ wmObjects = Set.empty
-	, wmObjectsInUse = Map.empty
-	, wmObjectRefs = Map.empty
-	, wmNextObjectId = 1
-	}
 
 deltaAddDoor :: (Float, Float) -> ObjectId -> WorldContext ()
 deltaAddDoor pos oId = do
@@ -131,6 +152,12 @@ moveObject (vx, vy) = mkGen $ \ds oId -> do
 	let dt = realToFrac (dtime ds)
 	deltaMoveObject oId (dt*vx, dt*vy)
 	return (Right (), moveObject (vx, vy))
+
+moveObjectR :: WorldWire (ObjectId, (Float, Float)) ()
+moveObjectR = mkGen $ \ds (oId, (vx, vy)) -> do
+	let dt = realToFrac (dtime ds)
+	deltaMoveObject oId (dt*vx, dt*vy)
+	return (Right (), moveObjectR)
 
 --wcSpawnDoor :: WorldContext ()
 --wcSpawnPlayer = newObject >>= deltaAddDoor
@@ -182,7 +209,13 @@ mkObjGenWire f = genLater . mkGenN (\_ -> do
 		return (Right (Event oId), never)
 	)
 
-testwire = runController . asSoonAs . spawnDoorController 1 . asSoonAs . spawnDoor
+userSpeed = 100
+
+testwire = proc input -> do
+	playerId <- asSoonAs . spawnPlayer -< input
+	(x, y) <- movingDirectionR -< playerId
+	_ <- moveObjectR -< (playerId, (x*userSpeed, y*userSpeed))
+	returnA -< ()
 
 --makeWorld = WorldContext ()
 --makeWorld = spawnPlayer
@@ -235,14 +268,7 @@ doorController oId = do
 	liftIO $ print dcs
 	return $ dcs Map.! oId
 
---type WorldContext = RWS World WorldDelta WorldManager
-type DebugWorldContext = RWST World WorldDelta WorldManager IO
-type WorldContext = DebugWorldContext
 
---type WorldWire a b = Wire (Timed NominalDiffTime ()) () WorldContext a b
-type DebugWire a b = Wire (Timed NominalDiffTime ()) () DebugWorldContext a b
-type WorldWire a b = DebugWire a b 
-type WorldSession = Session IO (Timed NominalDiffTime ())
 
 --type Session = Session ()
 
