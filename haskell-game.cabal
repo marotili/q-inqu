@@ -21,14 +21,14 @@ source-repository head
 
 library 
     exposed-modules:
-        Game.Map
         Game.Input.Input
         Game.Input.Actions
         Game.Render.Render
         Game.Render.Map
         Game.World
         Game.Tiled
-        Game.Collision
+        Game.Collision 
+        Game.Objects
 
     build-depends:
         base,

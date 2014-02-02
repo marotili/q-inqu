@@ -97,8 +97,8 @@ movingDirectionR = mkGenN $ \playerId -> do
 			let playerActions = asks _wmPlayerActions wm Map.! playerId
 			let direction = A.movingDirection playerActions
 			return (Right direction, movingDirectionR)
-	else
-		return (Right (0, 0), movingDirectionR)
+		else
+			return (Right (0, 0), movingDirectionR)
 
 deltaMoveObject :: ObjectId -> (Float, Float) -> WorldContext ()
 deltaMoveObject oId dPos@(dx, dy) = do

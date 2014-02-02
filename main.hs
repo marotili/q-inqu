@@ -41,6 +41,8 @@ import Game.Client
 
 import Network.Simple.TCP
 import Control.Concurrent
+
+import Data.Tiled
  
 import Pipes as P
 import Pipes.Network.TCP
@@ -143,11 +145,11 @@ main = withSocketsDo $ do
 
           -- generate map from tiled
           tiledMap <- loadMapFile "data/sewers.tmx"
-          let m = mapNew $ mapConfigFromTiled tiledMap
-          let rm = renderMapFromTiled tiledMap
+          --let m = mapNew $ mapConfigFromTiled tiledMap
+          let rm = newRenderMap tiledMap
 
           -- default render context
-          renderContext <- Render.newRenderContext m rm
+          renderContext <- Render.newRenderContext rm
 
           let 
               env = Env
@@ -257,7 +259,6 @@ run session w = do
     -- user input
     let input = asks stateInput state -- maybe not threadsafe
     (actions@(InputActions as), session', w') <- liftIO $ stepInput w session input
-    liftIO $ print as
     ac <- asks envActionChan
     unless (null (Set.toList as)) $ liftIO . atomically . writeTQueue ac $ (userTime, (actions))
 

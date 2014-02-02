@@ -74,7 +74,7 @@ cameraInverse cam vec = (invViewM !*! invProjM) !* vec
 newDefaultCamera viewportWidth viewportHeight = Camera
 	{ cameraProjection = newOrthogonalProjectionMatrix viewportWidth viewportHeight
 	, cameraPosition = V3 0 0 (-1)
-	, cameraOrientation = axisAngle (V3 0 0 1) (3.14)
+	, cameraOrientation = axisAngle (V3 0 0 1) (-3.14/2.0)
 	}
 
 cameraUpdateProjection :: Float -> Float -> Camera -> Camera

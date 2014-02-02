@@ -71,7 +71,7 @@ stepWorld w' session' world' state' = do
 
 	return ((w, session), (worldManager, worldDelta), dtime dt)
 
-type ClientData = ((Float, Action), Rational, WorldDelta, World)
+type ClientData = ((Float, Action), Rational)
 
 produceWorld :: World -> WorldManager -> WorldWire () b -> WorldSession ->
 	Pipe (Float, Action) ClientData IO ()
@@ -79,27 +79,27 @@ produceWorld world manager w session = do
 	(t, action) <- P.await
 
 	let playerId = 1
-	let playerActions = if Map.member playerId (wmPlayerActions manager)
-		then wmPlayerActions manager Map.! playerId
+	let playerActions = if Map.member playerId (_wmPlayerActions manager)
+		then _wmPlayerActions manager Map.! playerId
 		else mempty
 
 	--lift $ print playerActions
 	--lift $ print action
-	let manager2 = manager { wmPlayerActions = 
-		Map.insert playerId (playerActions `mappend` (newInputAction action)) (wmPlayerActions manager) 
+	let manager2 = manager { _wmPlayerActions = 
+		Map.insert playerId (playerActions `mappend` (newInputAction action)) (_wmPlayerActions manager) 
 		}
 	-- run wires
 	((w', session'), (manager', delta), dt) <- lift $ stepWorld w session world manager2
 
 	-- update our world state
 	let world' = applyDelta world delta
-	lift $ print world'
+	--lift $ print world'
 
 	-- debug output
 	--lift $ print world'
 
 	-- Send to user
-	P.yield ((t, action), realToFrac dt, delta, world')
+	P.yield ((t, action), realToFrac dt)
 
 	-- wait
 	--lift $ threadDelay oneSecond

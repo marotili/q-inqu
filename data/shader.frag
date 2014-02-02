@@ -4,8 +4,15 @@ in float color_in;
 
 flat in int instanceID;
 in vec2 texCoords;
+flat in int image;
 
-uniform sampler2D Tex1;
+uniform sampler2D Texture0;
+uniform sampler2D Texture1;
+uniform sampler2D Texture2;
+uniform sampler2D Texture3;
+uniform sampler2D Texture4;
+uniform sampler2D Texture5;
+uniform sampler2D Texture6;
 
 uniform vec4 colors[3] = {
 	vec4(0, 1, 0, 1),
@@ -16,7 +23,11 @@ uniform vec4 colors[3] = {
 void main()
 {
 
-	color = texture(Tex1, texCoords);
+	if (image == 0) {
+		color = texture(Texture0, texCoords);
+	} else if (image == 1) {
+		color = texture(Texture1, texCoords);
+	}
     // color = vec4(texCoords, 0, 1);//colors[data[instanceID]];
     // color = colors[1];
 }

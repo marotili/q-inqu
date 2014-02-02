@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, Arrows, NamedFieldPuns #-}
+{-# LANGUAGE Arrows, NamedFieldPuns #-}
 module Game.Objects where
 import qualified Data.Set as Set
 import qualified Data.Binary as B
@@ -17,7 +17,7 @@ data Wall = Wall
 	} deriving (Show, Eq)
 
 data Player = Player
-	{ playerId :: ObjectId
+	{ playerId :: PlayerId
 	, playerName :: String
 	} deriving (Show, Eq)
 

@@ -8,24 +8,24 @@ import Control.Monad
 import Game.Map
 import qualified Game.Render.Map as RM
 
-mapConfigFromTiled :: T.TiledMap -> MapConfig
-mapConfigFromTiled tiledMap = MapConfig
-	{ mapWidth = T.mapWidth tiledMap
-	, mapHeight = T.mapHeight tiledMap
-	, mapNeighborhoodFunc = clipNeighborhood
-	, mapCellTiles = tiles
-	}
-	where
-		tiles = foldr (\(k, v) -> Map.insert k (fromIntegral $ T.tileGid v)) Map.empty $ 
-			concatMap (Map.toList . T.layerData) (T.mapLayers tiledMap)
+--mapConfigFromTiled :: T.TiledMap -> MapConfig
+--mapConfigFromTiled tiledMap = MapConfig
+--	{ mapWidth = T.mapWidth tiledMap
+--	, mapHeight = T.mapHeight tiledMap
+--	, mapNeighborhoodFunc = clipNeighborhood
+--	, mapCellTiles = tiles
+--	}
+--	where
+--		tiles = foldr (\(k, v) -> Map.insert k (fromIntegral $ T.tileGid v)) Map.empty $ 
+--			concatMap (Map.toList . T.layerData) (T.mapLayers tiledMap)
 
-renderMapFromTiled :: T.TiledMap -> RM.Map
-renderMapFromTiled tm = renderMap
-	where
-		renderMap = RM.newRenderMap gameMap 
-			( fromIntegral $ T.mapTileWidth tm
-			, fromIntegral $ T.mapTileHeight tm)
-		gameMap = mapNew (mapConfigFromTiled tm)
+--renderMapFromTiled :: T.TiledMap -> RM.Map
+--renderMapFromTiled tm = renderMap
+--	where
+--		renderMap = RM.newRenderMap gameMap 
+--			( fromIntegral $ T.mapTileWidth tm
+--			, fromIntegral $ T.mapTileHeight tm)
+--		gameMap = mapNew (mapConfigFromTiled tm)
 
 --main :: IO ()
 --main = do

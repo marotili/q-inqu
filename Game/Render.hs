@@ -9,6 +9,7 @@ import qualified Graphics.UI.GLFW as GLFW
 import qualified Data.Vector.Storable as V
 import Foreign.Storable
 import Foreign.Ptr
+import Data.Int
 
 import Game.Render.Map
 import Game.Render.Render
@@ -25,46 +26,15 @@ data RenderContext = RenderContext
 	--, rcCamera :: Camera
 	}
 
-newRenderContext gameMap renderMap = do
+newRenderContext renderMap = do
 	program <- setupShaders
 
-	wrc <- newWorldRenderContext gameMap renderMap
+	wrc <- newWorldRenderContext renderMap
 	bindWorldRenderContext wrc program
 
 	[debugBuffer] <- GL.genObjectNames 1 :: IO [GL.BufferObject]
 
-	uploadFromVec GL.ShaderStorageBuffer debugBuffer (V.fromList [0 | _ <- [0..4*6*81-1]] :: V.Vector Float)
-
-
-	-- Generate 1 texture object
-	[texObject] <- genObjectNames 1
-
-	activeTexture $= TextureUnit 0
-
-	-- Make it the "currently bound 2D texture"
-	textureBinding Texture2D $= Just texObject
-
-	image <- readPng "data/sewer_tileset.png"
-	--let imgWidth = 192
-	--let imgHeight = 217
-	case image of
-		(Left s) -> do
-			exitWith (ExitFailure 1)
-		(Right s) -> case s of
-			(ImageRGBA8 (Image imgWidth imgHeight dat)) -> do
-				V.unsafeWith dat $ \ptr -> do
-					texImage2D Texture2D NoProxy 0 RGBA8 
-						(TextureSize2D (fromIntegral imgWidth) (fromIntegral imgHeight)) 0 
-						(PixelData RGBA UnsignedByte ptr)
-					textureFilter Texture2D $= ((Nearest, Nothing), Nearest)
-			--(ImageRGB8 (Image imgWidth imgHeight dat)) ->
-			--	V.unsafeWith dat $ \ptr ->
-			--		texImage2D Texture2D NoProxy 0 RGB8
-			--			(TextureSize2D (fromIntegral imgWidth) (fromIntegral imgHeight)) 0 
-			--			(PixelData RGB UnsignedByte ptr)
-
-	--err <- get GL.errors
-	--print err
+	uploadFromVec GL.ShaderStorageBuffer debugBuffer (V.fromList [i | i <- [0..4*6*81-1]] :: V.Vector Int32)
 
 	return RenderContext
 		{ rcMainProgram = program
@@ -86,26 +56,26 @@ render window rc cam = do
 	GL.currentProgram $= Just (rcMainProgram rc)
 
 	programSetViewProjection (rcMainProgram rc) cam
-	--getShaderStorageBlockIndex (rcMainProgram rc) "Debug" >>= print
-	--getShaderStorageBlockIndex (rcMainProgram rc) "Pos" >>= print
-	--getShaderStorageBlockIndex (rcMainProgram rc) "Data" >>= print
-	
-	GL.bindBufferBase' GL.ShaderStorageBuffer 1 (rcDebugBuffer rc)
-	GL.shaderStorageBlockBinding (rcMainProgram rc) 1 1
-
+	getShaderStorageBlockIndex (rcMainProgram rc) "Debug" >>= print
+	getShaderStorageBlockIndex (rcMainProgram rc) "Pos" >>= print
+	getShaderStorageBlockIndex (rcMainProgram rc) "ObjectData" >>= print
+	getShaderStorageBlockIndex (rcMainProgram rc) "TileSets" >>= print
+	debugIndex <- getShaderStorageBlockIndex (rcMainProgram rc) "Debug"
+	print $ "Debug index" ++ show debugIndex
+	GL.bindBufferBase' GL.ShaderStorageBuffer debugIndex (rcDebugBuffer rc)
+	GL.shaderStorageBlockBinding (rcMainProgram rc) debugIndex debugIndex
 
 	renderWorldRenderContext (rcMainProgram rc) (rcWorldRenderContext rc)
 
-	--errors <- GL.get GL.errors
-	----print $ rcDebugBuffer rc
-	--print errors
-	--GL.bindBuffer GL.ShaderStorageBuffer $= Just (rcDebugBuffer rc)
-	--GL.withMappedBuffer (GL.ShaderStorageBuffer) GL.ReadOnly printPtr failure
+	errors <- GL.get GL.errors
+	print $ errors
+	GL.bindBuffer GL.ShaderStorageBuffer $= Just (rcDebugBuffer rc)
+	GL.withMappedBuffer (GL.ShaderStorageBuffer) GL.ReadOnly printPtr failure
 
 	where
-		printPtr :: Ptr Float -> IO [()]
+		printPtr :: Ptr Int32 -> IO [()]
 		printPtr ptr = sequence [
-			peekElemOff ptr idx >>= print | idx <- [0..4*81*6-1]
+			peekElemOff ptr idx >>= \x -> print ("Debug" ++ show x)  | idx <- [0..4]
 			]
 
 		failure GL.MappingFailed = print "Mapping failed" >> return []
