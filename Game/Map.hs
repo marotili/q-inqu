@@ -16,24 +16,15 @@ data Position = Position
 	, posY :: Int
 	} deriving (Eq, Ord, Show)
 
--- cells are uniquely per map context
-
-data CellType = 
-	  CellTypeForest
-	| CellTypeGrass
-	deriving (Eq, Ord, Show)
-
 type CellTile = Int32 -- from tiled
 
 data Cell = Cell 
 	{ cellPos :: Position
-	, cellTile :: CellTile
 	} deriving (Eq, Ord, Show)
 
 newCell :: CellTile -> Position -> Cell
 newCell tile pos = Cell
 	{ cellPos = pos
-	, cellTile = tile
 	}
 
 data MapConfig = MapConfig
@@ -46,9 +37,17 @@ data MapConfig = MapConfig
 instance Show MapConfig where
 	show MapConfig { mapWidth, mapHeight } = show mapWidth ++ " / " ++ show mapHeight
 
+type LayerId = Int
+data MapLayer = MapLayer
+	{ layerId :: LayerId
+	, layerTiles :: Map.Map (Int, Int) CellTile
+	}
+
 data Map = Map
 	{ mapCells :: [[Cell]]
 	, mapConfig :: MapConfig
+
+	, mapLayers :: [MapLayer]
 
 	-- accessed using wrapper function mapNeighbors
 	, _mapNeighbors :: Map.Map Cell [Cell]
@@ -127,19 +126,4 @@ mapNew config@MapConfig { mapWidth, mapHeight, mapNeighborhoodFunc, mapCellTiles
 
 mapNeighbors :: Map -> Cell -> [Cell]
 mapNeighbors Map { _mapNeighbors } cell = _mapNeighbors Map.! cell
-
-
--- Probably not needed
---data MapContext = MapContext
---	{ ctxNeighbors :: Cell -> [Cell]
---	}
-
---mapContextFromMap :: Map -> MapContext
---mapContextFromMap map = MapContext
---	{ ctxNeighbors = mapNeighbors map 
---	}
-
---mapContextFromMapConfig :: MapConfig -> MapContext
---mapContextFromMapConfig config@MapConfig { mapNeighborhoodFunc } = MapContext
---	{ ctxNeighbors = mapNeighborhoodFunc config }
 

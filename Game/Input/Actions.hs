@@ -36,7 +36,6 @@ isMoving :: InputActions -> Bool
 isMoving (InputActions actions) = 
 	or (map (\a -> case a of ActionMove _ _ -> True; _ -> False) (Set.toList actions))
 
-
 movingDirection is@(InputActions actions) = if isMoving is 
 	then foldr (\a (dx, dy) -> case a of ActionMove x y -> (x + dx, y + dy); _ -> (dx, dy)) (0, 0) (Set.toList actions)
 	else (0, 0)

@@ -1,4 +1,4 @@
-{-# LANGUAGE NamedFieldPuns, Arrows #-}
+{-# LANGUAGE TypeFamilies, MultiParamTypeClasses, NamedFieldPuns, Arrows, TypeSynonymInstances #-}
 module Game.World where
 
 import qualified Data.Map as Map
@@ -19,6 +19,7 @@ import qualified Prelude as P
 import Prelude hiding ((.), until)
 
 import Game.Input.Actions as A
+--import qualified Game.Map as GM
 
 data DeltaAction = DeltaNew | DeltaDelete | DeltaUpdate
 
@@ -47,12 +48,34 @@ newWorldManager = WorldManager
 	, wmPlayerActions = Map.empty
 	}
 
+data World = World
+	{ wDoors :: Map.Map DoorId Door
+	, wDoorControllers :: Map.Map DoorControllerId DoorController
+	, wSwitches :: Map.Map SwitchId Switch
+	, wPositions :: Map.Map ObjectId (Float, Float)
+	--, wObjectLayers :: Map.Map ObjectId LayerId
+	, wPlayers :: Map.Map ObjectId Player
+	, wCollidables :: Map.Map ObjectId Bool
+	--, wMap :: GM.Map
+	} deriving (Show, Eq)
+
+newWorld = World
+	{ wDoors = Map.empty
+	, wDoorControllers = Map.empty
+	, wSwitches = Map.empty
+	, wPositions = Map.empty
+	, wPlayers = Map.empty
+	--, wMap = gameMap
+	}
+
+--instance Collidable PlayerId DoorId where
+	--collide dId oId = True
+
 movingDirectionR = mkGenN $ \playerId -> do
 	wm <- get
 	let playerActions = asks wmPlayerActions wm Map.! playerId
 	let direction = A.movingDirection playerActions
 	return (Right direction, movingDirectionR)
-
 
 data WorldDelta = WorldDelta
 	{ wdDoorsAdd :: [Door] -- absolute
@@ -245,21 +268,6 @@ testWorld = do
 		let quit = False
 		Control.Monad.unless quit $ loop world' manager' w' session'
 
-data World = World
-	{ wDoors :: Map.Map DoorId Door
-	, wDoorControllers :: Map.Map DoorControllerId DoorController
-	, wSwitches :: Map.Map SwitchId Switch
-	, wPositions :: Map.Map ObjectId (Float, Float)
-	, wPlayers :: Map.Map ObjectId Player
-	} deriving (Show, Eq)
-
-newWorld = World
-	{ wDoors = Map.empty
-	, wDoorControllers = Map.empty
-	, wSwitches = Map.empty
-	, wPositions = Map.empty
-	, wPlayers = Map.empty
-	}
 
 doorController :: DoorControllerId -> WorldContext DoorController
 doorController oId = do
@@ -274,10 +282,10 @@ doorController oId = do
 
 type ObjectIds = Set.Set ObjectId
 type ObjectId = Int
-type DoorId = ObjectId
+newtype DoorId = ObjectId
 type DoorControllerId = ObjectId
 type SwitchId = ObjectId
-type PlayerId = ObjectId
+newtype PlayerId = ObjectId
 
 data Player = Player
 	{ playerId :: ObjectId
