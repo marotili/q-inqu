@@ -22,13 +22,13 @@ source-repository head
 library 
     exposed-modules:
         Game.Map
-        Game.Unit
         Game.Input.Input
         Game.Input.Actions
         Game.Render.Render
         Game.Render.Map
         Game.World
         Game.Tiled
+        Game.Collision
 
     build-depends:
         base,
@@ -55,7 +55,8 @@ library
         pipes,
         pipes-binary,
         JuicyPixels,
-        htiled
+        htiled,
+        spacepart
 
 executable server
     build-depends:
@@ -87,7 +88,8 @@ executable server
         pipes,
         pipes-concurrency,
         async,
-        pipes-binary
+        pipes-binary,
+        spacepart
     main-is: Game/Server.hs
 
 executable cell
@@ -123,7 +125,8 @@ executable cell
     pipes-concurrency,
     async,
     pipes-binary,
-    network-simple
+    network-simple,
+    spacepart
 
   ghc-options: -rtsopts -threaded -fprof-auto
   main-is: main.hs

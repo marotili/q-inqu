@@ -1,5 +1,7 @@
-{-# LANGUAGE TypeFamilies, MultiParamTypeClasses, NamedFieldPuns, Arrows, TypeSynonymInstances #-}
+{-# LANGUAGE TemplateHaskell, Arrows, NamedFieldPuns #-}
 module Game.World where
+
+import Control.Concurrent
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -18,10 +20,46 @@ import Control.Wire.Unsafe.Event
 import qualified Prelude as P
 import Prelude hiding ((.), until)
 
-import Game.Input.Actions as A
---import qualified Game.Map as GM
+import Control.Lens
+import Game.Objects
+import Game.Collision
 
-data DeltaAction = DeltaNew | DeltaDelete | DeltaUpdate
+import Game.Input.Actions as A
+
+data WorldDelta = WorldDelta
+	{ _wdDoorsAdd :: [Door] -- absolute
+	, _wdWallsAdd :: [Wall] -- absolute
+	, _wdPositionsDelta :: Map.Map ObjectId (Float, Float) -- relative
+	, _wdPlayerAdd :: [Player] -- absolute
+	, _wdDoorControllers :: [DoorController] -- absolute
+	, _wdCollisions :: Map.Map ObjectId [ObjectId]
+	} deriving (Show, Eq)
+
+makeLenses ''WorldDelta
+
+data WorldManager = WorldManager
+	{ _wmObjects :: ObjectIds 
+	, _wmObjectsInUse :: Map.Map ObjectId ObjectId -- Map objectInUse owningObject
+ 	, _wmObjectRefs :: Map.Map ObjectId ObjectIds
+	, _wmNextObjectId :: ObjectId
+	, _wmPlayerActions :: Map.Map PlayerId InputActions
+	} deriving (Show, Eq)
+
+makeLenses ''WorldManager
+
+data World = World
+	{ _wDoors :: Map.Map DoorId Door
+	, _wWalls :: Map.Map WallId Wall
+	, _wDoorControllers :: Map.Map DoorControllerId DoorController
+	, _wSwitches :: Map.Map SwitchId Switch
+	, _wPositions :: Map.Map ObjectId (Float, Float)
+	, _wPlayers :: Map.Map ObjectId Player
+	, _wCollisionManager :: CollisionManager
+
+	, _wCurrentCollisions :: Map.Map ObjectId [ObjectId]
+	} deriving (Eq)
+
+makeLenses ''World
 
 --type WorldContext = RWS World WorldDelta WorldManager
 type DebugWorldContext = RWST World WorldDelta WorldManager IO
@@ -32,70 +70,96 @@ type DebugWire a b = Wire (Timed NominalDiffTime ()) () DebugWorldContext a b
 type WorldWire a b = DebugWire a b 
 type WorldSession = Session IO (Timed NominalDiffTime ())
 
-data WorldManager = WorldManager
-	{ wmObjects :: ObjectIds 
-	, wmObjectsInUse :: Map.Map ObjectId ObjectId -- Map objectInUse owningObject
- 	, wmObjectRefs :: Map.Map ObjectId ObjectIds
-	, wmNextObjectId :: ObjectId
-	, wmPlayerActions :: Map.Map PlayerId InputActions
-	} deriving (Show, Eq)
-
 newWorldManager = WorldManager
-	{ wmObjects = Set.empty
-	, wmObjectsInUse = Map.empty
-	, wmObjectRefs = Map.empty
-	, wmNextObjectId = 1
-	, wmPlayerActions = Map.empty
+	{ _wmObjects = Set.empty
+	, _wmObjectsInUse = Map.empty
+	, _wmObjectRefs = Map.empty
+	, _wmNextObjectId = 1
+	, _wmPlayerActions = Map.empty
 	}
 
-data World = World
-	{ wDoors :: Map.Map DoorId Door
-	, wDoorControllers :: Map.Map DoorControllerId DoorController
-	, wSwitches :: Map.Map SwitchId Switch
-	, wPositions :: Map.Map ObjectId (Float, Float)
-	--, wObjectLayers :: Map.Map ObjectId LayerId
-	, wPlayers :: Map.Map ObjectId Player
-	, wCollidables :: Map.Map ObjectId Bool
-	--, wMap :: GM.Map
-	} deriving (Show, Eq)
-
 newWorld = World
-	{ wDoors = Map.empty
-	, wDoorControllers = Map.empty
-	, wSwitches = Map.empty
-	, wPositions = Map.empty
-	, wPlayers = Map.empty
+	{ _wDoors = Map.empty
+	, _wWalls = Map.empty
+	, _wDoorControllers = Map.empty
+	, _wSwitches = Map.empty
+	, _wPositions = Map.empty
+	, _wPlayers = Map.empty
+	, _wCollisionManager = cmNew
+	, _wCurrentCollisions = Map.empty
 	--, wMap = gameMap
 	}
 
---instance Collidable PlayerId DoorId where
-	--collide dId oId = True
-
 movingDirectionR = mkGenN $ \playerId -> do
 	wm <- get
-	let playerActions = asks wmPlayerActions wm Map.! playerId
-	let direction = A.movingDirection playerActions
-	return (Right direction, movingDirectionR)
-
-data WorldDelta = WorldDelta
-	{ wdDoorsAdd :: [Door] -- absolute
-	, wdPositionsDelta :: Map.Map ObjectId (Float, Float) -- relative
-	, wdPlayerAdd :: [Player] -- absolute
-	, wdDoorControllers :: [DoorController] -- absolute
-	} deriving (Show, Eq)
+	if Map.member playerId (wm^.wmPlayerActions) 
+		then do
+			let playerActions = asks _wmPlayerActions wm Map.! playerId
+			let direction = A.movingDirection playerActions
+			return (Right direction, movingDirectionR)
+	else
+		return (Right (0, 0), movingDirectionR)
 
 deltaMoveObject :: ObjectId -> (Float, Float) -> WorldContext ()
-deltaMoveObject oId dPos@(dx, dy) = writer ((), emptyDelta
-	{ wdPositionsDelta = Map.insert oId dPos Map.empty
-	})
+deltaMoveObject oId dPos@(dx, dy) = do
+	cm <- view wCollisionManager
+	if cmCanCollide oId cm 
+		then do
+			-- FIXME: right now objects can jump through other objects if delta is too big
+			let ((dx', dy'), collisions) = collisionLoop cm (dx, dy) []
+			writer ((), newDelta
+				{ _wdPositionsDelta = Map.insert oId (dx', dy') Map.empty
+				})
+			Control.Monad.unless (null collisions) $ writer ((), newDelta
+				{ _wdCollisions = Map.insert oId collisions Map.empty
+				})
+		else
+			writer ((), newDelta
+				{ _wdPositionsDelta = Map.insert oId dPos Map.empty
+				})
+	where
+		-- on collision we update the position so that the objects dont intersect
+		-- and we send an collision event
+
+		-- big delta -> maybe many collisions
+		-- we reduce the delta pos and obtain less collisions. we return the minimum number of collisions possible
+		collisionLoop :: CollisionManager -> (Float, Float) -> [ObjectId] -> ((Float, Float), [ObjectId])
+		collisionLoop cm (dx, dy) collisionHappened = 		
+			if null collisions then
+				((dx, dy), collisionHappened) -- the last collision that happened
+			else
+				collisionLoop cm (dx/2.0, dy/2.0) collisions
+			where
+				collisions = evalState (do
+						(px, py) <- cmObjectPos oId
+						cmRemoveFloating oId 
+						let bSize = 5
+						let newPos = (px + dx, py + dy)
+						cmAddFloating $ newCollidable oId (newBoundary newPos bSize)
+						cmCollisions oId
+					) cm
+
+
 
 applyDelta :: World -> WorldDelta -> World
-applyDelta w wd = doorControllers
+applyDelta w wd = collisions
 	where
-		newDoors = w { wDoors = foldr (\d -> Map.insert (doorId d) d) (wDoors w) (wdDoorsAdd wd) }
-		newPlayers = newDoors { wPlayers = foldr (\p -> Map.insert (playerId p) p) (wPlayers newDoors) (wdPlayerAdd wd) }
-		positions = newPlayers { wPositions = foldr (\(k, v) m -> Map.alter (alterPos v) k m) (wPositions newPlayers) (Map.toList . wdPositionsDelta $ wd) }
-		doorControllers = positions { wDoorControllers = foldr (\dc -> Map.insert (doorControllerId dc) dc) (wDoorControllers positions) (wdDoorControllers wd) }
+		newWalls = w { _wWalls = foldr (\d -> Map.insert (wallId d) d) (_wWalls w) (_wdWallsAdd wd) }
+		newPlayers = newWalls { _wPlayers = foldr (\p -> Map.insert (playerId p) p) (_wPlayers newWalls) (_wdPlayerAdd wd) }
+		positions = newPlayers { _wPositions = foldr (\(k, v) m -> Map.alter (alterPos v) k m) (_wPositions newPlayers) (Map.toList . _wdPositionsDelta $ wd) }
+		collidables = positions { _wCollisionManager = execState (do
+				mapM_ cmAddStatic [newCollidable oId (newBoundary (objectPos oId) 5) | oId <- map wallId (_wdWallsAdd wd)]
+				mapM_ cmAddFloating [newCollidable oId (newBoundary (objectPos oId) 5) | oId <- map playerId (_wdPlayerAdd wd)]
+			) (_wCollisionManager positions) }
+		floatingCollidables = collidables { _wCollisionManager = execState (
+				mapM_ (\oId -> cmUpdateFloating oId (objectPos oId)) (map fst (Map.toList (wd^.wdPositionsDelta)))
+			) (_wCollisionManager collidables) }
+
+		-- overwrite old ones
+		collisions = floatingCollidables { _wCurrentCollisions = _wdCollisions wd }
+
+		objectPos oId = (positions ^. wPositions) Map.! oId
+		--doorControllers = positions { wDoorControllers = foldr (\dc -> Map.insert (doorControllerId dc) dc) (wDoorControllers positions) (wdDoorControllers wd) }
 
 --validateWorldDelta :: WorldDelta -> Bool
 
@@ -106,67 +170,80 @@ applyDelta w wd = doorControllers
 alterPos val Nothing = Just val
 alterPos (x, y) (Just (x', y')) = Just (x + x', y + y')
 
-emptyDelta = WorldDelta 
-	{ wdDoorsAdd = []
-	, wdPositionsDelta = Map.empty
-	, wdPlayerAdd = []
-	, wdDoorControllers = []
+newDelta = WorldDelta 
+	{ _wdDoorsAdd = []
+	, _wdWallsAdd = []
+	, _wdPositionsDelta = Map.empty
+	, _wdPlayerAdd = []
+	, _wdDoorControllers = []
+	, _wdCollisions = Map.empty
 	}
 
 instance Monoid WorldDelta where
-	mempty = emptyDelta
-	mappend wd1 wd2 = WorldDelta
-		{ wdDoorsAdd = doors
-		, wdPositionsDelta = positions
-		, wdPlayerAdd = players
-		, wdDoorControllers = doorControllers
+	mempty = newDelta
+	mappend wd1 wd2 = newDelta
+		{ _wdDoorsAdd = doors
+		, _wdWallsAdd = walls
+		, _wdPositionsDelta = positions
+		, _wdPlayerAdd = players
+		, _wdDoorControllers = doorControllers
+		, _wdCollisions = collisions
 		}
 		where
-			doors = wdDoorsAdd wd1 ++ wdDoorsAdd wd2
-			players = wdPlayerAdd wd1 ++ wdPlayerAdd wd2
-			positions = foldr (\(k, v) m -> Map.alter (alterPos v) k m) (wdPositionsDelta wd1) (Map.toList . wdPositionsDelta $ wd2)
-			doorControllers = wdDoorControllers wd1 ++ wdDoorControllers wd2
+			walls = wd1^.wdWallsAdd ++ wd2^.wdWallsAdd
+			doors = wd1^.wdDoorsAdd ++ wd2^.wdDoorsAdd
+			players = wd1^.wdPlayerAdd ++ wd2^.wdPlayerAdd
+			positions = foldr (\(k, v) m -> Map.alter (alterPos v) k m) (wd1^.wdPositionsDelta) (Map.toList (wd2^.wdPositionsDelta))
+			doorControllers = wd1^.wdDoorControllers ++ wd2^.wdDoorControllers
+			collisions = Map.unionWith (++) (wd1^.wdCollisions) (wd2^.wdCollisions)
 
 
-deltaAddDoor :: (Float, Float) -> ObjectId -> WorldContext ()
-deltaAddDoor pos oId = do
-	deltaMoveObject oId pos
-	writer ((), mempty
-		{ wdDoorsAdd = [door]
-		})
-	where
-		door = Door oId False
+--deltaAddDoor :: (Float, Float) -> ObjectId -> WorldContext ()
+--deltaAddDoor pos oId = do
+--	deltaMoveObject oId pos
+--	writer ((), mempty
+--		{ wdDoorsAdd = [door]
+--		})
+--	where
+--		door = Door oId False
 
-deltaAddDoorController :: DoorId -> DoorControllerId -> WorldContext ()
-deltaAddDoorController doorId oId = 
-	writer ((), mempty
-		{ wdDoorControllers = [doorController]
-		})
-	where
-		doorController = DoorController oId doorId 0 2 False
+--deltaAddDoorController :: DoorId -> DoorControllerId -> WorldContext ()
+--deltaAddDoorController doorId oId = 
+--	writer ((), mempty
+--		{ wdDoorControllers = [doorController]
+--		})
+--	where
+--		doorController = DoorController oId doorId 0 2 False
 
-deltaUpdateDoorController :: DoorController -> WorldContext ()
-deltaUpdateDoorController dc =
-	writer ((), mempty
-		{ wdDoorControllers = [dc]
-		})
+--deltaUpdateDoorController :: DoorController -> WorldContext ()
+--deltaUpdateDoorController dc =
+--	writer ((), mempty
+--		{ wdDoorControllers = [dc]
+--		})
 
 deltaAddPlayer :: String -> (Float, Float) -> ObjectId -> WorldContext ()
 deltaAddPlayer name pos oId = do
 	deltaMoveObject oId pos
 	writer ((), mempty 
-		{ wdPlayerAdd = [player]
+		{ _wdPlayerAdd = [player]
 		})
 	where
 		player = Player oId name
 
+deltaAddWall :: (Float, Float) -> ObjectId -> WorldContext ()
+deltaAddWall pos oId = do
+	deltaMoveObject oId pos
+	writer ((), mempty 
+		{ _wdWallsAdd = [Wall oId]
+		})
+
 newObject :: WorldContext ObjectId
 newObject = do
 	wm <- get 
-	let oId = wmNextObjectId wm
+	let oId = (wm^.wmNextObjectId)
 	modify $ \wm -> wm 
-		{ wmNextObjectId = oId + 1
-		, wmObjects = Set.insert oId (wmObjects wm)
+		{ _wmNextObjectId = oId + 1
+		, _wmObjects = Set.insert oId (wm^.wmObjects)
 		}
 	return oId
 
@@ -176,22 +253,32 @@ moveObject (vx, vy) = mkGen $ \ds oId -> do
 	deltaMoveObject oId (dt*vx, dt*vy)
 	return (Right (), moveObject (vx, vy))
 
+objectCollided :: WorldWire ObjectId (Event ())
+objectCollided = mkGenN $ \oId -> do
+	w <- ask
+	let currentColls = w^.wCurrentCollisions
+	return $ if Map.member oId currentColls
+		then (Right (Event ()), objectCollided)
+		else (Right NoEvent, objectCollided)
+
 moveObjectR :: WorldWire (ObjectId, (Float, Float)) ()
 moveObjectR = mkGen $ \ds (oId, (vx, vy)) -> do
 	let dt = realToFrac (dtime ds)
 	deltaMoveObject oId (dt*vx, dt*vy)
 	return (Right (), moveObjectR)
 
---wcSpawnDoor :: WorldContext ()
---wcSpawnPlayer = newObject >>= deltaAddDoor
+----wcSpawnDoor :: WorldContext ()
+----wcSpawnPlayer = newObject >>= deltaAddDoor
 
---wcSpawnPlayer :: WorldContext ()
---wcSpawnPlayer = newObject >>= deltaAddPlayer "Marco" (50, 50)
+----wcSpawnPlayer :: WorldContext ()
+----wcSpawnPlayer = newObject >>= deltaAddPlayer "Marco" (50, 50)
 spawnPlayer :: WorldWire a (Event PlayerId)
 spawnPlayer = mkObjGenWire $ deltaAddPlayer "Marco" (50, 50)
 
-spawnDoor :: WorldWire a (Event DoorId)
-spawnDoor = mkObjGenWire $ deltaAddDoor (20, 20)
+spawnWall = mkObjGenWire $ deltaAddWall (60, 50)
+
+--spawnDoor :: WorldWire a (Event DoorId)
+--spawnDoor = mkObjGenWire $ deltaAddDoor (20, 20)
 
 nullObject :: ObjectId
 nullObject = 0
@@ -200,30 +287,30 @@ genLater :: WorldWire (Event ObjectId) (Event ObjectId)
 --genLater = delay (Event nullObject)
 genLater = delay NoEvent
 
-spawnDoorController :: DoorId -> WorldWire a (Event DoorControllerId)
-spawnDoorController dId = mkObjGenWire $ deltaAddDoorController dId
+--spawnDoorController :: DoorId -> WorldWire a (Event DoorControllerId)
+--spawnDoorController dId = mkObjGenWire $ deltaAddDoorController dId
 
-data ControllerState = Started | Finished
+--data ControllerState = Started | Finished
 
-runController :: WorldWire DoorControllerId (Event ControllerState)
-runController = mkGen $ \ds dcId -> do
-	dc <- doorController dcId 
-	let time' = dcTimeRunning dc + realToFrac (dtime ds)
-	if time' > dcTimeNeedsToOpen dc
-		then do
-			deltaUpdateDoorController $ dc 
-				{ dcTimeRunning = 0
-				, dcStarted = False
-				}
-			return (Right $ Event Finished, never)
-		else do
-			deltaUpdateDoorController $ dc 
-				{ dcTimeRunning = time'
-				, dcStarted = True
-				}
-			return (Right NoEvent, runController)
+--runController :: WorldWire DoorControllerId (Event ControllerState)
+--runController = mkGen $ \ds dcId -> do
+--	dc <- doorController dcId 
+--	let time' = dcTimeRunning dc + realToFrac (dtime ds)
+--	if time' > dcTimeNeedsToOpen dc
+--		then do
+--			deltaUpdateDoorController $ dc 
+--				{ dcTimeRunning = 0
+--				, dcStarted = False
+--				}
+--			return (Right $ Event Finished, never)
+--		else do
+--			deltaUpdateDoorController $ dc 
+--				{ dcTimeRunning = time'
+--				, dcStarted = True
+--				}
+--			return (Right NoEvent, runController)
 
-openDoor = until . fmap (\e -> ((), e)) runController
+--openDoor = until . fmap (\e -> ((), e)) runController
 
 mkObjGenWire :: (ObjectId -> WorldContext ()) -> WorldWire a (Event ObjectId)
 mkObjGenWire f = genLater . mkGenN (\_ -> do
@@ -236,8 +323,10 @@ userSpeed = 100
 
 testwire = proc input -> do
 	playerId <- asSoonAs . spawnPlayer -< input
+	_ <- asSoonAs . spawnWall -< input
 	(x, y) <- movingDirectionR -< playerId
-	_ <- moveObjectR -< (playerId, (x*userSpeed, y*userSpeed))
+	mul <- pure (-1) . for 3 . asSoonAs . objectCollided <|> pure 1 -< playerId
+	_ <- moveObjectR -< (playerId, (x*userSpeed*mul, y*userSpeed))
 	returnA -< ()
 
 --makeWorld = WorldContext ()
@@ -262,167 +351,13 @@ testWorld = do
 	loop world newWorldManager testwire session
 
 	where loop world manager w session = do
-		(quit, (w', session'), (manager', delta)) <- worldLoop w session world manager
+		let myManager = manager {
+			_wmPlayerActions = Map.insert (1::PlayerId) (newInputAction (ActionMove 0.1 0)) Map.empty
+		}
+		(quit, (w', session'), (manager', delta)) <- worldLoop w session world myManager
 		let world' = applyDelta world delta
-		print (world', quit)
+		print (world'^.wPositions, quit)
+		--print (delta)
+		threadDelay 10000
 		let quit = False
 		Control.Monad.unless quit $ loop world' manager' w' session'
-
-
-doorController :: DoorControllerId -> WorldContext DoorController
-doorController oId = do
-	liftIO $ print oId
-	dcs <- asks wDoorControllers
-	liftIO $ print dcs
-	return $ dcs Map.! oId
-
-
-
---type Session = Session ()
-
-type ObjectIds = Set.Set ObjectId
-type ObjectId = Int
-newtype DoorId = ObjectId
-type DoorControllerId = ObjectId
-type SwitchId = ObjectId
-newtype PlayerId = ObjectId
-
-data Player = Player
-	{ playerId :: ObjectId
-	, playerName :: String
-	} deriving (Show, Eq)
-
-data Door = Door
-	{ doorId :: DoorId
-	, doorOpen :: Bool
-	} deriving (Show, Eq)
---newDoor :: DoorId -> Door
---newDoor doorId = Door doorId False
-
-data DoorController = DoorController
-	{ doorControllerId :: DoorControllerId
-	, dcTargetDoorId :: DoorId
-	, dcTimeRunning :: Float
-	, dcTimeNeedsToOpen :: Float
-	, dcStarted :: Bool
-	} deriving (Show, Eq)
---newDoorController :: DoorId -> DoorControllerId -> DoorController
---newDoorController doorId dcId = DoorController dcId doorId 0 1 False
-
-data Switch = Switch
-	{ switchId :: SwitchId
-	, switchOn :: Bool
-	} deriving (Show, Eq)
---newSwitch :: SwitchId -> Switch
---newSwitch swithcId = Switch swithcId False
-
-instance B.Binary WorldDelta where
-	put WorldDelta
-	 	{ wdDoorsAdd
-	 	, wdPositionsDelta
-	 	, wdPlayerAdd
-	 	, wdDoorControllers
-		} = do
-			B.put wdDoorsAdd
-			B.put wdPositionsDelta
-			B.put wdPlayerAdd
-			B.put wdDoorControllers
-
-	get = do
-		a <- B.get
-		b <- B.get
-		c <- B.get
-		d <- B.get
-
-		return WorldDelta
-			{ wdDoorsAdd = a
-			, wdPositionsDelta = b
-			, wdPlayerAdd = c
-			, wdDoorControllers = d
-			}
-
-instance B.Binary World where
-	put World 
-		{ wDoors
-		, wDoorControllers
-		, wSwitches
-		, wPositions
-		, wPlayers
-		} = do
-			B.put wDoors
-			B.put wDoorControllers
-			B.put wSwitches
-			B.put wPositions
-			B.put wPlayers
-
-	get = do
-		doors <- B.get
-		doorControllers <- B.get
-		switches <- B.get
-		positions <- B.get
-		players <- B.get
-
-		return World 
-			{ wDoors = doors
-			, wDoorControllers = doorControllers
-			, wSwitches = switches
-			, wPositions = positions
-			, wPlayers = players
-			}
-
-instance B.Binary Player where
-	put (Player {playerId, playerName}) = do
-		B.put playerId
-		B.put playerName
-	get = do
-		pId <- B.get
-		pName <- B.get
-		return (Player pId pName)
-
-instance B.Binary Door where
-	put (Door { doorId, doorOpen }) = B.put doorId >> B.put doorOpen
-	get = do
-		dId <- B.get
-		dOpen <- B.get
-		return Door { doorId = dId, doorOpen = dOpen}
-
-instance B.Binary DoorController where
-	put DoorController 
-		{ doorControllerId
-		, dcTargetDoorId
-		, dcTimeRunning
-		, dcTimeNeedsToOpen
-		, dcStarted
-		} = do
-			B.put doorControllerId
-			B.put dcTargetDoorId
-			B.put dcTimeRunning
-			B.put dcTimeNeedsToOpen
-			B.put dcStarted
-
-	get = do
-		dcId <- B.get
-		dcTDId <- B.get
-		dcTR <- B.get
-		dcTNTO <- B.get
-		dcS <- B.get
-
-		return DoorController 
-			{ doorControllerId = dcId
-			, dcTargetDoorId = dcTDId
-			, dcTimeRunning = dcTR
-			, dcTimeNeedsToOpen = dcTNTO
-			, dcStarted = dcS
-			}
-
-instance B.Binary Switch where
-	put Switch
-		{ switchId
-		, switchOn
-		} = B.put switchId >> B.put switchOn
-
-	get = do
-		sId <- B.get
-		sOn <- B.get
-		return Switch { switchId = sId, switchOn = sOn }
-

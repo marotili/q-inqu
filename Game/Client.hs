@@ -44,8 +44,8 @@ decodeSteps = decodeMany
 clientStepWorld :: WorldWire () b ->  World -> WorldManager -> Rational ->
 	IO (WorldWire () b, (WorldManager, WorldDelta))
 clientStepWorld w' world' state' dt' = do
-	let dt = Timed (fromRational dt') ()
-
+	let dt = Timed (fromRational dt') (
+)
 	-- run wires
 	((out, w), worldManager, worldDelta) <- runRWST (
 		stepWire w' dt (Right ())
