@@ -219,7 +219,7 @@ tileSetData Map { tiledMap } = V.fromList . map fromIntegral $
 			, tsTileWidth
 			, tsTileHeight
 			, \_ -> i
-			]
+			] -- ++ take 8 (repeat (\_ -> (0::Int)))
 
 --meshSizes = 
  
@@ -237,14 +237,14 @@ newWorldRenderContext renderMap = do
 	print $ concatMap tsImages (mapTilesets (tiledMap renderMap))
 
 	-- global data
-	mapM_ (\(tileBuffer, tileset) -> do
-			let (TileMesh tileData) = newTile tileset
-			uploadFromVec GL.ShaderStorageBuffer tileBuffer tileData
-		) $ zip tileBuffers (mapTilesets . tiledMap $ renderMap)
+	--mapM_ (\(tileBuffer, tileset) -> do
+	--		let (TileMesh tileData) = newTile tileset
+	--		uploadFromVec GL.ShaderStorageBuffer tileBuffer tileData
+	--	) $ zip tileBuffers (mapTilesets . tiledMap $ renderMap)
 
 	-- tileset infos
 	uploadFromVec GL.ShaderStorageBuffer tilesetBuffer (tileSetData renderMap)
-	print $ tileSetData renderMap
+	print $ "Tilesets" ++ (show $ tileSetData renderMap)
 
 	-- per map buffers
 	--print $ ("tileids" ++ show (V.length (tileCoords renderMap)))
@@ -254,9 +254,10 @@ newWorldRenderContext renderMap = do
 	-- tile types
 	mapM_ (\(layerBuffer, posBuffer, layer) -> do
 			uploadFromVec GL.ShaderStorageBuffer layerBuffer (tileIds layer)
+			print $ "Tiled ids" ++ (show $ tileIds layer)
 			uploadFromVec GL.ShaderStorageBuffer posBuffer (tileCoords renderMap layer)
-			print $ ("tileids" ++ show (tileCoords renderMap layer))
-			print $ ("tileids" ++ show (objectCoords renderMap layer))
+			--print $ ("tileids" ++ show (tileCoords renderMap layer))
+			--print $ ("tileids" ++ show (objectCoords renderMap layer))
 		) $ zip3 layerBuffers posBuffers (T.mapLayers . tiledMap $ renderMap)
 	--print $ "Num layers" ++ show length (T.mapLayers . tiledMap $ renderMap)
 
@@ -310,12 +311,12 @@ bindWorldRenderContext wrc program = do
  --	GL.bindBuffer GL.ArrayBuffer $= Just (wrcMeshBuffer wrc)
  --	GL.vertexAttribPointer mesh $= (GL.ToFloat, GL.VertexArrayDescriptor 2 GL.Float 0 nullPtr)
 
-renderNormalLayer program wrc layerSSB posSSB = do
+renderNormalLayer program wrc layerSSB posSSB layer = do
 	posIndex <- GL.getShaderStorageBlockIndex program "Pos"
 	layerIndex <- GL.getShaderStorageBlockIndex program "LayerData"
 
-	renderType <- GL.get $ GL.uniformLocation program "renderType"
-	GL.uniform renderType $= (GL.Index1 (0 :: GL.GLuint))
+	--renderType <- GL.get $ GL.uniformLocation program "renderType"
+	--GL.uniform renderType $= (GL.Index1 (0 :: GL.GLuint))
 
 	GL.bindBufferBase' GL.ShaderStorageBuffer posIndex posSSB
 	GL.shaderStorageBlockBinding program posIndex posIndex	
@@ -323,7 +324,11 @@ renderNormalLayer program wrc layerSSB posSSB = do
 	GL.bindBufferBase' GL.ShaderStorageBuffer layerIndex layerSSB
 	GL.shaderStorageBlockBinding program layerIndex layerIndex
 
-	GL.drawArraysInstanced GL.Triangles 0 6 (fromIntegral (wrcNumTiles wrc))
+	let num = case layer of
+		Layer {} -> length $ Map.toList $ layerData layer
+		ObjectLayer {} -> length $ layerObjects layer
+
+	GL.drawArraysInstanced GL.Triangles 0 6 (fromIntegral num)
 
 --renderObjectLayer program wrc objectLayer = do
 --	posIndex <- GL.getShaderStorageBlockIndex program "Pos"
@@ -343,16 +348,22 @@ renderNormalLayer program wrc layerSSB posSSB = do
 renderWorldRenderContext program wrc = do
 	let map = wrcMap wrc
 
+	errors <- GL.get GL.errors
+	print $ ("shader storage", errors)
 	tilesetIndex <- GL.getShaderStorageBlockIndex program "TileSets"
+	print $ ("shader storage", tilesetIndex)
 	GL.bindBufferBase' GL.ShaderStorageBuffer tilesetIndex (wrcTilesetSSB wrc)
 	GL.shaderStorageBlockBinding program tilesetIndex tilesetIndex	
 
-	meshIndex <- GL.getShaderStorageBlockIndex program "Mesh"
-	GL.bindBufferBase' GL.ShaderStorageBuffer meshIndex (head . wrcTileBuffers $ wrc)
-	GL.shaderStorageBlockBinding program meshIndex meshIndex	
+	errors <- GL.get GL.errors
+	print $ ("tilesets ", errors)
+	--meshIndex <- GL.getShaderStorageBlockIndex program "Mesh"
+	--print $ (meshIndex)
+	--GL.bindBufferBase' GL.ShaderStorageBuffer meshIndex (head . wrcTileBuffers $ wrc)
+	--GL.shaderStorageBlockBinding program meshIndex meshIndex	
 
 	errors <- GL.get GL.errors
-	print $ ("sampler", errors)
+	print $ ("mesh", errors)
 	mapM_ (\i -> do
 			sampler <- GL.get $ GL.uniformLocation program ("Texture" ++ show i)
 			errors <- GL.get GL.errors
@@ -366,9 +377,9 @@ renderWorldRenderContext program wrc = do
 	mapM_ (\(layerSSB, posSSB, layer) -> do
 			case layer of
 				T.Layer _ _ _ _ _ -> do
-					renderNormalLayer program wrc layerSSB posSSB
+					renderNormalLayer program wrc layerSSB posSSB layer
 				T.ObjectLayer _ _ _ _ _ -> do
-					renderNormalLayer program wrc layerSSB posSSB
+					renderNormalLayer program wrc layerSSB posSSB layer
 					--renderObjectLayer program wrc layer
 
 		) $ zip3 (wrcLayerSSBs wrc) (wrcPosSSBs wrc) (layers map)

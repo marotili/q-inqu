@@ -70,6 +70,7 @@ render window rc cam = do
 	getShaderStorageBlockIndex (rcMainProgram rc) "Debug" >>= print
 	getShaderStorageBlockIndex (rcMainProgram rc) "Pos" >>= print
 	getShaderStorageBlockIndex (rcMainProgram rc) "ObjectData" >>= print
+	getShaderStorageBlockIndex (rcMainProgram rc) "Mesh" >>= print
 	getShaderStorageBlockIndex (rcMainProgram rc) "TileSets" >>= print
 	debugIndex <- getShaderStorageBlockIndex (rcMainProgram rc) "Debug"
 	print $ "Debug index" ++ show debugIndex

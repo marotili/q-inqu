@@ -12,13 +12,13 @@ uniform mat4 view;
 uniform mat4 projection;
 
 // Type
-layout(binding=0) buffer LayerData {
+layout(std430, binding=0) readonly buffer LayerData {
 	int tileId[];
 };
 
-layout (binding=6) buffer Mesh {
-	vec2 tileMesh[];
-};
+//layout (binding=3) buffer Mesh {
+//	vec2 tileMesh[];
+//};
 
 struct TileSet {
 	int firstgid;
@@ -29,16 +29,17 @@ struct TileSet {
 	int tileWidth;
 	int tileHeight;
 	int tilesetImage;
+	// int padding[8];
 };
 
-layout(binding=4) buffer TileSets {
+layout(std430, binding=1) readonly buffer TileSets {
 	TileSet tileSets[];
-};
+} tileSetTest;
 
-uniform int renderType = 0;
+// uniform int renderType = 0;
 
 // Coord
-layout(binding=1) buffer Pos {
+layout(std430, binding=2) readonly buffer Pos {
 	vec2 pos[];
 };
 
@@ -46,7 +47,7 @@ layout(binding=1) buffer Pos {
 // 	vec2 objectImage[];
 // };
 
-layout(binding=2) buffer Debug {
+layout(binding=3) buffer Debug {
 	int debug[];
 };
 
@@ -56,23 +57,23 @@ void main()
 
 	int tileGid = tileId[instanceID];
 
-	if (tileGid == 0) {
-		gl_Position = vec4(0, 0, 0, 0);
-		return;
-	}
+	// if (tileGid == 0) {
+		// gl_Position = vec4(0, 0, 0, 0);
+		// return;
+	// }
 
 	int myTileSet = 0; 
-	for (int i = 0; i < tileSets.length(); i++) {
-		int numX = tileSets[i].imageWidth / tileSets[i].tileWidth;
-		int numY = tileSets[i].imageHeight / tileSets[i].tileHeight;
+	for (int i = 0; i < tileSetTest.tileSets.length(); i++) {
+		int numX = tileSetTest.tileSets[i].imageWidth / tileSetTest.tileSets[i].tileWidth;
+		int numY = tileSetTest.tileSets[i].imageHeight / tileSetTest.tileSets[i].tileHeight;
 
-		if (tileSets[i].firstgid <= tileGid && tileSets[i].firstgid + numX*numY >= tileGid) {
+		if (tileSetTest.tileSets[i].firstgid <= tileGid && tileSetTest.tileSets[i].firstgid + numX*numY >= tileGid) {
 			myTileSet = i;
 			break;
 		}
 	}
 
-	struct TileSet tileSet = tileSets[myTileSet];
+	TileSet tileSet = tileSetTest.tileSets[myTileSet];
 	int localTileId = tileId[instanceID] - tileSet.firstgid;
 
 	int numX = tileSet.imageWidth / tileSet.tileWidth;
@@ -119,8 +120,13 @@ void main()
 	// color_out = color_in;
     gl_Position = projection*view*vec4(vec3(pos[instanceID], 0) + vec3(tileMeshCoords, 0.0), 1.0);
     // debug[instanceID + gl_VertexID] = gl_Position;
-    debug[instanceID] = tileSets.length();
-    // debug[instanceID] = tileSets[0].imageHeight;
+    debug[0] = pos.length();
+    // // debug[1] = tileSetTest.length();
+    // debug[2] = int(pos[instanceID].y);
+    debug[3] = int(tileMeshCoords.x);
+    debug[4] = int(tileMeshCoords.y);
+    // // debug[3] = texCoords.x;
+    // debug[instanceID] = tileSetTest.tileSets.length();
     // debug[1] = instanceID;
     // debug[2] = tileGid;
     // debug[instanceID*6+gl_VertexID] = gl_Position;
