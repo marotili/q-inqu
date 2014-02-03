@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <map version="1.0" orientation="orthogonal" width="50" height="50" tilewidth="24" tileheight="24">
  <tileset firstgid="1" name="sewer_tileset" tilewidth="24" tileheight="24">
-  <image source="data/sewer_tileset.png" trans="ff00ff" width="192" height="217"/>
+  <image source="sewer_tileset.png" trans="ff00ff" width="192" height="217"/>
   <tile id="17">
    <properties>
     <property name="type" value="Wall"/>
    </properties>
   </tile>
  </tileset>
+ <tileset firstgid="73" source="tileset_mensch.tsx"/>
  <layer name="Bottom" width="50" height="50">
   <data>
    <tile gid="13"/>
@@ -2514,6 +2515,7 @@
  </layer>
  <objectgroup name="Object Layer 1">
   <object gid="45" x="348" y="500"/>
+  <object gid="76" x="295" y="561"/>
  </objectgroup>
  <layer name="Top" width="50" height="50" opacity="0.49">
   <data>

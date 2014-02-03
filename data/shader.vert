@@ -1,6 +1,5 @@
 #version 430
 
-in vec2 mesh;
 in float position;
 in float color_in;
 
@@ -15,6 +14,10 @@ uniform mat4 projection;
 // Type
 layout(binding=0) buffer LayerData {
 	int tileId[];
+};
+
+layout (binding=6) buffer Mesh {
+	vec2 tileMesh[];
 };
 
 struct TileSet {
@@ -109,7 +112,7 @@ void main()
 		float(ty) / float(tileSet.imageHeight));
 
 	// color_out = color_in;
-    gl_Position = projection*view*vec4(vec3(pos[instanceID], 0) + vec3(mesh, 0.0), 1.0);
+    gl_Position = projection*view*vec4(vec3(pos[instanceID], 0) + vec3(tileMesh[gl_VertexID], 0.0), 1.0);
     // debug[instanceID + gl_VertexID] = gl_Position;
     debug[instanceID] = tileSets.length();
     // debug[instanceID] = tileSets[0].imageHeight;
