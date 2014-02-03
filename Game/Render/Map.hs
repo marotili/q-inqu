@@ -79,6 +79,17 @@ newTile ts = TileMesh $ V.fromList
 	where
 		V2 dx dy = tilesetTileSize ts
 
+mapTilesetByGid :: Map -> Int -> Maybe T.Tileset
+mapTilesetByGid Map { tiledMap } gid = case find (
+		\ts -> fromIntegral (tsInitialGid ts) <= gid && 
+			fromIntegral (tsInitialGid ts) + (numX ts)*(numY ts) > gid) tilesets of
+				Just ts -> Just ts
+				Nothing -> Nothing
+	where
+		tilesets = mapTilesets tiledMap
+		numX ts = fromIntegral $ (iWidth . head . tsImages $ ts) `div` (tsTileWidth ts)
+		numY ts = fromIntegral $ (iHeight . head . tsImages $ ts) `div` (tsTileHeight ts)
+
 tileCoords :: Map -> Layer -> V.Vector Float
 tileCoords m ol@ObjectLayer {} = objectCoords m ol
 tileCoords m l = V.fromList $ foldr (\(a, b) l -> a : b : l) [] (tileCoords' m l)
@@ -93,9 +104,21 @@ tileCoords' m Layer { layerData } = toWorldCoords
 
 objectCoords :: Map -> Layer -> V.Vector Float
 objectCoords m ObjectLayer { layerObjects } = V.fromList $ 
-		concatMap (\o -> [lx + fromIntegral (T.objectX o), ly + fromIntegral (T.objectY o)]) layerObjects
+		concatMap (\o -> case ow o of
+				Just objectW ->
+					[lx + fromIntegral (-objectW + T.objectX o), 
+					ly + fromIntegral (-fromJust (T.objectHeight o) + T.objectY o)]
+				Nothing -> case objectGid o of
+					Just gid -> case mapTilesetByGid m (fromIntegral gid) of
+						Just tileset -> 
+							[ lx + fromIntegral (-(tsTileWidth tileset) + T.objectX o)
+							, ly + fromIntegral (-(tsTileHeight tileset) + T.objectY o)]
+						Nothing -> [0, 0]
+					Nothing -> [0, 0]
+				) layerObjects
 	where
 		V2 lx ly = mapTopLeft m
+		ow o = (T.objectWidth o)
 objectCoords _ _ = V.fromList []
 
 --tileCoords' Layer { layerData } = zipWith applyOffsets coords offsets

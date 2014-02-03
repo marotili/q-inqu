@@ -27,6 +27,17 @@ data RenderContext = RenderContext
 	}
 
 newRenderContext renderMap = do
+
+--	if blend {
+--gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+--gl.Enable(gl.BLEND)
+--} else {
+--gl.Disable(gl.BLEND)
+--gl.BlendFunc(gl.ONE, gl.ZERO)
+--}
+	GL.blendFunc $= (GL.SrcAlpha, GL.OneMinusSrcAlpha)
+	GL.blend $= GL.Enabled
+
 	program <- setupShaders
 
 	wrc <- newWorldRenderContext renderMap

@@ -2514,8 +2514,7 @@
   </data>
  </layer>
  <objectgroup name="Object Layer 1">
-  <object gid="45" x="348" y="500"/>
-  <object gid="76" x="295" y="561"/>
+  <object gid="76" x="290" y="523"/>
  </objectgroup>
  <layer name="Top" width="50" height="50" opacity="0.49">
   <data>

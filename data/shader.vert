@@ -42,9 +42,9 @@ layout(binding=1) buffer Pos {
 	vec2 pos[];
 };
 
-layout(binding=3) buffer ObjectData {
-	vec2 objectImage[];
-};
+// layout(binding=3) buffer ObjectData {
+// 	vec2 objectImage[];
+// };
 
 layout(binding=2) buffer Debug {
 	int debug[];
@@ -84,26 +84,30 @@ void main()
 	int tx = x*tileSet.tileWidth + tileSet.spacing*(x) + tileSet.margin;
 	int ty = y*tileSet.tileHeight + tileSet.spacing*(y) + tileSet.margin;
 
+	vec2 tileMeshCoords = vec2(0, 0);
 	// tx = 0;
 	// ty = 0;
 	if (gl_VertexID == 0) {
 		tx += 0;
 		ty += 0;
 	} else if (gl_VertexID == 1) {
-
+		tileMeshCoords = vec2(tileSet.tileWidth, 0);
 		tx += tileSet.tileWidth;
 		ty += 0;
 	} else if (gl_VertexID == 2) {
+		tileMeshCoords = vec2(tileSet.tileWidth, tileSet.tileHeight);
 		tx += tileSet.tileWidth;
 		ty += tileSet.tileHeight;
 	} else if (gl_VertexID == 3) {
+		tileMeshCoords = vec2(tileSet.tileWidth, tileSet.tileHeight);
 		tx += tileSet.tileWidth;
 		ty += tileSet.tileHeight;
 	} else if (gl_VertexID == 4) {
-
+		tileMeshCoords = vec2(0, tileSet.tileHeight);
 		tx += 0;
 		ty += tileSet.tileHeight;
 	} else if (gl_VertexID == 5) {
+		tileMeshCoords = vec2(0, 0);
 		tx += 0;
 		ty += 0;
 	}
@@ -111,8 +115,9 @@ void main()
 	texCoords = vec2(float(tx) / float(tileSet.imageWidth), 
 		float(ty) / float(tileSet.imageHeight));
 
+
 	// color_out = color_in;
-    gl_Position = projection*view*vec4(vec3(pos[instanceID], 0) + vec3(tileMesh[gl_VertexID], 0.0), 1.0);
+    gl_Position = projection*view*vec4(vec3(pos[instanceID], 0) + vec3(tileMeshCoords, 0.0), 1.0);
     // debug[instanceID + gl_VertexID] = gl_Position;
     debug[instanceID] = tileSets.length();
     // debug[instanceID] = tileSets[0].imageHeight;
