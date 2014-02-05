@@ -1,53 +1,82 @@
+{-# LANGUAGE NoMonomorphismRestriction, NamedFieldPuns #-}
 module Game.Tiled where
-	
-import qualified Data.Tiled as T
 
+import Control.Lens
+import Data.Tiled
+import Data.Maybe
 import qualified Data.Map as Map
-import Control.Monad
+import Data.Word
 
-import Game.Map
-import qualified Game.Render.Map as RM
+tMap = loadMapFile "data/sewers.tmx"
 
---mapConfigFromTiled :: T.TiledMap -> MapConfig
---mapConfigFromTiled tiledMap = MapConfig
---	{ mapWidth = T.mapWidth tiledMap
---	, mapHeight = T.mapHeight tiledMap
---	, mapNeighborhoodFunc = clipNeighborhood
---	, mapCellTiles = tiles
---	}
---	where
---		tiles = foldr (\(k, v) -> Map.insert k (fromIntegral $ T.tileGid v)) Map.empty $ 
---			concatMap (Map.toList . T.layerData) (T.mapLayers tiledMap)
+queryObject :: TiledMap -> String -> Maybe Object
+queryObject tm name = findOf 
+	traverse 
+	(\obj -> obj^.objectName._Just == name) 
+	(tm^.mapLayers.traverse._ObjectLayer.layerObjects)
 
---renderMapFromTiled :: T.TiledMap -> RM.Map
---renderMapFromTiled tm = renderMap
---	where
---		renderMap = RM.newRenderMap gameMap 
---			( fromIntegral $ T.mapTileWidth tm
---			, fromIntegral $ T.mapTileHeight tm)
---		gameMap = mapNew (mapConfigFromTiled tm)
+mapIdxToCoords :: TiledMap -> (Int, Int) -> (Float, Float)
+mapIdxToCoords tm (x, y) = (fromIntegral $ tm^.mapWidth * x, fromIntegral $ tm^.mapHeight * y)
 
---main :: IO ()
---main = do
---	--tiledMap <- loadMapFile "data/desert.tmx"
-	--let tileSet = head . mapTilesets $ tiledMap
-	--mapM_ (print . pixelCoordinates tileSet) $ 
-	--concat [map ((\x -> x - 1) . fromIntegral . tileGid . snd)
-	-- --(Map.toList (layerData layer))  | layer <- mapLayers tiledMap]
+mapWallPositions :: TiledMap -> [(Float, Float)]
+mapWallPositions tm = map (mapIdxToCoords tm . fst) $ 
+		filter cond (Map.toList $ (tm^.mapLayers.traverse._Layer.layerData))
+	where
+		cond (pos, tile) = tile^.tileGid' `elem` mapWallTiles tm
+		--cond _ = True
 
+mapWallTiles :: TiledMap -> [Int]
+mapWallTiles tm = map (addGid) $ filter cond (
+		foldr (\ts l -> takeTilesetWithProps ts ++ l) [] (tm^.mapTilesets)
+	)
+	where
+		cond = (\(_, _, properties) -> anyOf traverse (\prop -> 
+				prop^._1 =="type" && prop^._2 == "Wall"
+			) properties)
+		
+		addGid :: (Tileset, Word32, [(String, String)]) -> Int
+		addGid (ts, tileGid, properties) = (fromIntegral $ ts^.tsInitialGid) + fromIntegral tileGid
 
-	--return ()
+takeTilesetWithProps :: Tileset -> [(Tileset, Word32, [(String, String)])]
+takeTilesetWithProps ts = [(ts, tileId, props) | (tileId, props) <- ts^.tsTileProperties]
 
---pixelCoordinates :: Tileset -> Int -> (Int, Int)
---pixelCoordinates tileSet tileGid = (
---			x * tsTileWidth tileSet + spacing*(x-1) + margin,
---		 	y * tsTileHeight tileSet + spacing*(y-1) + margin)
---	where
---		tileId = tileGid - tsInitialGid tileSet
---		margin = tsMargin tileSet
---		spacing = tsSpacing tileSet
---		image = head . tsImages $ tileSet
---		numX = iWidth image `div` tsTileWidth tileSet
---		x = tileId `mod` numX + 1
---		y = tileId `div` numX + 1
+objectPos :: Getter Object (Float, Float)
+objectPos = to
+	(\obj -> (fromIntegral $ obj^.objectX, fromIntegral $ obj^.objectY))
+	--(\obj (x, y) -> obj & objectX .~ round x & objectY .~ round y)
 
+mapSize :: Getter TiledMap (Float, Float)
+mapSize = to 
+	(\tm -> (fromIntegral $ tm^.mapWidth, fromIntegral $ tm^.mapHeight))
+	--(\tm (w, h) -> tm & mapWidth .~ round w & mapHeight .~ round h)
+
+numTiles :: Getter Tileset Int
+numTiles = to _numTiles
+
+_numTiles :: Tileset -> Int
+_numTiles ts = fromJust $ do
+		x <- numX
+		y <- numY
+		return $ x * y
+	where
+		numX = ts^.tsImages^?_head.iWidth >>= \w -> return (w `div` ts^.tsTileWidth)
+		numY = ts^.tsImages^?_head.iHeight >>= \h -> return (h `div` ts^.tsTileHeight)
+
+objectGid' :: Getter Object (Maybe Int)
+objectGid' = to (\o -> fmap fromIntegral (o^.objectGid))
+tileGid' :: Getter Tile Int
+tileGid' = to (\o -> fromIntegral $ o^.tileGid)
+
+tsInitialGid' :: Getter Tileset Int
+tsInitialGid' = to (\ts -> fromIntegral (ts^.tsInitialGid))
+
+tilesetOfTile :: TiledMap -> Int -> Tileset
+tilesetOfTile tm gid = fromJust $ findOf
+	traverse
+	(\ts -> ts^.tsInitialGid' <= gid && ts^.tsInitialGid' + ts^.numTiles > gid)
+	(tm^.mapTilesets)
+
+--objectTileset :: Getter Object Tileset
+--objectTileset = to 
+
+--tileTileset :: Getter Tile Tileset

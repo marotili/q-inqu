@@ -21,7 +21,6 @@ import Data.List
 
 import qualified Data.Map as Map
 import qualified Data.Vector.Storable as V
-import qualified Game.Map as Game
 
 import Game.Render.Render
 
@@ -33,8 +32,12 @@ data Map = Map
 	, tiledMap :: T.TiledMap
 	} deriving (Show)
 
+renderMapWidth :: Map -> Int
 renderMapWidth m = T.mapWidth . tiledMap $ m
+
+renderMapHeight :: Map -> Int
 renderMapHeight m = T.mapHeight . tiledMap $ m
+
 mapTileSize :: Map -> V2 Float
 mapTileSize Map { tiledMap } = V2 (fromIntegral . T.mapTileWidth $ tiledMap) (fromIntegral . T.mapTileHeight $ tiledMap)
 
@@ -49,12 +52,6 @@ newRenderMap tiledMap = Map
 	}
 
 data TileMesh = TileMesh (V.Vector Float)
-
-data Tileset = Tileset
-	{ tilesetImage :: FilePath
-	, tilesetTextureUnit :: GL.TextureUnit
-	, tilesetData :: TileSetData
-	}
 
 data TileSetData = TileSetData
 	{ firstGid :: Int32
@@ -82,18 +79,19 @@ newTile ts = TileMesh $ V.fromList
 mapTilesetByGid :: Map -> Int -> Maybe T.Tileset
 mapTilesetByGid Map { tiledMap } gid = case find (
 		\ts -> fromIntegral (tsInitialGid ts) <= gid && 
-			fromIntegral (tsInitialGid ts) + (numX ts)*(numY ts) > gid) tilesets of
+			fromIntegral (tsInitialGid ts) + numX ts * numY ts > gid) tilesets of
 				Just ts -> Just ts
 				Nothing -> Nothing
 	where
 		tilesets = mapTilesets tiledMap
-		numX ts = fromIntegral $ (iWidth . head . tsImages $ ts) `div` (tsTileWidth ts)
-		numY ts = fromIntegral $ (iHeight . head . tsImages $ ts) `div` (tsTileHeight ts)
+		numX ts = fromIntegral $ (iWidth . head . tsImages $ ts) `div` tsTileWidth ts
+		numY ts = fromIntegral $ (iHeight . head . tsImages $ ts) `div` tsTileHeight ts
 
 tileCoords :: Map -> Layer -> V.Vector Float
 tileCoords m ol@ObjectLayer {} = objectCoords m ol
 tileCoords m l = V.fromList $ foldr (\(a, b) l -> a : b : l) [] (tileCoords' m l)
 
+tileCoords' :: Map -> Layer -> [(Float, Float)]
 --tileCoords' m ol@ObjectLayer { } = objectCoords m ol
 tileCoords' m Layer { layerData } = toWorldCoords 
 	where
@@ -118,29 +116,8 @@ objectCoords m ObjectLayer { layerObjects } = V.fromList $
 				) layerObjects
 	where
 		V2 lx ly = mapTopLeft m
-		ow o = (T.objectWidth o)
+		ow = T.objectWidth
 objectCoords _ _ = V.fromList []
-
---tileCoords' Layer { layerData } = zipWith applyOffsets coords offsets
---	where
---		w = renderMapWidth m
---		h = renderMapHeight m
-
---		(V2 tsx tsy) = mapTileSize m
---		ox = tsx * 0.0
---		oy = tsy * 0.0
---		offsets :: [(Float, Float)]
---		offsets = [(ox*(fromIntegral x), oy*(fromIntegral y)) | y <- [0..h-1], x <- [0..w-1]]
---		coords = [(x, y) | 
---				y <- [y0, y0+tsy .. y1-tsy],
---				x <- [x0, x0 + tsx .. x1-tsx]
---			]
-
---		applyOffsets :: (Float, Float) -> (Float, Float) -> (Float, Float)
---		applyOffsets (x, y) (ox, oy) = (x+ox, y+oy)
-
---		V2 x0 y0 = mapTopLeft m
---		V2 x1 y1 = mapBottomRight m
 
 mapBottomRight :: Map -> V2 Float 
 mapBottomRight m@Map { mapTopLeft } =
@@ -148,7 +125,7 @@ mapBottomRight m@Map { mapTopLeft } =
 	where numTiles = V2 (fromIntegral $ renderMapWidth m) (fromIntegral $ renderMapHeight m)
 
 mapSize :: Map -> V2 Float
-mapSize m = (mapBottomRight m - mapTopLeft m)
+mapSize m = mapBottomRight m - mapTopLeft m
 
 -- input in render world coordinates
 --mapSelectTile :: V2 Float -> Map -> Maybe (Int, Int)
@@ -186,10 +163,15 @@ data WorldRenderContext = WorldRenderContext
 	, wrcMap :: Map
 	}
 
-objectLayers Map { tiledMap } = filter (\l -> case l of T.ObjectLayer _ _ _ _ _ -> True; _ -> False) (T.mapLayers tiledMap)
+objectLayers :: Map -> [Layer]
+objectLayers Map { tiledMap } = filter (\l -> case l of T.ObjectLayer {} -> True; _ -> False) (T.mapLayers tiledMap)
+
+layers :: Map -> [Layer]
 layers Map { tiledMap } = T.mapLayers tiledMap
 
+numLayers :: Map -> Int
 numLayers map = length . layers $ map
+numObjectLayers :: Map -> Int
 numObjectLayers map = length . objectLayers $ map
 
 tileIds :: Layer -> V.Vector Int32
@@ -197,11 +179,13 @@ tileIds Layer { layerData } = V.fromList $ map (fromIntegral . T.tileGid . snd) 
 tileIds ObjectLayer { layerObjects } = V.fromList $ map (fromIntegral . fromJust . T.objectGid) layerObjects
 tileIds _ = V.fromList []
 
-
 images :: Map -> [T.Image]
 images Map { tiledMap} = concatMap T.tsImages (T.mapTilesets tiledMap)
+
+numImages :: Map -> Int
 numImages map = length . images $ map
 
+numObjects :: Layer -> Int
 numObjects ObjectLayer { layerObjects } = length layerObjects
 numObjects _ = 0
 
@@ -218,11 +202,12 @@ tileSetData Map { tiledMap } = V.fromList . map fromIntegral $
 			, tsMargin
 			, tsTileWidth
 			, tsTileHeight
-			, \_ -> i
+			, const i
 			]
 
 --meshSizes = 
  
+newWorldRenderContext :: Map -> IO WorldRenderContext
 newWorldRenderContext renderMap = do
 	--let m = newMap gameMap
 	tileBuffers <- GL.genObjectNames (length $ mapTilesets (tiledMap renderMap)) :: IO [GL.BufferObject]
@@ -233,8 +218,8 @@ newWorldRenderContext renderMap = do
 	[vao] <- GL.genObjectNames 1 :: IO [GL.VertexArrayObject]
 
 	imageTextures <- GL.genObjectNames (numImages renderMap) :: IO [GL.TextureObject]
-	print $ "Num images" ++ show (numImages renderMap)
-	print $ concatMap tsImages (mapTilesets (tiledMap renderMap))
+	--print $ "Num images" ++ show (numImages renderMap)
+	--print $ concatMap tsImages (mapTilesets (tiledMap renderMap))
 
 	-- global data
 	mapM_ (\(tileBuffer, tileset) -> do
@@ -244,19 +229,19 @@ newWorldRenderContext renderMap = do
 
 	-- tileset infos
 	uploadFromVec GL.ShaderStorageBuffer tilesetBuffer (tileSetData renderMap)
-	print $ tileSetData renderMap
+	--print $ tileSetData renderMap
 
 	-- per map buffers
 	--print $ ("tileids" ++ show (V.length (tileCoords renderMap)))
-	print $ "Num layers" ++ show  (length (T.mapLayers . tiledMap $ renderMap))
+	--print $ "Num layers" ++ show  (length (T.mapLayers . tiledMap $ renderMap))
 
 	-- per layer buffer
 	-- tile types
 	mapM_ (\(layerBuffer, posBuffer, layer) -> do
 			uploadFromVec GL.ShaderStorageBuffer layerBuffer (tileIds layer)
 			uploadFromVec GL.ShaderStorageBuffer posBuffer (tileCoords renderMap layer)
-			print $ ("tileids" ++ show (tileCoords renderMap layer))
-			print $ ("tileids" ++ show (objectCoords renderMap layer))
+			--print $ ("tileids" ++ show (tileCoords renderMap layer))
+			--print $ ("tileids" ++ show (objectCoords renderMap layer))
 		) $ zip3 layerBuffers posBuffers (T.mapLayers . tiledMap $ renderMap)
 	--print $ "Num layers" ++ show length (T.mapLayers . tiledMap $ renderMap)
 
@@ -274,13 +259,12 @@ newWorldRenderContext renderMap = do
 
 		pngImage <- P.readPng (T.iSource image)
 		case pngImage of
-			(Left s) -> do
-				print $ "Failed loading image: " ++ show (T.iSource image)
-			(Right s) -> case s of
-				(P.ImageRGBA8 (P.Image imgWidth imgHeight dat)) -> do
-					if (imgWidth /= T.iWidth image || imgHeight /= T.iHeight image)
-						then print $ "Image dimensions dont match: " ++ show (T.iSource image)
-						else return ()
+			Left s -> return ()
+			Right s -> case s of
+				(P.ImageRGBA8 (P.Image imgWidth imgHeight dat)) ->
+					--if (imgWidth /= T.iWidth image || imgHeight /= T.iHeight image)
+						--then print $ "Image dimensions dont match: " ++ show (T.iSource image)
+						--else return ()
 					V.unsafeWith dat $ \ptr -> do
 						GL.texImage2D GL.Texture2D GL.NoProxy 0 GL.RGBA8 
 							(GL.TextureSize2D (fromIntegral imgWidth) (fromIntegral imgHeight)) 0 
@@ -297,12 +281,13 @@ newWorldRenderContext renderMap = do
 		, wrcLayerSSBs = layerBuffers
 		, wrcObjectSSBs = objectBuffers
 		, wrcTextures = imageTextures
-		, wrcNumTiles = (renderMapWidth renderMap)*(renderMapHeight renderMap)
+		, wrcNumTiles = renderMapWidth renderMap * renderMapHeight renderMap
 		, wrcMap = renderMap
 		, wrcTilesetSSB = tilesetBuffer
 		}
 
-bindWorldRenderContext wrc program = do
+bindWorldRenderContext :: WorldRenderContext -> GL.Program -> IO ()
+bindWorldRenderContext wrc program = 
 	GL.bindVertexArrayObject $= (Just $ wrcVao wrc)	
 	--mesh <- GL.get (GL.attribLocation program "mesh")
 
@@ -310,12 +295,13 @@ bindWorldRenderContext wrc program = do
  --	GL.bindBuffer GL.ArrayBuffer $= Just (wrcMeshBuffer wrc)
  --	GL.vertexAttribPointer mesh $= (GL.ToFloat, GL.VertexArrayDescriptor 2 GL.Float 0 nullPtr)
 
+renderNormalLayer :: GL.Program -> WorldRenderContext -> GL.BufferObject -> GL.BufferObject -> IO ()
 renderNormalLayer program wrc layerSSB posSSB = do
 	posIndex <- GL.getShaderStorageBlockIndex program "Pos"
 	layerIndex <- GL.getShaderStorageBlockIndex program "LayerData"
 
 	renderType <- GL.get $ GL.uniformLocation program "renderType"
-	GL.uniform renderType $= (GL.Index1 (0 :: GL.GLuint))
+	GL.uniform renderType $= GL.Index1 (0 :: GL.GLuint)
 
 	GL.bindBufferBase' GL.ShaderStorageBuffer posIndex posSSB
 	GL.shaderStorageBlockBinding program posIndex posIndex	
@@ -340,6 +326,7 @@ renderNormalLayer program wrc layerSSB posSSB = do
 
 --	GL.drawArraysInstanced GL.Triangles 0 6 (fromIntegral (numObjects objectLayer))
 
+renderWorldRenderContext :: GL.Program -> WorldRenderContext -> IO ()
 renderWorldRenderContext program wrc = do
 	let map = wrcMap wrc
 
@@ -352,23 +339,17 @@ renderWorldRenderContext program wrc = do
 	GL.shaderStorageBlockBinding program meshIndex meshIndex	
 
 	errors <- GL.get GL.errors
-	print $ ("sampler", errors)
+	--print $ ("sampler", errors)
 	mapM_ (\i -> do
 			sampler <- GL.get $ GL.uniformLocation program ("Texture" ++ show i)
-			errors <- GL.get GL.errors
-			print $ ("uniformloc", errors, sampler)
+			--errors <- GL.get GL.errors
+			--print $ ("uniformloc", errors, sampler)
 			GL.uniform sampler $= GL.TextureUnit (fromIntegral i)
-			errors <- GL.get GL.errors
-			print $ ("setuniform", errors)
+			--errors <- GL.get GL.errors
+			--print $ ("setuniform", errors)
 		) [0..length (wrcTextures wrc)-1]
 	errors <- GL.get GL.errors
-	print $ ("render", errors)
-	mapM_ (\(layerSSB, posSSB, layer) -> do
-			case layer of
-				T.Layer _ _ _ _ _ -> do
-					renderNormalLayer program wrc layerSSB posSSB
-				T.ObjectLayer _ _ _ _ _ -> do
-					renderNormalLayer program wrc layerSSB posSSB
-					--renderObjectLayer program wrc layer
-
+	--print $ ("render", errors)
+	mapM_ (\(layerSSB, posSSB, layer) ->
+			renderNormalLayer program wrc layerSSB posSSB
 		) $ zip3 (wrcLayerSSBs wrc) (wrcPosSSBs wrc) (layers map)

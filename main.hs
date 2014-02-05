@@ -26,7 +26,6 @@ import Game.Input.Actions
 --import Game.Render
 --import Game.Cell
 import qualified Game.Render as Render
-import Game.Map
 import Game.Render.Map
 import qualified Game.Render.Map as RMap
 import Game.Render.Camera

@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, Arrows, NamedFieldPuns #-}
+{-# LANGUAGE TemplateHaskell, Arrows, NamedFieldPuns, Rank2Types #-}
 module Game.World where
 
 import Control.Concurrent
@@ -23,6 +23,9 @@ import Prelude hiding ((.), until)
 import Control.Lens
 import Game.Objects
 import Game.Collision
+
+import Data.Tiled
+import Game.Tiled
 
 import Game.Input.Actions as A
 
@@ -89,6 +92,47 @@ newWorld = World
 	, _wCurrentCollisions = Map.empty
 	--, wMap = gameMap
 	}
+
+getPlayerId :: String -> Getter World (Maybe PlayerId)
+getPlayerId playerName' = to (\w -> case getPlayer w of
+			[pId] -> Just pId
+			_ -> Nothing
+		)
+	where
+		getPlayer world = ifoldMap (\pId Player { playerName } ->
+				if playerName == playerName' then [pId] else []
+			) (world^.wPlayers)
+
+newWorldFromTiled :: TiledMap -> IO (World, WorldManager) -- io due to debug wire
+newWorldFromTiled tiledMap = do
+	let world = newWorld
+	(worldManager, worldDelta) <- execRWST (do
+			stepWire initWire (Timed 0 ()) (Right ())
+		) world newWorldManager
+
+	let world' = applyDelta world worldDelta
+	return (world', worldManager)
+
+	where
+		Just player1Obj = queryObject tiledMap "Player1"
+		Just player2Obj = queryObject tiledMap "Player2"
+
+		wallPositions = mapWallPositions tiledMap
+
+		--genWalls :: [(Float, Float)] -> WorldWire a b
+		genWalls [] = returnA
+		genWalls (wallPos:walls) = proc input -> do
+			spawnWallAt wallPos -< input
+			genWalls walls -< input
+			returnA -< input
+
+		initWire = proc input -> do
+			_ <- spawnPlayerAt "Neira" (player1Obj^.objectPos) -< input
+			_ <- spawnPlayerAt "TheGhost" (player2Obj^.objectPos) -< input
+
+			_ <- genWalls wallPositions -< input
+
+			returnA -< ()
 
 movingDirectionR = mkGenN $ \playerId -> do
 	wm <- get
@@ -241,10 +285,12 @@ newObject :: WorldContext ObjectId
 newObject = do
 	wm <- get 
 	let oId = (wm^.wmNextObjectId)
-	modify $ \wm -> wm 
-		{ _wmNextObjectId = oId + 1
-		, _wmObjects = Set.insert oId (wm^.wmObjects)
-		}
+	wmNextObjectId += 1
+	wmObjects .= Set.insert oId (wm^.wmObjects)
+	--modify $ \wm -> wm 
+		--{ _wmNextObjectId = oId + 1
+		--, _wmObjects = Set.insert oId (wm^.wmObjects)
+		--}
 	return oId
 
 moveObject :: (Float, Float) -> WorldWire ObjectId ()
@@ -272,10 +318,10 @@ moveObjectR = mkGen $ \ds (oId, (vx, vy)) -> do
 
 ----wcSpawnPlayer :: WorldContext ()
 ----wcSpawnPlayer = newObject >>= deltaAddPlayer "Marco" (50, 50)
-spawnPlayer :: WorldWire a (Event PlayerId)
-spawnPlayer = mkObjGenWire $ deltaAddPlayer "Marco" (50, 50)
+spawnPlayerAt :: String -> (Float, Float) -> WorldWire a (Event PlayerId)
+spawnPlayerAt name pos = mkObjGenWire $ deltaAddPlayer name pos
 
-spawnWall = mkObjGenWire $ deltaAddWall (60, 50)
+spawnWallAt pos = mkObjGenWire $ deltaAddWall pos
 
 --spawnDoor :: WorldWire a (Event DoorId)
 --spawnDoor = mkObjGenWire $ deltaAddDoor (20, 20)
@@ -322,8 +368,8 @@ mkObjGenWire f = genLater . mkGenN (\_ -> do
 userSpeed = 100
 
 testwire = proc input -> do
-	playerId <- asSoonAs . spawnPlayer -< input
-	_ <- asSoonAs . spawnWall -< input
+	playerId <- asSoonAs . spawnPlayerAt "Marco" (50, 50) -< input
+	_ <- asSoonAs . spawnWallAt (60, 60) -< input
 	(x, y) <- movingDirectionR -< playerId
 	mul <- pure (-1) . for 3 . asSoonAs . objectCollided <|> pure 1 -< playerId
 	_ <- moveObjectR -< (playerId, (x*userSpeed*mul, y*userSpeed))

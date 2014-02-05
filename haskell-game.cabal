@@ -26,8 +26,8 @@ library
         Game.Render.Render
         Game.Render.Map
         Game.World
-        Game.Tiled
         Game.Collision 
+        Game.Tiled
         Game.Objects
 
     build-depends:
@@ -53,7 +53,7 @@ library
         binary >= 0.5.1.1,
         pipes-network,
         pipes,
-        pipes-binary,
+        pipes-binary == 0.2.0,
         JuicyPixels,
         htiled,
         spacepart
@@ -88,7 +88,7 @@ executable server
         pipes,
         pipes-concurrency,
         async,
-        pipes-binary,
+        pipes-binary == 0.2.0,
         spacepart
     main-is: Game/Server.hs
 
@@ -124,7 +124,7 @@ executable cell
     pipes,
     pipes-concurrency,
     async,
-    pipes-binary,
+    pipes-binary == 0.2.0,
     network-simple,
     spacepart
 
