@@ -15,8 +15,8 @@ uniform mat4 projection;
 uniform int numTileSets; // needed for dynamic lookup
 
 // Type
-layout(binding=0, std430) uniform LayerData {
-	int tileId[2500];
+layout(binding=0, std140) uniform LayerData {
+	ivec4 tileId[2500];
 };
 
 // layout (binding=6) uniform Mesh {
@@ -32,49 +32,50 @@ struct TileSet {
 	int tileWidth;
 	int tileHeight;
 	int tilesetImage;
+	// int padding[8];
 };
 
 layout(binding=4) uniform TileSets {
 	TileSet tileSets[10];
-};
+} tileSetTest;
 
 // Coord
-layout(binding=1, std430) uniform Pos {
-	vec2 pos[2500];
+layout(binding=1, std140) uniform Pos {
+	vec4 pos[2500];
 };
 
 // layout(binding=3) buffer ObjectData {
 // 	vec2 objectImage[];
 // };
 
-// layout(binding=2) buffer Debug {
-// 	int debug[];
-// };
+// layout(binding=2, std430) buffer Debug {
+// 	int debug;
+// }
 
 void main()
 {
 	instanceID = gl_InstanceID;
 
-	int tileGid = tileId[instanceID];
+	int tileGid = tileId[instanceID].x;
 
-	if (tileGid == 0) {
-		gl_Position = vec4(0, 0, 0, 0);
-		return;
-	}
+	// if (tileGid == 0) {
+		// gl_Position = vec4(0, 0, 0, 0);
+		// return;
+	// }
 
 	int myTileSet = 0; 
 	for (int i = 0; i < numTileSets; i++) {
-		int numX = tileSets[i].imageWidth / tileSets[i].tileWidth;
-		int numY = tileSets[i].imageHeight / tileSets[i].tileHeight;
+		int numX = tileSetTest.tileSets[i].imageWidth / tileSetTest.tileSets[i].tileWidth;
+		int numY = tileSetTest.tileSets[i].imageHeight / tileSetTest.tileSets[i].tileHeight;
 
-		if (tileSets[i].firstgid <= tileGid && tileSets[i].firstgid + numX*numY >= tileGid) {
+		if (tileSetTest.tileSets[i].firstgid <= tileGid && tileSetTest.tileSets[i].firstgid + numX*numY > tileGid) {
 			myTileSet = i;
 			break;
 		}
 	}
 
-	struct TileSet tileSet = tileSets[myTileSet];
-	int localTileId = tileId[instanceID] - tileSet.firstgid;
+	TileSet tileSet = tileSetTest.tileSets[myTileSet];
+	int localTileId = tileId[instanceID].x - tileSet.firstgid;
 
 	int numX = tileSet.imageWidth / tileSet.tileWidth;
 	int numY = tileSet.imageHeight / tileSet.tileHeight;
@@ -116,12 +117,10 @@ void main()
 	texCoords = vec2(float(tx) / float(tileSet.imageWidth), 
 		float(ty) / float(tileSet.imageHeight));
 
+	vec2 newPos = pos[instanceID].xy;
 
 	// color_out = color_in;
-    gl_Position = projection*view*vec4(vec3(pos[instanceID], 0) + vec3(tileMeshCoords, 0.0), 1.0);
-    // debug[instanceID + gl_VertexID] = gl_Position;
-    // debug[instanceID] = tileSets.length();
-    // debug[instanceID] = tileSets[0].imageHeight;
+    gl_Position = projection*view*vec4(vec3(newPos, 0) + vec3(tileMeshCoords, 0.0), 1.0);
     // debug[1] = instanceID;
     // debug[2] = tileGid;
     // debug[instanceID*6+gl_VertexID] = gl_Position;

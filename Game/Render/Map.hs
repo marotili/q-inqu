@@ -95,7 +95,8 @@ mapTilesetByGid Map { _tiledMap } gid = case find (
 
 tileCoords :: Map -> Layer -> V.Vector Float
 tileCoords m ol@ObjectLayer {} = objectCoords m ol
-tileCoords m l = V.fromList $ foldr (\(a, b) l -> a : b : l) [] (tileCoords' m l)
+tileCoords m l = V.fromList $ foldr (\(a, b) l -> a : b : p : p : l) [] (tileCoords' m l)
+	where p = 0.0 -- padding
 
 tileCoords' :: Map -> Layer -> [(Float, Float)]
 --tileCoords' m ol@ObjectLayer { } = objectCoords m ol
@@ -110,19 +111,23 @@ objectCoords :: Map -> Layer -> V.Vector Float
 objectCoords m ObjectLayer { _layerObjects } = V.fromList $ 
 		concatMap (\o -> case ow o of
 				Just objectW ->
-					[lx + fromIntegral (-objectW + o^.objectX), 
-					ly + fromIntegral (-fromJust (o^.objectHeight) + (o^.objectY))]
+					[lx + fromIntegral (o^.objectX), 
+					ly + fromIntegral (-fromJust (o^.objectHeight) + (o^.objectY))
+					, p, p]				
 				Nothing -> case o^.objectGid of
 					Just gid -> case mapTilesetByGid m (fromIntegral gid) of
 						Just tileset -> 
-							[ lx + fromIntegral (-(tileset^.tsTileWidth) + (o^.objectX))
-							, ly + fromIntegral (-(tileset^.tsTileHeight) + (o^.objectY))]
-						Nothing -> [0, 0]
-					Nothing -> [0, 0]
+							[ lx + fromIntegral ((o^.objectX))
+							, ly + fromIntegral (-(tileset^.tsTileHeight) + (o^.objectY))
+							, p, p
+							]
+						Nothing -> [0, 0, 0, 0]
+					Nothing -> [0, 0, 0, 0]
 				) _layerObjects
 	where
 		V2 lx ly = m^.mapTopLeft
 		ow o = o^.objectWidth
+		p = 0.0 -- padding
 objectCoords _ _ = V.fromList []
 
 mapBottomRight :: Map -> V2 Float 
@@ -182,8 +187,12 @@ numObjectLayers :: Map -> Int
 numObjectLayers map = length . objectLayers $ map
 
 tileIds :: Layer -> V.Vector Int32
-tileIds Layer { _layerData } = V.fromList $ map (fromIntegral . _tileGid . snd) (Map.toList _layerData)
-tileIds ObjectLayer { _layerObjects } = V.fromList $ map (fromIntegral . fromJust . _objectGid) _layerObjects
+tileIds Layer { _layerData } = V.fromList $ concatMap (\x -> [x, p, p, p]) $ 
+		map (fromIntegral . _tileGid . snd) (Map.toList _layerData)
+	where p = 0 :: Int32 -- padding
+tileIds ObjectLayer { _layerObjects } = V.fromList $ concatMap (\x -> [x, p, p, p]) $ 
+		map (fromIntegral . fromJust . _objectGid) _layerObjects
+	where p = 0 :: Int32 -- padding
 tileIds _ = V.fromList []
 
 images :: Map -> [T.Image]
@@ -229,15 +238,14 @@ newWorldRenderContext renderMap = do
 	--print $ concatMap tsImages (mapTilesets (tiledMap renderMap))
 
 	-- global data
-	mapM_ (\(tileBuffer, tileset) -> do
-			let (TileMesh tileData) = newTile tileset
-			uploadFromVec GL.UniformBuffer tileBuffer tileData
-		) $ zip tileBuffers (renderMap^.tiledMap.mapTilesets)
+--	mapM_ (\(tileBuffer, tileset) -> do
+--			let (TileMesh tileData) = newTile tileset
+--			uploadFromVec GL.UniformBuffer tileBuffer tileData
+--		) $ zip tileBuffers (renderMap^.tiledMap.mapTilesets)
 
 	-- tileset infos
 	uploadFromVec GL.UniformBuffer tilesetBuffer (tileSetData renderMap)
 	--print $ tileSetData renderMap
-
 	-- per map buffers
 	--print $ ("tileids" ++ show (V.length (tileCoords renderMap)))
 	--print $ "Num layers" ++ show  (length (T.mapLayers . tiledMap $ renderMap))
@@ -247,6 +255,10 @@ newWorldRenderContext renderMap = do
 	mapM_ (\(layerBuffer, posBuffer, layer) -> do
 			uploadFromVec GL.UniformBuffer layerBuffer (tileIds layer)
 			uploadFromVec GL.UniformBuffer posBuffer (tileCoords renderMap layer)
+			case layer of
+				ObjectLayer {} ->
+					print $ "Objectdata" ++ show (tileIds layer) ++ " / " ++ show (tileCoords renderMap layer)
+				_ -> return ()
 			--print $ ("tileids" ++ show (tileCoords renderMap layer))
 			--print $ ("tileids" ++ show (objectCoords renderMap layer))
 		) $ zip3 layerBuffers posBuffers (renderMap^.tiledMap.mapLayers)
@@ -308,7 +320,6 @@ renderNormalLayer program wrc layerSSB posSSB layer = do
 	layerIndex <- GL.getUniformBlockIndex program "LayerData"
 
 	--renderType <- GL.get $ GL.uniformLocation program "renderType"
-	--GL.uniform renderType $= GL.Index1 (0 :: GL.GLuint)
 
 	GL.bindBufferBase' GL.UniformBuffer posIndex posSSB
 	GL.uniformBlockBinding program posIndex posIndex	
@@ -351,6 +362,7 @@ renderWorldRenderContext program wrc = do
 
 	errors <- GL.get GL.errors
 	print $ ("render world errors", errors)
+
 	mapM_ (\i -> do
 			sampler <- GL.get $ GL.uniformLocation program ("Texture" ++ show i)
 			--errors <- GL.get GL.errors
@@ -360,6 +372,7 @@ renderWorldRenderContext program wrc = do
 			--print $ ("setuniform", errors)
 		) [0..length (wrcTextures wrc)-1]
 	errors <- GL.get GL.errors
+
 	--print $ ("render", errors)
 	mapM_ (\(layerSSB, posSSB, layer) ->
 			renderNormalLayer program wrc layerSSB posSSB layer
