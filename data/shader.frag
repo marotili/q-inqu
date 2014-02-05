@@ -14,11 +14,6 @@ uniform sampler2D Texture4;
 uniform sampler2D Texture5;
 uniform sampler2D Texture6;
 
-uniform vec4 colors[3] = {
-	vec4(0, 1, 0, 1),
-	vec4(1, 1, 0, 1),
-	vec4(0, 0, 1, 1)
-};
 
 void main()
 {

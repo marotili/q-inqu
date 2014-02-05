@@ -8,7 +8,9 @@
    </properties>
   </tile>
  </tileset>
- <tileset firstgid="73" source="tileset_mensch.tsx"/>
+ <tileset firstgid="73" name="sprite_klein3" tilewidth="50" tileheight="90">
+  <image source="sprite_klein3.png" width="400" height="360"/>
+ </tileset>
  <layer name="Bottom" width="50" height="50">
   <data>
    <tile gid="13"/>
@@ -2514,7 +2516,7 @@
   </data>
  </layer>
  <objectgroup name="Object Layer 1">
-  <object name="Player1" gid="76" x="290" y="523"/>
+  <object name="Player1" gid="76" x="150" y="526"/>
   <object name="Player2" gid="73" x="400" y="563"/>
  </objectgroup>
  <layer name="Top" width="50" height="50" opacity="0.49">

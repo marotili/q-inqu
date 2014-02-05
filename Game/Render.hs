@@ -67,21 +67,28 @@ render window rc cam = do
 	GL.currentProgram $= Just (rcMainProgram rc)
 
 	programSetViewProjection (rcMainProgram rc) cam
-	getShaderStorageBlockIndex (rcMainProgram rc) "Debug" >>= print
-	getShaderStorageBlockIndex (rcMainProgram rc) "Pos" >>= print
-	getShaderStorageBlockIndex (rcMainProgram rc) "ObjectData" >>= print
-	getShaderStorageBlockIndex (rcMainProgram rc) "TileSets" >>= print
-	debugIndex <- getShaderStorageBlockIndex (rcMainProgram rc) "Debug"
-	print $ "Debug index" ++ show debugIndex
-	GL.bindBufferBase' GL.ShaderStorageBuffer debugIndex (rcDebugBuffer rc)
-	GL.shaderStorageBlockBinding (rcMainProgram rc) debugIndex debugIndex
+	--getShaderStorageBlockIndex (rcMainProgram rc) "Debug" >>= print
+	--getShaderStorageBlockIndex (rcMainProgram rc) "Pos" >>= print
+	--getShaderStorageBlockIndex (rcMainProgram rc) "ObjectData" >>= print
+	--getShaderStorageBlockIndex (rcMainProgram rc) "TileSets" >>= print
+
+	getUniformBlockIndex (rcMainProgram rc) "Debug" >>= print
+	getUniformBlockIndex (rcMainProgram rc) "Pos" >>= print
+	--getUniformBlockIndex (rcMainProgram rc) "ObjectData" >>= print
+	getUniformBlockIndex (rcMainProgram rc) "TileSets" >>= print
+
+
+	--debugIndex <- getShaderStorageBlockIndex (rcMainProgram rc) "Debug"
+	--print $ "Debug index" ++ show debugIndex
+	--GL.bindBufferBase' GL.ShaderStorageBuffer debugIndex (rcDebugBuffer rc)
+	--GL.shaderStorageBlockBinding (rcMainProgram rc) debugIndex debugIndex
 
 	renderWorldRenderContext (rcMainProgram rc) (rcWorldRenderContext rc)
 
-	errors <- GL.get GL.errors
-	print $ errors
-	GL.bindBuffer GL.ShaderStorageBuffer $= Just (rcDebugBuffer rc)
-	GL.withMappedBuffer (GL.ShaderStorageBuffer) GL.ReadOnly printPtr failure
+	--errors <- GL.get GL.errors
+	--print $ errors
+	--GL.bindBuffer GL.ShaderStorageBuffer $= Just (rcDebugBuffer rc)
+	--GL.withMappedBuffer (GL.ShaderStorageBuffer) GL.ReadOnly printPtr failure
 
 	where
 		printPtr :: Ptr Int32 -> IO [()]

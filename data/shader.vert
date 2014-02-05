@@ -11,14 +11,17 @@ flat out int image;
 uniform mat4 view;
 uniform mat4 projection;
 
+// uniform numTypes;
+uniform int numTileSets; // needed for dynamic lookup
+
 // Type
-layout(binding=0) buffer LayerData {
-	int tileId[];
+layout(binding=0, std430) uniform LayerData {
+	int tileId[2500];
 };
 
-layout (binding=6) buffer Mesh {
-	vec2 tileMesh[];
-};
+// layout (binding=6) uniform Mesh {
+// 	vec2 tileMesh[10];
+// };
 
 struct TileSet {
 	int firstgid;
@@ -31,24 +34,22 @@ struct TileSet {
 	int tilesetImage;
 };
 
-layout(binding=4) buffer TileSets {
-	TileSet tileSets[];
+layout(binding=4) uniform TileSets {
+	TileSet tileSets[10];
 };
 
-uniform int renderType = 0;
-
 // Coord
-layout(binding=1) buffer Pos {
-	vec2 pos[];
+layout(binding=1, std430) uniform Pos {
+	vec2 pos[2500];
 };
 
 // layout(binding=3) buffer ObjectData {
 // 	vec2 objectImage[];
 // };
 
-layout(binding=2) buffer Debug {
-	int debug[];
-};
+// layout(binding=2) buffer Debug {
+// 	int debug[];
+// };
 
 void main()
 {
@@ -62,7 +63,7 @@ void main()
 	}
 
 	int myTileSet = 0; 
-	for (int i = 0; i < tileSets.length(); i++) {
+	for (int i = 0; i < numTileSets; i++) {
 		int numX = tileSets[i].imageWidth / tileSets[i].tileWidth;
 		int numY = tileSets[i].imageHeight / tileSets[i].tileHeight;
 
@@ -119,7 +120,7 @@ void main()
 	// color_out = color_in;
     gl_Position = projection*view*vec4(vec3(pos[instanceID], 0) + vec3(tileMeshCoords, 0.0), 1.0);
     // debug[instanceID + gl_VertexID] = gl_Position;
-    debug[instanceID] = tileSets.length();
+    // debug[instanceID] = tileSets.length();
     // debug[instanceID] = tileSets[0].imageHeight;
     // debug[1] = instanceID;
     // debug[2] = tileGid;

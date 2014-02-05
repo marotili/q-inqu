@@ -89,7 +89,8 @@ executable server
         pipes-concurrency,
         async,
         pipes-binary == 0.2.0,
-        spacepart
+        spacepart,
+        htiled
     main-is: Game/Server.hs
 
 executable cell
@@ -126,7 +127,8 @@ executable cell
     async,
     pipes-binary == 0.2.0,
     network-simple,
-    spacepart
+    spacepart,
+    htiled
 
   ghc-options: -rtsopts -threaded -fprof-auto
   main-is: main.hs
