@@ -24,15 +24,20 @@ library
     exposed-modules:
         Game.Input.Input
         Game.Input.Actions
+
         Game.Render.Render
         Game.Render.Map
         Game.Render.Camera
         Game.Render
+
         Game.World
         Game.Collision 
-        Game.Tiled
-        Game.Objects
-        Game.Client
+        Game.World.Import.Tiled
+        Game.World.Objects
+
+        Game.Network.Common
+        Game.Network.Client
+        Game.Network.Server
 
     build-depends:
         base,

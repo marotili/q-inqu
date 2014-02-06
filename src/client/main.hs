@@ -18,8 +18,7 @@ import qualified FRP.Netwire as NW
 import qualified Data.Set as Set
 
 import qualified Graphics.UI.GLFW          as GLFW
-import Data.Tiled
-import Game.Tiled
+import Game.World.Import.Tiled
 import Game.Input.Input
 import Game.Input.Actions
 
@@ -36,7 +35,7 @@ import Linear
 
 import qualified Control.Monad.State as S
 
-import Game.Client
+import Game.Network.Client
 
 import Network.Simple.TCP
 import Control.Concurrent

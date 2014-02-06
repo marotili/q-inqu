@@ -44,7 +44,7 @@ import Pipes.Network.TCP
 import Pipes.Concurrent
 import qualified Pipes.Binary as PB
 
-import Game.Tiled
+import Game.World.Import.Tiled
 import Data.Tiled
 
 import qualified Game.Input.Actions as A
@@ -82,16 +82,14 @@ produceWorld :: World -> WorldManager -> WorldWire () b -> WorldSession ->
 produceWorld world manager w session = do
 	(t, action) <- P.await
 
-	let playerId = fromJust $ world^.getPlayerId "Neira"
-	let playerActions = if Map.member playerId (_wmPlayerActions manager)
-		then _wmPlayerActions manager Map.! playerId
+	let playerId = fromJust $ world^.wPlayerId "Neira"
+	let playerActions = if Map.member playerId (manager^.wmPlayerActions)
+		then (manager^.wmPlayerActions) Map.! playerId
 		else mempty
 
 	--lift $ print playerActions
 	--lift $ print action
-	let manager2 = manager { _wmPlayerActions = 
-		Map.insert playerId (playerActions `mappend` (A.newInputAction action)) (_wmPlayerActions manager) 
-		}
+	let manager2 = manager & wmPlayerActions %~	Map.insert playerId (playerActions `mappend` A.newInputAction action)
 	-- run wires
 	lift $ print "before main wire"
 	((w', session'), (manager', delta), dt) <- lift $ stepWorld w session world manager2
@@ -191,7 +189,7 @@ connCb (numClient, sendEvents, input1, input2) (sock, addr) = do
 	let fromClient = fromSocket sock 4096
 	let
 		testX :: Producer (PB.ByteOffset, (Float, A.Action)) IO ()
-		testX = (decodeAction fromClient >> return () >> testX) 
+		testX = void (decodeAction fromClient) >> testX
 
 	--runEffect $ (P.yield "Test" >-> cons)
 	a1 <- async $ do

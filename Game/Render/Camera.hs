@@ -1,5 +1,13 @@
 {-# LANGUAGE NamedFieldPuns #-}
-module Game.Render.Camera where
+module Game.Render.Camera
+	(
+	  Camera, Viewport
+	, cameraUpdateProjection
+	, programSetViewProjection
+	, newDefaultCamera
+	, screenToOpenGLCoords
+	, cameraInverse
+	) where
 
 import qualified Graphics.Rendering.OpenGL as GL
 import qualified Graphics.Rendering.OpenGL.Raw as GLRaw

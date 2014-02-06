@@ -1,5 +1,19 @@
 {-# LANGUAGE TemplateHaskell, Arrows, NamedFieldPuns, Rank2Types #-}
-module Game.World where
+module Game.World 
+	(
+	-- * World
+	  WorldWire, WorldSession, WorldContext
+	, World, WorldManager, WorldDelta
+
+	-- * To remove
+	, wmPlayerActions
+	, applyDelta
+
+	, wPlayerId, wPlayerPos
+
+	, newWorld, newWorldManager, newWorldFromTiled
+	, testwire
+	) where
 
 import Debug.Trace
 import Control.Concurrent
@@ -24,11 +38,11 @@ import Prelude hiding ((.), until)
 
 import Control.Lens
 import qualified Control.Lens as L
-import Game.Objects
+import Game.World.Objects
 import Game.Collision
 
 import Data.Tiled
-import Game.Tiled
+import Game.World.Import.Tiled
 
 import Game.Input.Actions as A
 
@@ -60,7 +74,7 @@ data World = World
 	, _wSwitches :: Map.Map SwitchId Switch
 	, _wPositions :: Map.Map ObjectId (Float, Float)
 	, _wPlayers :: Map.Map ObjectId Player
-	, _wCollisionManager :: CollisionManager
+	--, _wCollisionManager :: CollisionManager
 
 	, _wCurrentCollisions :: Map.Map ObjectId [ObjectId]
 	} deriving (Eq)
@@ -91,43 +105,38 @@ newWorld = World
 	, _wSwitches = Map.empty
 	, _wPositions = Map.empty
 	, _wPlayers = Map.empty
-	, _wCollisionManager = cmNew
+	--, _wCollisionManager = cmNew
 	, _wCurrentCollisions = Map.empty
 	--, wMap = gameMap
 	}
 
-getPlayerId :: String -> Getter World (Maybe PlayerId)
-getPlayerId playerName' = to (\w -> case getPlayer w of
+wPlayerId :: String -> Getter World (Maybe PlayerId)
+wPlayerId playerName' = to (\w -> case getPlayer w of
 			[pId] -> Just pId
 			_ -> Nothing
 		)
 	where
 		getPlayer world = ifoldMap (\pId Player { playerName } ->
-				if playerName == playerName' then [pId] else []
+				[pId | playerName == playerName']
 			) (world^.wPlayers)
 
-getPlayerPos :: String -> Getter World (Maybe (Float, Float))
-getPlayerPos playerName' = to (\w -> case w^.pId of
-			Just _ -> w^.wPositions.(L.at (fromJust $ w^.pId))
+wPlayerPos :: String -> Getter World (Maybe (Float, Float))
+wPlayerPos playerName' = to (\w -> case w^.pId of
+			Just _ -> w^.wPositions . L.at (fromJust $ w^.pId)
 			Nothing -> Nothing
 		)
 	where
-		pId = getPlayerId playerName'
+		pId = wPlayerId playerName'
 
 
 newWorldFromTiled :: TiledMap -> IO (World, WorldManager) -- io due to debug wire
 newWorldFromTiled tiledMap = do
 	let world = newWorld
-	(worldManager, worldDelta) <- execRWST (do
+	(worldManager, worldDelta) <- execRWST (
 			stepWire initWire (Timed 0 ()) (Right ())
 		) world newWorldManager
 
-	print $ player1Obj^.objectPos
-	print $ player2Obj^.objectPos
-
 	let world' = applyDelta world worldDelta
-
-	print $ "Finished initialization"
 	return (world', worldManager)
 
 	where
@@ -162,10 +171,9 @@ movingDirectionR = mkGenN $ \playerId -> do
 			return (Right (0, 0), movingDirectionR)
 
 deltaMoveObject :: ObjectId -> (Float, Float) -> WorldContext ()
-deltaMoveObject oId dPos@(dx, dy) = do
-	Control.Monad.unless (dx == 0 && dy == 0) $ do
+deltaMoveObject oId dPos@(dx, dy) =
+	Control.Monad.unless (dx == 0 && dy == 0) $
 		--cm <- view wCollisionManager
-		liftIO $ print "Start collision"
 		--if False -- cmCanCollide oId cm 
 		--	then do
 		--		-- FIXME: right now objects can jump through other objects if delta is too big
@@ -184,31 +192,30 @@ deltaMoveObject oId dPos@(dx, dy) = do
 		writer ((), newDelta
 			{ _wdPositionsDelta = Map.insert oId dPos Map.empty
 			})
-		liftIO $ print "before where"
 	where
 		-- on collision we update the position so that the objects dont intersect
 		-- and we send an collision event
 
 		-- big delta -> maybe many collisions
 		-- we reduce the delta pos and obtain less collisions. we return the minimum number of collisions possible
-		collisionLoop :: CollisionManager -> (Float, Float) -> [ObjectId] -> ((Float, Float), [ObjectId])
-		collisionLoop cm (dx, dy) collisionHappened = traceShow collisions $ 
-			if null collisions then
-				((dx, dy), collisionHappened) -- the last collision that happened
-			else
-				collisionLoop cm (dx/2.0, dy/2.0) collisions
-			where
-				collisions = traceShow (dx, dy) $ evalState (do
-						(px, py) <- cmObjectPos oId
-						traceShow (px, py) (return ())
-						cmRemoveFloating oId 
-						let bSize = 5
-						let newPos = (px + dx, py + dy)
-						traceShow (newPos) (return ())
-						cmAddFloating $ newCollidable oId (newBoundary newPos bSize)
-						traceShow "Add floating"  (return ())
-						cmCollisions oId
-					) cm
+		--collisionLoop :: CollisionManager -> (Float, Float) -> [ObjectId] -> ((Float, Float), [ObjectId])
+		--collisionLoop cm (dx, dy) collisionHappened = traceShow collisions $ 
+		--	if null collisions then
+		--		((dx, dy), collisionHappened) -- the last collision that happened
+		--	else
+		--		collisionLoop cm (dx/2.0, dy/2.0) collisions
+		--	where
+		--		collisions = traceShow (dx, dy) $ evalState (do
+		--				(px, py) <- cmObjectPos oId
+		--				traceShow (px, py) (return ())
+		--				cmRemoveFloating oId 
+		--				let bSize = 5
+		--				let newPos = (px + dx, py + dy)
+		--				traceShow (newPos) (return ())
+		--				cmAddFloating $ newCollidable oId (newBoundary newPos bSize)
+		--				traceShow "Add floating"  (return ())
+		--				cmCollisions oId
+		--			) cm
 
 
 
@@ -218,16 +225,16 @@ applyDelta w wd = collisions
 		newWalls = w { _wWalls = foldr (\d -> Map.insert (wallId d) d) (_wWalls w) (_wdWallsAdd wd) }
 		newPlayers = newWalls { _wPlayers = foldr (\p -> Map.insert (playerId p) p) (_wPlayers newWalls) (_wdPlayerAdd wd) }
 		positions = newPlayers { _wPositions = foldr (\(k, v) m -> Map.alter (alterPos v) k m) (_wPositions newPlayers) (Map.toList . _wdPositionsDelta $ wd) }
-		collidables = positions { _wCollisionManager = execState (do
-				mapM_ cmAddStatic [newCollidable oId (newBoundary (objectPos oId) 5) | oId <- map wallId (_wdWallsAdd wd)]
-				mapM_ cmAddFloating [newCollidable oId (newBoundary (objectPos oId) 5) | oId <- map playerId (_wdPlayerAdd wd)]
-			) (_wCollisionManager positions) }
-		floatingCollidables = collidables { _wCollisionManager = execState (
-				mapM_ (\oId -> cmUpdateFloating oId (objectPos oId)) (map fst (Map.toList (wd^.wdPositionsDelta)))
-			) (_wCollisionManager collidables) }
+		--collidables = positions { _wCollisionManager = execState (do
+				--mapM_ cmAddStatic [newCollidable oId (newBoundary (objectPos oId) 5) | oId <- map wallId (_wdWallsAdd wd)]
+				--mapM_ cmAddFloating [newCollidable oId (newBoundary (objectPos oId) 5) | oId <- map playerId (_wdPlayerAdd wd)]
+			--) (_wCollisionManager positions) }
+		--floatingCollidables = positions { _wCollisionManager = execState (
+		--		mapM_ ((\oId -> cmUpdateFloating oId (objectPos oId)) . fst) (Map.toList (wd^.wdPositionsDelta))
+		--	) (_wCollisionManager positions) }
 
 		-- overwrite old ones
-		collisions = floatingCollidables { _wCurrentCollisions = _wdCollisions wd }
+		collisions = positions { _wCurrentCollisions = _wdCollisions wd }
 
 		objectPos oId = (positions ^. wPositions) Map.! oId
 		--doorControllers = positions { wDoorControllers = foldr (\dc -> Map.insert (doorControllerId dc) dc) (wDoorControllers positions) (wdDoorControllers wd) }
@@ -268,30 +275,6 @@ instance Monoid WorldDelta where
 			doorControllers = wd1^.wdDoorControllers ++ wd2^.wdDoorControllers
 			collisions = Map.unionWith (++) (wd1^.wdCollisions) (wd2^.wdCollisions)
 
-
---deltaAddDoor :: (Float, Float) -> ObjectId -> WorldContext ()
---deltaAddDoor pos oId = do
---	deltaMoveObject oId pos
---	writer ((), mempty
---		{ wdDoorsAdd = [door]
---		})
---	where
---		door = Door oId False
-
---deltaAddDoorController :: DoorId -> DoorControllerId -> WorldContext ()
---deltaAddDoorController doorId oId = 
---	writer ((), mempty
---		{ wdDoorControllers = [doorController]
---		})
---	where
---		doorController = DoorController oId doorId 0 2 False
-
---deltaUpdateDoorController :: DoorController -> WorldContext ()
---deltaUpdateDoorController dc =
---	writer ((), mempty
---		{ wdDoorControllers = [dc]
---		})
-
 deltaAddPlayer :: String -> (Float, Float) -> ObjectId -> WorldContext ()
 deltaAddPlayer name pos oId = do
 	deltaMoveObject oId pos
@@ -311,7 +294,7 @@ deltaAddWall pos oId = do
 newObject :: WorldContext ObjectId
 newObject = do
 	wm <- get 
-	let oId = (wm^.wmNextObjectId)
+	let oId = wm^.wmNextObjectId
 	wmNextObjectId += 1
 	wmObjects .= Set.insert oId (wm^.wmObjects)
 	--modify $ \wm -> wm 
@@ -342,57 +325,23 @@ moveObjectR = mkGen $ \ds (oId, (vx, vy)) -> do
 	liftIO $ print "finished moving object"
 	return (Right (), moveObjectR)
 
-----wcSpawnDoor :: WorldContext ()
-----wcSpawnPlayer = newObject >>= deltaAddDoor
-
-----wcSpawnPlayer :: WorldContext ()
-----wcSpawnPlayer = newObject >>= deltaAddPlayer "Marco" (50, 50)
 spawnPlayerAt :: String -> (Float, Float) -> WorldWire a (Event PlayerId)
 spawnPlayerAt name pos = mkObjGenWire $ deltaAddPlayer name pos
 
 spawnWallAt pos = mkObjGenWire $ deltaAddWall pos
 
 player name = mkGenN $ \_ -> do
-	pid <- magnify (getPlayerId name) ask
-	liftIO $ print $ "Playerid: " ++ show pid
+	pid <- magnify (wPlayerId name) ask
 	case pid of 
 		Just pId -> return (Right pId, player name)
 		Nothing -> return (Left (), player name)
-
---spawnDoor :: WorldWire a (Event DoorId)
---spawnDoor = mkObjGenWire $ deltaAddDoor (20, 20)
 
 nullObject :: ObjectId
 nullObject = 0
 
 genLater :: WorldWire (Event ObjectId) (Event ObjectId)
---genLater = delay (Event nullObject)
 genLater = delay NoEvent
 
---spawnDoorController :: DoorId -> WorldWire a (Event DoorControllerId)
---spawnDoorController dId = mkObjGenWire $ deltaAddDoorController dId
-
---data ControllerState = Started | Finished
-
---runController :: WorldWire DoorControllerId (Event ControllerState)
---runController = mkGen $ \ds dcId -> do
---	dc <- doorController dcId 
---	let time' = dcTimeRunning dc + realToFrac (dtime ds)
---	if time' > dcTimeNeedsToOpen dc
---		then do
---			deltaUpdateDoorController $ dc 
---				{ dcTimeRunning = 0
---				, dcStarted = False
---				}
---			return (Right $ Event Finished, never)
---		else do
---			deltaUpdateDoorController $ dc 
---				{ dcTimeRunning = time'
---				, dcStarted = True
---				}
---			return (Right NoEvent, runController)
-
---openDoor = until . fmap (\e -> ((), e)) runController
 
 mkObjGenWire :: (ObjectId -> WorldContext ()) -> WorldWire a (Event ObjectId)
 mkObjGenWire f = genLater . mkGenN (\_ -> do
@@ -410,9 +359,6 @@ testwire = proc input -> do
 	--mul <- pure (-1) . for 3 . asSoonAs . objectCollided <|> pure 1 -< playerId
 	_ <- moveObjectR -< (playerId, (x*userSpeed, y*userSpeed))
 	returnA -< ()
-
---makeWorld = WorldContext ()
---makeWorld = spawnPlayer
 
 worldLoop w' session' world' state' = do
 	(dt, session) <- stepSession session'
@@ -438,8 +384,5 @@ testWorld = do
 		}
 		(quit, (w', session'), (manager', delta)) <- worldLoop w session world myManager
 		let world' = applyDelta world delta
-		print (world'^.wPositions, quit)
-		--print (delta)
-		threadDelay 10000
 		let quit = False
 		Control.Monad.unless quit $ loop world' manager' w' session'

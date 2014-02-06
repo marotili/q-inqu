@@ -1,12 +1,14 @@
 {-# LANGUAGE TemplateHaskell, NamedFieldPuns #-}
-module Game.Collision where
+module Game.Collision 
+	( 
+	) where
 
 import GHC.Float
 import Debug.Trace
 import Data.SpacePart.QuadTree
 import Data.SpacePart.AABB
 
-import Game.Objects (ObjectId)
+import Game.World.Objects (ObjectId)
 
 import Control.Monad.State
 import Control.Monad
@@ -86,7 +88,7 @@ cmUpdateQT = do
 			cmCachedQuadTree .= staticQT
 			traceShow "insert statics" $
 				cmCachedQuadTree %= \qt -> 
-					foldr insert qt (map snd (Map.toList floatObjects))
+					foldr (insert.snd) qt (Map.toList floatObjects)
 			traceShow "insert floats" $
 				cmNeedsUpdate .= False
 	traceShow "updated" (return ())
@@ -105,24 +107,24 @@ cmQuery b = do
 
 cmObjectBoundarySize oId = do
 	cm <- get
-	if Map.member oId (cm ^. cmStaticObjects)
-		then return (double2Float (boundary cm cmStaticObjects))
+	return $ if Map.member oId (cm ^. cmStaticObjects)
+		then double2Float (boundary cm cmStaticObjects)
 		else 
-			if Map.member oId (cm ^. cmFloatingObjects) then
-			return (double2Float (boundary cm cmFloatingObjects))
-			else return 0
+			if Map.member oId (cm ^. cmFloatingObjects)
+				then double2Float (boundary cm cmFloatingObjects)
+				else 0
 	where
 		boundary cm objectSource = boundary_size ((cm ^. objectSource) Map.! oId ^. objectBoundary)	
 
 cmObjectPos :: ObjectId -> State CollisionManager (Float, Float)
 cmObjectPos oId = do
 	cm <- get
-	if Map.member oId (cm ^. cmStaticObjects)
-		then return (conv (pos cm cmStaticObjects))
+	return $ if Map.member oId (cm ^. cmStaticObjects)
+		then conv (pos cm cmStaticObjects)
 		else 
-			if Map.member oId (cm ^. cmFloatingObjects) then
-			return $ conv (pos cm cmFloatingObjects)
-			else return (0, 0)
+			if Map.member oId (cm ^. cmFloatingObjects)
+				then conv (pos cm cmFloatingObjects)
+				else (0, 0)
 
 	where
 		conv (dx, dy) = (double2Float dx, double2Float dy)

@@ -1,8 +1,17 @@
+{-# LANGUAGE Arrows #-}
 
--- language pragmas to support: instance Monoid InputActions
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, Arrows #-}
+module Game.Input.Input 
+	(
+	-- * Input
+	  UserInput
+	, inputNew, inputKeyDown, inputKeyUp
+	, inputMouseButtonDown, inputMouseButtonUp
+	, inputUpdateMousePos
 
-module Game.Input.Input where
+	-- * Wires
+	, InputWire
+	, stepInput, userInput
+	) where
 
 import Prelude hiding ((.))
 import Control.Wire
@@ -24,11 +33,7 @@ import Game.Input.Actions
 
 import Linear
 
---data MouseEvent = 
---	  MouseClick
---	| MouseDoubleClick
-
--- for wires read only data
+-- input data
 data UserInput = UserInput
   { inputKeys :: Set.Set GLFW.Key
   , inputMouseButtons :: Set.Set GLFW.MouseButton
@@ -40,14 +45,17 @@ data InputMemory = InputMemory
 	}
 
 type InputContext = RWS UserInput InputActions InputMemory
+type InputSession = Session IO (Timed NominalDiffTime ())
 type InputWire a b = Wire (Timed NominalDiffTime ()) () InputContext a b
 
+inputNew :: UserInput
 inputNew = UserInput
   { inputKeys = Set.empty
   , inputMouseButtons = Set.empty
   , inputMousePos = (0, 0)
   }
 
+inputMemoryNew :: InputMemory
 inputMemoryNew = InputMemory {}
 
 inputKeyDown :: GLFW.Key -> State UserInput ()
@@ -65,6 +73,9 @@ inputMouseButtonUp mb = modify $ \i -> i { inputMouseButtons = Set.delete mb (in
 inputUpdateMousePos :: (Double, Double) -> State UserInput ()
 inputUpdateMousePos pos = modify $ \i -> i { inputMousePos = pos }
 
+-- * Basic wires
+
+-- | Create a wire that triggers an event as soon as the monad action returns true
 inputEvent :: InputContext Bool -> InputWire a (Event a)
 inputEvent cond = mkGenN $ \a -> do
   eventHappened <- cond
@@ -72,7 +83,7 @@ inputEvent cond = mkGenN $ \a -> do
     then (Right (Event a), inputEvent cond)
     else (Right NoEvent, inputEvent cond)
 
--- FIXME: merge with inputEvent?
+-- | Create a wire that runs as long as the monad action returns true.
 inputState :: InputContext Bool -> InputWire a a
 inputState cond = mkGenN $ \a -> do
   eventHappened <- cond
@@ -92,16 +103,33 @@ keyDown key = inputState (liftM (Set.member key . inputKeys) ask)
 keyUp :: GLFW.Key -> InputWire a a
 keyUp key = inputState (liftM (not . Set.member key . inputKeys) ask)
 
+stepInput :: (Num a, Show b) 
+	=> InputWire a b 
+	-> InputSession 
+	-> State UserInput () 
+	-> IO (InputActions, InputSession, InputWire a b)
+stepInput w' session' input = do
+	(dt, session) <- stepSession session'
+	let ((_, w), _, actions) = runRWS (
+		stepWire w' dt (Right 0)
+		) (execState input inputNew) inputMemoryNew
+
+	return (actions, session, w)
+
+-- * User input
+directionX :: InputWire a (V2 Float)
 directionX = pure (V2 1 0) . keyDown GLFW.Key'A . keyUp GLFW.Key'D <|> 
 		pure (V2 (-1) 0) . keyDown GLFW.Key'D . keyUp GLFW.Key'A <|> 
 		pure 0
 
+directionY :: InputWire a (V2 Float)
 directionY = pure (V2 0 (-1)) . keyDown GLFW.Key'W . keyUp GLFW.Key'S <|> 
 		pure (V2 0 1) . keyDown GLFW.Key'S. keyUp GLFW.Key'W <|> 
 		pure 0
 
 --movement = (stopMoveAction . W.when (\(V2 x y) -> x == 0 && y == 0) <|> moveAction) . liftA2 (+) directionX directionY
-movement = (moveAction) . liftA2 (+) directionX directionY
+movement :: InputWire a ()
+movement = moveAction . liftA2 (+) directionX directionY
 
 untilV source = W.until . fmap(\e -> ((), e)) source
 
@@ -112,6 +140,7 @@ actionActivate = untilV (keyDownEvent GLFW.Key'X) W.-->
 
 --actionPickup = asSoonAs . keyDownEvent GLFW.Key'C
 
+userInput :: InputWire a ((), ())
 userInput = proc input -> do
 	m <- movement -< input
 	a <- actionActivate -< input
@@ -122,23 +151,13 @@ stopMoveAction = mkGenN $ \_ -> do
 	writer ((), newInputAction ActionStopMove)
 	return (Right (), stopMoveAction)
 
+moveAction :: InputWire (V2 Float) ()
 moveAction = mkGenN $ \(V2 x y) -> do
 	Control.Monad.unless (x == 0 && y == 0) $
 		writer ((), newInputAction (newMoveAction x y))
 	return (Right (), moveAction)
 
+activateAction :: InputWire a (Event ())
 activateAction = mkGenN $ \_ -> do
 	writer ((), newInputAction (ActionActivate DirNorth))
 	return (Right (Event ()), never)
-
-stepInput :: (Num a, Show b) =>
-	InputWire a b ->
-	Session IO (Timed NominalDiffTime ()) -> State UserInput () ->
-	IO (InputActions, Session IO (Timed NominalDiffTime ()), InputWire a b)
-stepInput w' session' input = do
-	(dt, session) <- stepSession session'
-	let ((_, w), _, actions) = runRWS (
-		stepWire w' dt (Right 0)
-		) (execState input inputNew) inputMemoryNew
-
-	return (actions, session, w)

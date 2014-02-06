@@ -1,4 +1,10 @@
-module Game.Input.Actions where
+module Game.Input.Actions 
+	(
+	-- * Actions
+	  Action(..), Direction(..), InputActions(..)
+	, newInputAction
+	, movingDirection, newMoveAction
+	) where
 
 import Data.Binary
 import Data.Monoid
@@ -34,7 +40,7 @@ newInputAction action = InputActions (Set.insert action Set.empty)
 
 isMoving :: InputActions -> Bool
 isMoving (InputActions actions) = 
-	or (map (\a -> case a of ActionMove _ _ -> True; _ -> False) (Set.toList actions))
+	any (\a -> case a of ActionMove _ _ -> True; _ -> False) (Set.toList actions)
 
 movingDirection is@(InputActions actions) = if isMoving is 
 	then foldr (\a (dx, dy) -> case a of ActionMove x y -> (x + dx, y + dy); _ -> (dx, dy)) (0, 0) (Set.toList actions)
@@ -64,7 +70,7 @@ instance Monoid InputActions where
 				where
 					V2 a b = normalize (V2 (x + x') (y + y'))
 
-			left = if or [isMoving (InputActions as2), ActionStopMove `elem` (Set.toList as1)] then (removeMovement as1) else as1
+			left = if isMoving (InputActions as2) || ActionStopMove `elem` Set.toList as1 then removeMovement as1 else as1
 
 			removeStops as = foldr (\a as -> case a of ActionStopMove -> as; _ -> Set.insert a as) Set.empty (Set.toList as)
 
