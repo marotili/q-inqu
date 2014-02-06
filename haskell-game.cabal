@@ -1,6 +1,6 @@
 name:          cell
 version:       0.1.0.0
-cabal-version: >= 1.8
+cabal-version: >= 1.19
 license:       BSD3
 
 build-type:    Simple
@@ -19,116 +19,100 @@ source-repository head
 --   netwire
 --  default-language:    Haskell2010
 
-library 
+library
+    default-language: Haskell2010
     exposed-modules:
         Game.Input.Input
         Game.Input.Actions
         Game.Render.Render
         Game.Render.Map
+        Game.Render.Camera
+        Game.Render
         Game.World
         Game.Collision 
         Game.Tiled
         Game.Objects
+        Game.Client
 
     build-depends:
         base,
-        linear >= 1.6,
-        containers >= 0.5,
-        lens >= 3.10.1,
-        bimap >= 0.2.4,
-        mtl        >= 2.0.1 && < 2.2,
-        random     >= 1.0,
-        hsnoise >= 0.0.2,
-        vector >= 0.10.9,
-        OpenGL >= 2.9.0.1,
-        GLFW-b >= 1.4.6,
-        array >= 0.4.0.1,
-        bytestring >= 0.10.0.2,
-        pretty >= 1.1.1.0,
-        filepath >= 1.3.0.1,
-        storable-tuple >= 0.0.2,
-        parallel >= 3.2.0.4,
-        stm >= 2.4.2,
-        netwire >= 5.0.0,
-        binary >= 0.5.1.1,
-        pipes-network,
-        pipes,
-        pipes-binary == 0.2.0,
-        JuicyPixels,
-        htiled,
-        spacepart
+        linear >= 1.6 && < 1.7,
+        containers >= 0.5 && < 0.6,
+        lens >= 4.0 && < 4.1,
+        mtl        >= 2.1 && < 2.2,
+        random     >= 1.0 && < 1.1,
+        vector >= 0.10.9 && < 0.11,
+        OpenGL >= 2.9 && < 2.10,
+        OpenGLRaw >= 1.4 && < 1.5,
+        GLFW-b >= 1.4 && < 1.5,
+        array >= 0.4 && < 0.5,
+        bytestring >= 0.10 && < 0.11,
+        filepath >= 1.3 && < 1.4,
+        storable-tuple >= 0.0.2 && < 0.1,
+        stm >= 2.4 && < 2.5,
+        netwire >= 5.0.0 && < 5.1,
+        binary >= 0.7 && < 0.8,
+        htiled >= 0.1.1 && < 0.2,
+        network-simple >= 0.3 && < 0.4,
+        async >= 2.0 && < 2.1,
+        pipes-binary >= 0.2.0 && < 0.3,
+        pipes-concurrency >= 2.0.0 && < 2.1,
+        pipes-network >= 0.6.0 && < 0.7.0,
+        pipes >= 4.0.0 && < 4.1,
+        JuicyPixels >= 3.1 && < 3.2,
+        spacepart >= 0.1 && < 0.2
 
+-- TODO remove netwire dependency
 executable server
+    default-language: Haskell2010
+    hs-source-dirs: src/server
     build-depends:
         base,
         cell,
-        netwire >= 5.0.0 && <= 5.1,
-        network >= 2.4.2.2,
-        network-simple,
-        linear >= 1.6,
-        containers >= 0.5,
-        lens >= 3.10.1,
-        bimap >= 0.2.4,
-        mtl        >= 2.0.1 && < 2.2,
-        random     >= 1.0,
-        hsnoise >= 0.0.2,
-        vector >= 0.10.9,
-        OpenGL >= 2.9.0.1,
-        GLFW-b >= 1.4.6,
-        array >= 0.4.0.1,
-        bytestring >= 0.10.0.2,
-        pretty >= 1.1.1.0,
-        filepath >= 1.3.0.1,
-        storable-tuple >= 0.0.2,
-        parallel >= 3.2.0.4,
-        stm >= 2.4.2,
-        netwire >= 5.0.0,
-        binary >= 0.5.1.1,
-        pipes-network,
-        pipes,
-        pipes-concurrency,
-        async,
-        pipes-binary == 0.2.0,
-        spacepart,
-        htiled
-    main-is: Game/Server.hs
+        pipes-binary >= 0.2.0 && < 0.3,
+        pipes-concurrency >= 2.0.0 && < 2.1,
+        pipes-network >= 0.6.0 && < 0.7.0,
+        pipes >= 4.0.0 && < 4.1,
+        stm >= 2.4.0 && < 2.5,
+        async >= 2.0 && < 2.1,
+        network-simple >= 0.3 && < 0.4,
+        network >= 2.4 && < 2.5,
+        bytestring >= 0.10 && < 0.11,
 
-executable cell
-  build-depends:
-    base,
-    cell,
-    linear >= 1.6,
-    GLFW-b >= 1.4.6,
-    transformers >= 0.3.0.0,
-    mtl >= 2.1.2,
-    stm >= 2.4.2,
-    OpenGL >= 2.9.0.1,
-    bytestring >= 0.10.0.2,
-    hsnoise >= 0.0.2,
-    random >= 1.0.1.1,
-    lens >= 3.10.1,
-    containers >= 0.5.0.0,
-    bimap >= 0.2.4,
-    filepath >= 1.3.0.1,
-    array >= 0.4.0.1,
-    vector >= 0.10.9.1,
-    cell >= 0.1,
-    pretty >= 1.1.1.0,
-    storable-tuple >= 0.0.2,
-    OpenGLRaw >= 1.4.0.2,
-    parallel >= 3.2.0.4,
-    netwire >= 5.0.0,
-    JuicyPixels,
-    htiled,
-    binary,
-    pipes-network,
-    pipes,
-    pipes-concurrency,
-    async,
-    pipes-binary == 0.2.0,
-    network-simple,
-    spacepart,
-    htiled
+        netwire >= 5.0 && < 5.1,
+        htiled >= 0.1.1 && < 0.2,
+        lens >= 4.0 && < 4.1,
+
+        mtl >= 2.1 && < 2.2,
+        containers >= 0.5 && < 0.6
+    main-is: Server.hs
+
+executable client
+    default-language: Haskell2010
+    hs-source-dirs: src/client
+    build-depends:
+        base,
+        cell,
+        pipes-binary >= 0.2.0 && < 0.3,
+        pipes-concurrency >= 2.0.0 && < 2.1,
+        pipes-network >= 0.6.0 && < 0.7.0,
+        pipes >= 4.0.0 && < 4.1,
+        stm >= 2.4.0 && < 2.5,
+        async >= 2.0 && < 2.1,
+        network-simple >= 0.3 && < 0.4,
+        network >= 2.4 && < 2.5,
+        bytestring >= 0.10 && < 0.11,
+
+        htiled >= 0.1.1 && < 0.2,
+        lens >= 4.0 && < 4.1,
+        linear >= 1.6 && < 1.7,
+        OpenGL >= 2.9 && < 2.10,
+        GLFW-b >= 1.4 && < 1.5,
+        netwire >= 5.0 && < 5.1,
+
+        mtl >= 2.1 && < 2.2,
+        containers >= 0.5 && < 0.6,
+        transformers >= 0.3 && < 0.4
 
   ghc-options: -rtsopts -threaded -fprof-auto
   main-is: main.hs

@@ -12,7 +12,6 @@ import Control.Monad.RWS.Strict  (RWST, ask, asks, evalRWST, get, liftIO, modify
 import Control.Monad.Trans.Maybe (MaybeT(..), runMaybeT)
 import Data.List                 (intercalate)
 import Data.Maybe                (catMaybes)
-import Text.PrettyPrint
 import qualified Control.Wire as W
 --import Control.Monoid
 import qualified FRP.Netwire as NW

@@ -10,13 +10,13 @@ import Pipes.Lift
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Control.Monad.RWS
-import Control.Monad.Identity
-import Control.Monad.Reader
-import Control.Monad.Writer
-import Control.Monad.State
+--import Control.Monad.Identity
+--import Control.Monad.Reader
+--import Control.Monad.Writer
+--import Control.Monad.State
 import Control.Monad as CM
 
-import qualified Data.Binary as B
+--import qualified Data.Binary as B
 
 import Control.Wire
 import qualified Control.Wire as W
@@ -30,11 +30,8 @@ import qualified Data.ByteString.Char8 as C
 
 import Control.Lens
 
-import Data.Binary
- 
 import Network hiding (accept, sClose)
 import Network.Socket
-import Network.Socket.ByteString (sendAll)
 import Control.Concurrent
 import Network.Simple.TCP
 import Control.Concurrent.Async
@@ -47,6 +44,7 @@ import Pipes.Network.TCP
 import Pipes.Concurrent
 import qualified Pipes.Binary as PB
 
+import Game.Tiled
 import Data.Tiled
 
 import qualified Game.Input.Actions as A
