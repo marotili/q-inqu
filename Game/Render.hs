@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 module Game.Render where
 
 import Graphics.Rendering.OpenGL
@@ -18,13 +19,15 @@ import Codec.Picture.Png
 import Codec.Picture
 
 import System.Exit
+import Control.Lens
 
 data RenderContext = RenderContext
-	{ rcMainProgram :: Program
-	, rcWorldRenderContext :: WorldRenderContext
-	, rcDebugBuffer :: GL.BufferObject
+	{ _rcMainProgram :: Program
+	, _rcWorldRenderContext :: WorldRenderContext
+	--, _rcDebugBuffer :: GL.BufferObject
 	--, rcCamera :: Camera
 	}
+makeLenses ''RenderContext
 
 newRenderContext renderMap = do
 
@@ -43,14 +46,14 @@ newRenderContext renderMap = do
 	wrc <- newWorldRenderContext renderMap
 	bindWorldRenderContext wrc program
 
-	[debugBuffer] <- GL.genObjectNames 1 :: IO [GL.BufferObject]
+	--[debugBuffer] <- GL.genObjectNames 1 :: IO [GL.BufferObject]
 
-	uploadFromVec GL.ShaderStorageBuffer debugBuffer (V.fromList [i | i <- [0..4*6*81-1]] :: V.Vector Int32)
+	--uploadFromVec GL.ShaderStorageBuffer debugBuffer (V.fromList [i | i <- [0..4*6*81-1]] :: V.Vector Int32)
 
 	return RenderContext
-		{ rcMainProgram = program
-		, rcWorldRenderContext = wrc
-		, rcDebugBuffer = debugBuffer
+		{ _rcMainProgram = program
+		, _rcWorldRenderContext = wrc
+		--, _rcDebugBuffer = debugBuffer
 		}
 
 clearWindow window = do
@@ -64,18 +67,18 @@ render window rc cam = do
 	(width, height) <- GLFW.getFramebufferSize window
 	clearWindow window
 
-	GL.currentProgram $= Just (rcMainProgram rc)
+	GL.currentProgram $= Just (rc^.rcMainProgram)
 
-	programSetViewProjection (rcMainProgram rc) cam
+	programSetViewProjection (rc^.rcMainProgram) cam
 	--getShaderStorageBlockIndex (rcMainProgram rc) "Debug" >>= print
 	--getShaderStorageBlockIndex (rcMainProgram rc) "Pos" >>= print
 	--getShaderStorageBlockIndex (rcMainProgram rc) "ObjectData" >>= print
 	--getShaderStorageBlockIndex (rcMainProgram rc) "TileSets" >>= print
 
-	getUniformBlockIndex (rcMainProgram rc) "Debug" >>= print
-	getUniformBlockIndex (rcMainProgram rc) "Pos" >>= print
+	--getUniformBlockIndex (rc^.rcMainProgram) "Debug" >>= print
+	--getUniformBlockIndex (rc^.rcMainProgram rc) "Pos" >>= print
 	--getUniformBlockIndex (rcMainProgram rc) "ObjectData" >>= print
-	getUniformBlockIndex (rcMainProgram rc) "TileSets" >>= print
+	--getUniformBlockIndex (rcMainProgram rc) "TileSets" >>= print
 
 
 	--debugIndex <- getShaderStorageBlockIndex (rcMainProgram rc) "Debug"
@@ -83,18 +86,19 @@ render window rc cam = do
 	--GL.bindBufferBase' GL.ShaderStorageBuffer debugIndex (rcDebugBuffer rc)
 	--GL.shaderStorageBlockBinding (rcMainProgram rc) debugIndex debugIndex
 
-	renderWorldRenderContext (rcMainProgram rc) (rcWorldRenderContext rc)
+	updateWorldRenderContext (rc^.rcWorldRenderContext)
+	renderWorldRenderContext (rc^.rcMainProgram) (rc^.rcWorldRenderContext)
 
 	--errors <- GL.get GL.errors
 	--print $ errors
 	--GL.bindBuffer GL.ShaderStorageBuffer $= Just (rcDebugBuffer rc)
 	--GL.withMappedBuffer (GL.ShaderStorageBuffer) GL.ReadOnly printPtr failure
 
-	where
-		printPtr :: Ptr Int32 -> IO [()]
-		printPtr ptr = sequence [
-			peekElemOff ptr idx >>= \x -> print ("Debug" ++ show x)  | idx <- [0..4]
-			]
+	--where
+	--	printPtr :: Ptr Int32 -> IO [()]
+	--	printPtr ptr = sequence [
+	--		peekElemOff ptr idx >>= \x -> print ("Debug" ++ show x)  | idx <- [0..4]
+	--		]
 
-		failure GL.MappingFailed = print "Mapping failed" >> return []
-		failure GL.UnmappingFailed = print "Unmapping failed" >> return []
+	--	failure GL.MappingFailed = print "Mapping failed" >> return []
+	--	failure GL.UnmappingFailed = print "Unmapping failed" >> return []

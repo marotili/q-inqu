@@ -28,6 +28,8 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Char8 as C
 
+import Control.Lens
+
 import Data.Binary
  
 import Network hiding (accept, sClose)
@@ -39,12 +41,16 @@ import Control.Concurrent.Async
 import qualified Data.Monoid as Monoid
 
 import Control.Concurrent.STM
+import Control.Concurrent.STM.TVar
 import Pipes as P
 import Pipes.Network.TCP
 import Pipes.Concurrent
 import qualified Pipes.Binary as PB
 
-import Game.Input.Actions
+import Data.Tiled
+
+import qualified Game.Input.Actions as A
+import Data.Maybe
 
 oneSecond = 1000000
 millisecond = oneSecond `div` 1000
@@ -52,7 +58,7 @@ millisecond = oneSecond `div` 1000
 type ProdDecoder a = (Monad m)	 
 	=> Producer B.ByteString m r
 	-> Producer' (PB.ByteOffset, a) m (Either (PB.DecodingError, Producer B.ByteString m r) r)
-decodeAction :: ProdDecoder (Float, Action)
+decodeAction :: ProdDecoder (Float, A.Action)
 decodeAction = PB.decodeMany
 
 
@@ -71,14 +77,14 @@ stepWorld w' session' world' state' = do
 
 	return ((w, session), (worldManager, worldDelta), dtime dt)
 
-type ClientData = ((Float, Action), Rational)
+type ClientData = ((Float, A.Action), Rational)
 
 produceWorld :: World -> WorldManager -> WorldWire () b -> WorldSession ->
-	Pipe (Float, Action) ClientData IO ()
+	Pipe (Float, A.Action) ClientData IO ()
 produceWorld world manager w session = do
 	(t, action) <- P.await
 
-	let playerId = 1
+	let playerId = fromJust $ world^.getPlayerId "Neira"
 	let playerActions = if Map.member playerId (_wmPlayerActions manager)
 		then _wmPlayerActions manager Map.! playerId
 		else mempty
@@ -86,11 +92,12 @@ produceWorld world manager w session = do
 	--lift $ print playerActions
 	--lift $ print action
 	let manager2 = manager { _wmPlayerActions = 
-		Map.insert playerId (playerActions `mappend` (newInputAction action)) (_wmPlayerActions manager) 
+		Map.insert playerId (playerActions `mappend` (A.newInputAction action)) (_wmPlayerActions manager) 
 		}
 	-- run wires
+	lift $ print "before main wire"
 	((w', session'), (manager', delta), dt) <- lift $ stepWorld w session world manager2
-
+	lift $ print "after main wire"
 	-- update our world state
 	let world' = applyDelta world delta
 	--lift $ print world'
@@ -115,16 +122,17 @@ produceWorld world manager w session = do
 --	lift $ print p
 --	P.yield p
 
-game :: Input (Float, Action) -> Output C.ByteString -> IO ()
+game :: Input (Float, A.Action) -> Output C.ByteString -> IO ()
 game recvEvents output = do
 	let session = clockSession_
-	let world = newWorld
+	tiledMap <- loadMapFile "data/sewers.tmx"
+	(world, manager) <- newWorldFromTiled tiledMap
 
 	let
-		worldProducer :: Pipe (Float, Action) ClientData IO ()
-		worldProducer = produceWorld world newWorldManager testwire session
+		worldProducer :: Pipe (Float, A.Action) ClientData IO ()
+		worldProducer = produceWorld world manager testwire session
 
-		eventProducer :: Producer (Float, Action) IO ()
+		eventProducer :: Producer (Float, A.Action) IO ()
 		eventProducer = P.for (fromInput recvEvents) (\a -> lift (print a) >> P.yield a)
 	runEffect $
 		P.for (eventProducer >-> worldProducer) PB.encode 
@@ -132,7 +140,7 @@ game recvEvents output = do
 	performGC
 
 eventUpdate = do
-	P.yield (0, ActionNothing)
+	P.yield (0, A.ActionNothing)
 	lift $ threadDelay (millisecond*100)
 	eventUpdate
  
@@ -140,9 +148,11 @@ main = withSocketsDo $ do
 	(output1, input1) <- spawn Unbounded
 	(output2, input2) <- spawn Unbounded
 
-	(sendEvents1, recvEvents1) <- spawn Unbounded :: IO (Output (Float, Action), Input (Float, Action))
+	(sendEvents1, recvEvents1) <- spawn Unbounded :: IO (Output (Float, A.Action), Input (Float, A.Action))
 	--(sendEvents2, recvEvents2) <- spawn Unbounded
 	--(sendEvents3, recvEvents3) <- spawn Unbounded
+
+	numClient <- newTVarIO 0
 
 	let recvEvents = recvEvents1
 	--let sendEvents = sens
@@ -154,36 +164,40 @@ main = withSocketsDo $ do
 
 	a1 <- async $ game recvEvents output
 
-	serve HostIPv4 "5002" (connCb (sendEvents1, input1, input2))
+	serve HostIPv4 "5002" (connCb (numClient, sendEvents1, input1, input2))
 	mapM_ wait [a1]
 
 	return ()
 
 
-forward :: Pipe (PB.ByteOffset, (Float, Action)) (Float, Action) IO ()
+forward :: Pipe (PB.ByteOffset, (Float, A.Action)) (Float, A.Action) IO ()
 forward = do
 	(_, d) <- P.await
 	lift $ print d
 	P.yield d
 	forward
 
-connCb :: (Output (Float, Action), Input C.ByteString, Input C.ByteString)
-	-> (Socket, SockAddr) 
-	-> IO ()
-connCb (sendEvents, input1, input2) (sock, addr) = do
+--connCb :: (Output (Float, A.Action), Input C.ByteString, Input C.ByteString)
+	-- -> (Socket, SockAddr) 
+	-- -> IO ()
+connCb (numClient, sendEvents, input1, input2) (sock, addr) = do
 	print addr
+
+	cl <- atomically $ do
+		n <- readTVar numClient
+		writeTVar numClient (n+1)
+		return n
 	--sClose sock
 
 	let toClient = toSocket sock
 	let fromClient = fromSocket sock 4096
-
 	let
-		testX :: Producer (PB.ByteOffset, (Float, Action)) IO ()
+		testX :: Producer (PB.ByteOffset, (Float, A.Action)) IO ()
 		testX = (decodeAction fromClient >> return () >> testX) 
 
 	--runEffect $ (P.yield "Test" >-> cons)
 	a1 <- async $ do
-		runEffect $ fromInput input1 >-> toClient
+		runEffect $ fromInput (if cl == 0 then input1 else input2) >-> toClient
 		performGC
 	a2 <- async $ do
 		runEffect $ testX >-> forward >-> toOutput sendEvents

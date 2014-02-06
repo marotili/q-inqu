@@ -1,4 +1,4 @@
-{-# LANGUAGE NoMonomorphismRestriction, NamedFieldPuns #-}
+{-# LANGUAGE NoMonomorphismRestriction, NamedFieldPuns, Rank2Types #-}
 module Game.Tiled where
 
 import Control.Lens
@@ -14,6 +14,9 @@ queryObject tm name = findOf
 	traverse 
 	(\obj -> obj^.objectName._Just == name) 
 	(tm^.mapLayers.traverse._ObjectLayer.layerObjects)
+
+objectsByName :: String -> Traversal' Object Object
+objectsByName name = filtered (\obj -> obj^.objectName._Just == name)
 
 mapIdxToCoords :: TiledMap -> (Int, Int) -> (Float, Float)
 mapIdxToCoords tm (x, y) = (fromIntegral $ tm^.mapWidth * x, fromIntegral $ tm^.mapHeight * y)

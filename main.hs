@@ -3,8 +3,9 @@ module Main (main) where
 --------------------------------------------------------------------------------
 
 import GHC.Float
+import System.Environment
 
-import Control.Concurrent.STM    (TQueue, atomically, newTQueueIO, tryReadTQueue, writeTQueue, readTQueue)
+import Control.Concurrent.STM    (TQueue, TVar, newTVarIO, readTVar, atomically, newTQueueIO, tryReadTQueue, writeTQueue, readTQueue)
 import Control.Monad             (unless, when, void)
 import Control.Monad.Reader
 import Control.Monad.RWS.Strict  (RWST, ask, asks, evalRWST, get, liftIO, modify, put)
@@ -57,12 +58,13 @@ data Env = Env
     { envEventsChan    :: TQueue Event
     , envActionChan    :: TQueue (Float, InputActions)
     , envWindow        :: !GLFW.Window
+    , envRenderContext :: TVar (Render.RenderContext)
     }
 
 data State = State
     { stateWindowWidth     :: !Int
     , stateWindowHeight    :: !Int
-    , stateRenderContext :: Render.RenderContext
+    
     , stateCam :: Camera
     , stateGameMap :: RMap.Map
     , stateInput :: S.State UserInput ()
@@ -107,18 +109,14 @@ main = withSocketsDo $ do
     let width  = 640
         height = 480
 
-    connect "127.0.0.1" "5002" $ \(sock, addr) -> do
+    args <- getArgs
+    let ip = case args of [] -> "127.0.0.1"; _ -> head args
+
+    connect ip "5002" $ \(sock, addr) -> do
       let fromServer = fromSocket sock 4096
       let toServer = toSocket sock
       actionsChan <- newTQueueIO :: IO (TQueue (Float, InputActions))
 
-      async $ do
-        runEffect $ for (actionProducer actionsChan) PB.encode >-> toServer
-        performGC
-
-      a1 <- async $ do
-        runEffect $ decodeSteps fromServer >-> consumeClientWorld newWorld newWorldManager testwire
-        performGC
 
       eventsChan <- newTQueueIO :: IO (TQueue Event)
 
@@ -147,20 +145,37 @@ main = withSocketsDo $ do
           --let m = mapNew $ mapConfigFromTiled tiledMap
           let rm = newRenderMap tiledMap
 
+          rc <- Render.newRenderContext rm
           -- default render context
-          renderContext <- Render.newRenderContext rm
+          renderContext <- newTVarIO (rc)
+
+          async $ do
+            runEffect $ for (actionProducer actionsChan) PB.encode >-> toServer
+            performGC
+
+          --let f e = do
+          --      case e of
+          --        Left de -> lift $ print $ fst de
+          --        _ -> return ()
+
+          --let repeatDecode = for (decodeSteps fromServer >>= f) (\x -> lift (print $ "In: " ++ show x))
+
+          a1 <- async $ do
+            (world, manager) <- newWorldFromTiled tiledMap
+            runEffect $ decodeSteps fromServer >-> consumeClientWorld world manager testwire renderContext
+            performGC
 
           let 
               env = Env
                 { envEventsChan    = eventsChan
                 , envActionChan = actionsChan
                 , envWindow        = win
+                , envRenderContext = renderContext
                 }
               state = State
                 { stateWindowWidth     = fbWidth
                 , stateWindowHeight    = fbHeight
                 , stateInput = return ()
-                , stateRenderContext = renderContext
                 , stateCam = newDefaultCamera (fromIntegral fbWidth) (fromIntegral fbHeight)
                 , stateGameMap = rm
                 }
@@ -328,7 +343,10 @@ draw :: Demo ()
 draw = do
   win <- asks envWindow
   state <- get
-  let rc = asks stateRenderContext state
+
+  rcVar <- asks envRenderContext
+  rc <- lift $ atomically $ readTVar rcVar
+
   let cam = asks stateCam state
 
   liftIO $ Render.render win rc cam

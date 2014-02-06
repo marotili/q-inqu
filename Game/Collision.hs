@@ -2,6 +2,7 @@
 module Game.Collision where
 
 import GHC.Float
+import Debug.Trace
 import Data.SpacePart.QuadTree
 import Data.SpacePart.AABB
 
@@ -24,7 +25,7 @@ newBoundary (dx, dy) ds = Boundary (float2Double dx, float2Double dy) (float2Dou
 data CollidableObject = CollidableObject
 	{ objectId :: ObjectId
 	, _objectBoundary :: Boundary
-	}
+	} deriving (Show)
 makeLenses ''CollidableObject
 
 newCollidable :: ObjectId -> Boundary -> CollidableObject
@@ -80,19 +81,27 @@ cmUpdateQT = do
 	let update = cm^.cmNeedsUpdate
 	let floatObjects = cm^.cmFloatingObjects
 	let staticQT = cm^.cmStaticQuadTree
-	when update $ do
-		cmCachedQuadTree .= staticQT
-		cmCachedQuadTree %= \qt -> 
-			foldr insert qt (map snd (Map.toList floatObjects))
-		cmNeedsUpdate .= False
+	traceShow "stateless" $
+		when update $ do
+			cmCachedQuadTree .= staticQT
+			traceShow "insert statics" $
+				cmCachedQuadTree %= \qt -> 
+					foldr insert qt (map snd (Map.toList floatObjects))
+			traceShow "insert floats" $
+				cmNeedsUpdate .= False
+	traceShow "updated" (return ())
 
 cmQuery :: Boundary -> State CollisionManager [ObjectId]
 cmQuery b = do
-	cmUpdateQT
+	traceShow "cmUpdateQt" cmUpdateQT
 	cm <- get
-	let qt = cm^.cmCachedQuadTree
-	let results = query b qt
-	return $ Set.toList . Set.fromList $ map objectId results
+
+	let qt = traceShow "cached" $ cm^.cmCachedQuadTree
+	
+	let results = traceShow ("Test" ++ show (cm^.cmFloatingObjects))  $
+		query b qt
+	traceShow ("results" ++ show (Set.toList . Set.fromList $ map objectId results)) $
+		return $ Set.toList . Set.fromList $ map objectId results
 
 cmObjectBoundarySize oId = do
 	cm <- get

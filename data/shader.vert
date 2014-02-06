@@ -1,10 +1,10 @@
-#version 430
+#version 330
 
 in float position;
 in float color_in;
 
 out float color_out;
-
+ 
 flat out int instanceID;
 out vec2 texCoords;
 flat out int image;
@@ -15,7 +15,7 @@ uniform mat4 projection;
 uniform int numTileSets; // needed for dynamic lookup
 
 // Type
-layout(binding=0, std140) uniform LayerData {
+layout(std140) uniform LayerData {
 	ivec4 tileId[2500];
 };
 
@@ -35,12 +35,12 @@ struct TileSet {
 	// int padding[8];
 };
 
-layout(binding=4) uniform TileSets {
+layout(std140) uniform TileSets {
 	TileSet tileSets[10];
 } tileSetTest;
 
 // Coord
-layout(binding=1, std140) uniform Pos {
+layout(std140) uniform Pos {
 	vec4 pos[2500];
 };
 

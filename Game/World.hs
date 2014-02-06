@@ -1,6 +1,7 @@
 {-# LANGUAGE TemplateHaskell, Arrows, NamedFieldPuns, Rank2Types #-}
 module Game.World where
 
+import Debug.Trace
 import Control.Concurrent
 
 import qualified Data.Map as Map
@@ -11,6 +12,7 @@ import Control.Monad.Reader
 import Control.Monad.Writer
 import Control.Monad.State
 import Control.Monad
+import Data.Maybe
 
 import qualified Data.Binary as B
 
@@ -21,6 +23,7 @@ import qualified Prelude as P
 import Prelude hiding ((.), until)
 
 import Control.Lens
+import qualified Control.Lens as L
 import Game.Objects
 import Game.Collision
 
@@ -103,6 +106,15 @@ getPlayerId playerName' = to (\w -> case getPlayer w of
 				if playerName == playerName' then [pId] else []
 			) (world^.wPlayers)
 
+getPlayerPos :: String -> Getter World (Maybe (Float, Float))
+getPlayerPos playerName' = to (\w -> case w^.pId of
+			Just _ -> w^.wPositions.(L.at (fromJust $ w^.pId))
+			Nothing -> Nothing
+		)
+	where
+		pId = getPlayerId playerName'
+
+
 newWorldFromTiled :: TiledMap -> IO (World, WorldManager) -- io due to debug wire
 newWorldFromTiled tiledMap = do
 	let world = newWorld
@@ -110,7 +122,12 @@ newWorldFromTiled tiledMap = do
 			stepWire initWire (Timed 0 ()) (Right ())
 		) world newWorldManager
 
+	print $ player1Obj^.objectPos
+	print $ player2Obj^.objectPos
+
 	let world' = applyDelta world worldDelta
+
+	print $ "Finished initialization"
 	return (world', worldManager)
 
 	where
@@ -146,21 +163,28 @@ movingDirectionR = mkGenN $ \playerId -> do
 
 deltaMoveObject :: ObjectId -> (Float, Float) -> WorldContext ()
 deltaMoveObject oId dPos@(dx, dy) = do
-	cm <- view wCollisionManager
-	if cmCanCollide oId cm 
-		then do
-			-- FIXME: right now objects can jump through other objects if delta is too big
-			let ((dx', dy'), collisions) = collisionLoop cm (dx, dy) []
-			writer ((), newDelta
-				{ _wdPositionsDelta = Map.insert oId (dx', dy') Map.empty
-				})
-			Control.Monad.unless (null collisions) $ writer ((), newDelta
-				{ _wdCollisions = Map.insert oId collisions Map.empty
-				})
-		else
-			writer ((), newDelta
-				{ _wdPositionsDelta = Map.insert oId dPos Map.empty
-				})
+	Control.Monad.unless (dx == 0 && dy == 0) $ do
+		--cm <- view wCollisionManager
+		liftIO $ print "Start collision"
+		--if False -- cmCanCollide oId cm 
+		--	then do
+		--		-- FIXME: right now objects can jump through other objects if delta is too big
+		--		liftIO $ print "Before collision loop"
+		--		--let ((dx', dy'), collisions) = collisionLoop cm (dx, dy) []
+		--		let ((dx', dy'), collisions) = ((dx, dy), [])
+		--		--liftIO $ print $ "after collision loop" ++ show collisions
+		--		writer ((), newDelta
+		--			{ _wdPositionsDelta = Map.insert oId (dx', dy') Map.empty
+		--			})
+		--		Control.Monad.unless (null collisions) $ writer ((), newDelta
+		--			{ _wdCollisions = Map.insert oId collisions Map.empty
+		--			})
+		--		liftIO $ print "finished writing"
+			--else
+		writer ((), newDelta
+			{ _wdPositionsDelta = Map.insert oId dPos Map.empty
+			})
+		liftIO $ print "before where"
 	where
 		-- on collision we update the position so that the objects dont intersect
 		-- and we send an collision event
@@ -168,18 +192,21 @@ deltaMoveObject oId dPos@(dx, dy) = do
 		-- big delta -> maybe many collisions
 		-- we reduce the delta pos and obtain less collisions. we return the minimum number of collisions possible
 		collisionLoop :: CollisionManager -> (Float, Float) -> [ObjectId] -> ((Float, Float), [ObjectId])
-		collisionLoop cm (dx, dy) collisionHappened = 		
+		collisionLoop cm (dx, dy) collisionHappened = traceShow collisions $ 
 			if null collisions then
 				((dx, dy), collisionHappened) -- the last collision that happened
 			else
 				collisionLoop cm (dx/2.0, dy/2.0) collisions
 			where
-				collisions = evalState (do
+				collisions = traceShow (dx, dy) $ evalState (do
 						(px, py) <- cmObjectPos oId
+						traceShow (px, py) (return ())
 						cmRemoveFloating oId 
 						let bSize = 5
 						let newPos = (px + dx, py + dy)
+						traceShow (newPos) (return ())
 						cmAddFloating $ newCollidable oId (newBoundary newPos bSize)
+						traceShow "Add floating"  (return ())
 						cmCollisions oId
 					) cm
 
@@ -309,8 +336,10 @@ objectCollided = mkGenN $ \oId -> do
 
 moveObjectR :: WorldWire (ObjectId, (Float, Float)) ()
 moveObjectR = mkGen $ \ds (oId, (vx, vy)) -> do
+	liftIO $ print "Moving object"
 	let dt = realToFrac (dtime ds)
 	deltaMoveObject oId (dt*vx, dt*vy)
+	liftIO $ print "finished moving object"
 	return (Right (), moveObjectR)
 
 ----wcSpawnDoor :: WorldContext ()
@@ -322,6 +351,13 @@ spawnPlayerAt :: String -> (Float, Float) -> WorldWire a (Event PlayerId)
 spawnPlayerAt name pos = mkObjGenWire $ deltaAddPlayer name pos
 
 spawnWallAt pos = mkObjGenWire $ deltaAddWall pos
+
+player name = mkGenN $ \_ -> do
+	pid <- magnify (getPlayerId name) ask
+	liftIO $ print $ "Playerid: " ++ show pid
+	case pid of 
+		Just pId -> return (Right pId, player name)
+		Nothing -> return (Left (), player name)
 
 --spawnDoor :: WorldWire a (Event DoorId)
 --spawnDoor = mkObjGenWire $ deltaAddDoor (20, 20)
@@ -368,11 +404,11 @@ mkObjGenWire f = genLater . mkGenN (\_ -> do
 userSpeed = 100
 
 testwire = proc input -> do
-	playerId <- asSoonAs . spawnPlayerAt "Marco" (50, 50) -< input
-	_ <- asSoonAs . spawnWallAt (60, 60) -< input
+	playerId <- player "Neira" -< input
+	--_ <- asSoonAs . spawnWallAt (60, 60) -< input
 	(x, y) <- movingDirectionR -< playerId
-	mul <- pure (-1) . for 3 . asSoonAs . objectCollided <|> pure 1 -< playerId
-	_ <- moveObjectR -< (playerId, (x*userSpeed*mul, y*userSpeed))
+	--mul <- pure (-1) . for 3 . asSoonAs . objectCollided <|> pure 1 -< playerId
+	_ <- moveObjectR -< (playerId, (x*userSpeed, y*userSpeed))
 	returnA -< ()
 
 --makeWorld = WorldContext ()
