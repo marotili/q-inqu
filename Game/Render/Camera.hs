@@ -19,6 +19,7 @@ import Foreign.Ptr
 import qualified Data.Vector.Storable as V
 
 import Debug.Trace
+import Game.Render.Error
 
 data Rect = Rect
 	{ rectPos :: V2 Float
@@ -117,11 +118,15 @@ programSetViewProjection program camera = do
 	let workaround2 = V.fromList [viewMat]
 
 	(GL.UniformLocation projLoc) <- GL.get $ GL.uniformLocation program "projection"
+	logGL "programSetViewProjection: uniformLocation projection"
 	--GL.uniform projLoc $= projMat
 	(GL.UniformLocation viewLoc) <- GL.get $ GL.uniformLocation program "view"
+	logGL "programSetViewProjection: uniformLocation view"
 	--GL.uniform viewLoc $= viewMat
 
 	--print (projLoc, viewLoc)
 
 	V.unsafeWith workaround $ \ptr -> GLRaw.glUniformMatrix4fv projLoc 1 1 (castPtr ptr)
+	logGL "programSetViewProjection: gl raw matrix projection"
 	V.unsafeWith workaround2 $ \ptr -> GLRaw.glUniformMatrix4fv viewLoc 1 1 (castPtr ptr)
+	logGL "programSetViewProjection: gl raw matrix view"

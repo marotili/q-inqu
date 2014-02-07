@@ -18,7 +18,7 @@ import Graphics.Rendering.OpenGL (($=))
 import qualified Graphics.UI.GLFW as GLFW
 import Foreign.Ptr
 import System.Exit
-
+import Game.Render.Error
 import Codec.Picture.Png 
 import qualified Codec.Picture as P
 import Debug.Trace
@@ -233,6 +233,7 @@ newWorldRenderContext renderMap = do
 	[vao] <- GL.genObjectNames 1 :: IO [GL.VertexArrayObject]
 
 	imageTextures <- GL.genObjectNames (numImages renderMap) :: IO [GL.TextureObject]
+	logGL "newWorldRenderContext: genObjects"
 
 	uploadFromVec GL.UniformBuffer tilesetBuffer (tileSetData renderMap)
 
@@ -250,9 +251,11 @@ newWorldRenderContext renderMap = do
 	-- per image stuff
 	mapM_ (\(i, texObject, image) -> do
 		GL.activeTexture $= GL.TextureUnit i
+		logGL "newWorldRenderContext: activeTexture"
 
 		-- Make it the "currently bound 2D texture"
 		GL.textureBinding GL.Texture2D $= Just texObject
+		logGL "newWorldRenderContext: textureBinding"
 
 		pngImage <- P.readPng (image^.iSource)
 		case pngImage of
@@ -263,7 +266,9 @@ newWorldRenderContext renderMap = do
 						GL.texImage2D GL.Texture2D GL.NoProxy 0 GL.RGBA8 
 							(GL.TextureSize2D (fromIntegral imgWidth) (fromIntegral imgHeight)) 0 
 							(GL.PixelData GL.RGBA GL.UnsignedByte ptr)
+						logGL "newWorldRenderContext: texImage2D"
 						GL.textureFilter GL.Texture2D $= ((GL.Nearest, Nothing), GL.Nearest)
+						logGL "newWorldRenderContext: textureFilter"
 		) $ zip3 [0..] imageTextures (images renderMap)
 
 	return WorldRenderContext
@@ -288,29 +293,40 @@ renderNormalLayer program wrc layerSSB posSSB layer = do
 	layerIndex <- GL.getUniformBlockIndex program "LayerData"
 
 	GL.bindBufferBase' GL.UniformBuffer posIndex posSSB
+	logGL "renderNormalLayer: bindBufferBase' posIndex"
 	GL.uniformBlockBinding program posIndex posIndex	
+	logGL "renderNormalLayer: uniformBlockBinding posIndex"
 
 	GL.bindBufferBase' GL.UniformBuffer layerIndex layerSSB
+	logGL "renderNormalLayer: bindBufferBase' layerIndex"
 	GL.uniformBlockBinding program layerIndex layerIndex
+	logGL "renderNormalLayer: uniformBlockBinding layerIndex"
 
 	GL.drawArraysInstanced GL.Triangles 0 6 (fromIntegral (numObjects layer))
+	logGL "renderNormalLayer: drawArraysInstanced"
 
 renderWorldRenderContext :: GL.Program -> WorldRenderContext -> IO ()
 renderWorldRenderContext program wrc = do
 	let map = wrc^.wrcMap
 
 	numTilesets <- GL.get $ GL.uniformLocation program "numTileSets"
+	logGL "renderWorldRenderContext: uniformLoc numTilesets"
 	GL.uniform numTilesets $= GL.Index1 (fromIntegral . length $ map^.tiledMap^.mapTilesets :: GL.GLint)
+	logGL "renderWorldRenderContext: uniform numTilesets"
 
 	tilesetIndex <- GL.getUniformBlockIndex program "TileSets"
+	logGL "renderWorldRenderContext: getUniformBlockIndex"
 	GL.bindBufferBase' GL.UniformBuffer tilesetIndex (wrc^.wrcTilesetSSB)
+	logGL "renderWorldRenderContext: bindBufferBase' tilesetIndex"
 	GL.uniformBlockBinding program tilesetIndex tilesetIndex	
+	logGL "renderWorldRenderContext: uniformBlockBinding tilesetIndex"
 
 	mapM_ (\i -> do
 			sampler <- GL.get $ GL.uniformLocation program ("Texture" ++ show i)
+			logGL "renderWorldRenderContext: uniformLoc sampler"
 			GL.uniform sampler $= GL.TextureUnit (fromIntegral i)
+			logGL "renderWorldRenderContext: uniform sampler"
 		) [0..length (wrc^.wrcTextures)-1]
-	errors <- GL.get GL.errors
 
 	mapM_ (\(layerSSB, posSSB, layer) ->
 			renderNormalLayer program wrc layerSSB posSSB layer

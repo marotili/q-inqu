@@ -49,6 +49,7 @@ import Control.Concurrent.Async
 import Pipes.Binary
 import Game.World
 import qualified Pipes.Binary as PB
+import Game.Render.Error
 
 --------------------------------------------------------------------------------
 
@@ -136,6 +137,7 @@ main = withSocketsDo $ do
 
           GLFW.swapInterval 0
 
+          initLogging
           printInformation win
 
           (fbWidth, fbHeight) <- GLFW.getFramebufferSize win

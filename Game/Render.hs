@@ -9,6 +9,7 @@ module Game.Render
 	, rcWorldRenderContext
 	) where
 
+import System.Log.Logger
 import Graphics.Rendering.OpenGL
 import qualified Graphics.Rendering.OpenGL as GL
 import qualified Graphics.UI.GLFW as GLFW
@@ -27,6 +28,8 @@ import Codec.Picture
 import System.Exit
 import Control.Lens
 
+import Game.Render.Error
+
 data RenderContext = RenderContext
 	{ _rcMainProgram :: Program
 	, _rcWorldRenderContext :: WorldRenderContext
@@ -36,6 +39,7 @@ makeLenses ''RenderContext
 newRenderContext renderMap = do
 	GL.blendFunc $= (GL.SrcAlpha, GL.OneMinusSrcAlpha)
 	GL.blend $= GL.Enabled
+	logGL "newRenderContext: blend setup failed"
 
 	program <- setupShaders
 
@@ -49,9 +53,12 @@ newRenderContext renderMap = do
 
 clearWindow window = do
 	GL.clearColor $= GL.Color4 1 1 1 1
+	logGL "clearWindow: clearColor"
 	GL.clear [GL.ColorBuffer]
+	logGL "clearWindow: clear"
 	(width, height) <- GLFW.getFramebufferSize window
 	GL.viewport $= (GL.Position 0 0, GL.Size (fromIntegral width) (fromIntegral height))
+	logGL "clearWindow: viewport"
 
 render window rc cam = do
 	-- update camera in every frame for now
@@ -59,6 +66,7 @@ render window rc cam = do
 	clearWindow window
 
 	GL.currentProgram $= Just (rc^.rcMainProgram)
+	logGL "render: set current program"
 
 	programSetViewProjection (rc^.rcMainProgram) cam
 
