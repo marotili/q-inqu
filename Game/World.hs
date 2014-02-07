@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, Arrows, NamedFieldPuns, Rank2Types #-}
+{-# LANGUAGE FlexibleContexts, TemplateHaskell, Arrows, NamedFieldPuns, Rank2Types #-}
 module Game.World 
 	(
 	-- * World
@@ -46,16 +46,7 @@ import Game.World.Import.Tiled
 
 import Game.Input.Actions as A
 
-data WorldDelta = WorldDelta
-	{ _wdDoorsAdd :: [Door] -- absolute
-	, _wdWallsAdd :: [Wall] -- absolute
-	, _wdPositionsDelta :: Map.Map ObjectId (Float, Float) -- relative
-	, _wdPlayerAdd :: [Player] -- absolute
-	, _wdDoorControllers :: [DoorController] -- absolute
-	, _wdCollisions :: Map.Map ObjectId [ObjectId]
-	} deriving (Show, Eq)
-
-makeLenses ''WorldDelta
+import Game.World.Delta
 
 data WorldManager = WorldManager
 	{ _wmObjects :: ObjectIds 
@@ -160,6 +151,7 @@ newWorldFromTiled tiledMap = do
 
 			returnA -< ()
 
+movingDirectionR :: WorldWire PlayerId (Float, Float)
 movingDirectionR = mkGenN $ \playerId -> do
 	wm <- get
 	if Map.member playerId (wm^.wmPlayerActions) 
@@ -170,53 +162,6 @@ movingDirectionR = mkGenN $ \playerId -> do
 		else
 			return (Right (0, 0), movingDirectionR)
 
-deltaMoveObject :: ObjectId -> (Float, Float) -> WorldContext ()
-deltaMoveObject oId dPos@(dx, dy) =
-	Control.Monad.unless (dx == 0 && dy == 0) $
-		--cm <- view wCollisionManager
-		--if False -- cmCanCollide oId cm 
-		--	then do
-		--		-- FIXME: right now objects can jump through other objects if delta is too big
-		--		liftIO $ print "Before collision loop"
-		--		--let ((dx', dy'), collisions) = collisionLoop cm (dx, dy) []
-		--		let ((dx', dy'), collisions) = ((dx, dy), [])
-		--		--liftIO $ print $ "after collision loop" ++ show collisions
-		--		writer ((), newDelta
-		--			{ _wdPositionsDelta = Map.insert oId (dx', dy') Map.empty
-		--			})
-		--		Control.Monad.unless (null collisions) $ writer ((), newDelta
-		--			{ _wdCollisions = Map.insert oId collisions Map.empty
-		--			})
-		--		liftIO $ print "finished writing"
-			--else
-		writer ((), newDelta
-			{ _wdPositionsDelta = Map.insert oId dPos Map.empty
-			})
-	where
-		-- on collision we update the position so that the objects dont intersect
-		-- and we send an collision event
-
-		-- big delta -> maybe many collisions
-		-- we reduce the delta pos and obtain less collisions. we return the minimum number of collisions possible
-		--collisionLoop :: CollisionManager -> (Float, Float) -> [ObjectId] -> ((Float, Float), [ObjectId])
-		--collisionLoop cm (dx, dy) collisionHappened = traceShow collisions $ 
-		--	if null collisions then
-		--		((dx, dy), collisionHappened) -- the last collision that happened
-		--	else
-		--		collisionLoop cm (dx/2.0, dy/2.0) collisions
-		--	where
-		--		collisions = traceShow (dx, dy) $ evalState (do
-		--				(px, py) <- cmObjectPos oId
-		--				traceShow (px, py) (return ())
-		--				cmRemoveFloating oId 
-		--				let bSize = 5
-		--				let newPos = (px + dx, py + dy)
-		--				traceShow (newPos) (return ())
-		--				cmAddFloating $ newCollidable oId (newBoundary newPos bSize)
-		--				traceShow "Add floating"  (return ())
-		--				cmCollisions oId
-		--			) cm
-
 
 
 applyDelta :: World -> WorldDelta -> World
@@ -224,7 +169,7 @@ applyDelta w wd = collisions
 	where
 		newWalls = w { _wWalls = foldr (\d -> Map.insert (wallId d) d) (_wWalls w) (_wdWallsAdd wd) }
 		newPlayers = newWalls { _wPlayers = foldr (\p -> Map.insert (playerId p) p) (_wPlayers newWalls) (_wdPlayerAdd wd) }
-		positions = newPlayers { _wPositions = foldr (\(k, v) m -> Map.alter (alterPos v) k m) (_wPositions newPlayers) (Map.toList . _wdPositionsDelta $ wd) }
+		positions = newPlayers { _wPositions = foldr (\(k, v) m -> Map.alter (alterPos v) k m) (_wPositions newPlayers) (Map.toList . deltaPos . _wdPositionsDelta $ wd) }
 		--collidables = positions { _wCollisionManager = execState (do
 				--mapM_ cmAddStatic [newCollidable oId (newBoundary (objectPos oId) 5) | oId <- map wallId (_wdWallsAdd wd)]
 				--mapM_ cmAddFloating [newCollidable oId (newBoundary (objectPos oId) 5) | oId <- map playerId (_wdPlayerAdd wd)]
@@ -234,7 +179,7 @@ applyDelta w wd = collisions
 		--	) (_wCollisionManager positions) }
 
 		-- overwrite old ones
-		collisions = positions { _wCurrentCollisions = _wdCollisions wd }
+		collisions = positions { _wCurrentCollisions = containerData $ wd^.wdCollisions }
 
 		objectPos oId = (positions ^. wPositions) Map.! oId
 		--doorControllers = positions { wDoorControllers = foldr (\dc -> Map.insert (doorControllerId dc) dc) (wDoorControllers positions) (wdDoorControllers wd) }
@@ -245,62 +190,16 @@ applyDelta w wd = collisions
 -- fix collisions (reset positions)
 --fixWorldDelta :: World -> WorldDelta -> WorldDelta
 
-alterPos val Nothing = Just val
+alterPos (x, y) Nothing = Just (x, y)
 alterPos (x, y) (Just (x', y')) = Just (x + x', y + y')
 
-newDelta = WorldDelta 
-	{ _wdDoorsAdd = []
-	, _wdWallsAdd = []
-	, _wdPositionsDelta = Map.empty
-	, _wdPlayerAdd = []
-	, _wdDoorControllers = []
-	, _wdCollisions = Map.empty
-	}
 
-instance Monoid WorldDelta where
-	mempty = newDelta
-	mappend wd1 wd2 = newDelta
-		{ _wdDoorsAdd = doors
-		, _wdWallsAdd = walls
-		, _wdPositionsDelta = positions
-		, _wdPlayerAdd = players
-		, _wdDoorControllers = doorControllers
-		, _wdCollisions = collisions
-		}
-		where
-			walls = wd1^.wdWallsAdd ++ wd2^.wdWallsAdd
-			doors = wd1^.wdDoorsAdd ++ wd2^.wdDoorsAdd
-			players = wd1^.wdPlayerAdd ++ wd2^.wdPlayerAdd
-			positions = foldr (\(k, v) m -> Map.alter (alterPos v) k m) (wd1^.wdPositionsDelta) (Map.toList (wd2^.wdPositionsDelta))
-			doorControllers = wd1^.wdDoorControllers ++ wd2^.wdDoorControllers
-			collisions = Map.unionWith (++) (wd1^.wdCollisions) (wd2^.wdCollisions)
-
-deltaAddPlayer :: String -> (Float, Float) -> ObjectId -> WorldContext ()
-deltaAddPlayer name pos oId = do
-	deltaMoveObject oId pos
-	writer ((), mempty 
-		{ _wdPlayerAdd = [player]
-		})
-	where
-		player = Player oId name
-
-deltaAddWall :: (Float, Float) -> ObjectId -> WorldContext ()
-deltaAddWall pos oId = do
-	deltaMoveObject oId pos
-	writer ((), mempty 
-		{ _wdWallsAdd = [Wall oId]
-		})
-
-newObject :: WorldContext ObjectId
+newObject :: MonadState WorldManager m => m ObjectId
 newObject = do
 	wm <- get 
 	let oId = wm^.wmNextObjectId
 	wmNextObjectId += 1
 	wmObjects .= Set.insert oId (wm^.wmObjects)
-	--modify $ \wm -> wm 
-		--{ _wmNextObjectId = oId + 1
-		--, _wmObjects = Set.insert oId (wm^.wmObjects)
-		--}
 	return oId
 
 moveObject :: (Float, Float) -> WorldWire ObjectId ()

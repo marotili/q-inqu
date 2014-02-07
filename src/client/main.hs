@@ -21,7 +21,7 @@ import qualified Graphics.UI.GLFW          as GLFW
 import Game.World.Import.Tiled
 import Game.Input.Input
 import Game.Input.Actions
-
+import Text.PrettyPrint
 --import Game.Render
 --import Game.Cell
 import qualified Game.Render as Render
@@ -135,6 +135,8 @@ main = withSocketsDo $ do
           GLFW.setCharCallback            win $ Just $ charCallback            eventsChan
 
           GLFW.swapInterval 1
+
+          printInformation win
 
           (fbWidth, fbHeight) <- GLFW.getFramebufferSize win
 
@@ -350,3 +352,84 @@ draw = do
   liftIO $ Render.render win rc cam
 
   return ()
+
+printInformation :: GLFW.Window -> IO ()
+printInformation win = do
+    version <- GLFW.getVersion
+    versionString <- GLFW.getVersionString
+    --monitorInfos <- runMaybeT getMonitorInfos
+    --joystickNames <- getJoystickNames
+    clientAPI <- GLFW.getWindowClientAPI win
+    cv0 <- GLFW.getWindowContextVersionMajor win
+    cv1 <- GLFW.getWindowContextVersionMinor win
+    cv2 <- GLFW.getWindowContextVersionRevision win
+    robustness <- GLFW.getWindowContextRobustness win
+    forwardCompat <- GLFW.getWindowOpenGLForwardCompat win
+    debug <- GLFW.getWindowOpenGLDebugContext win
+    profile <- GLFW.getWindowOpenGLProfile win
+
+    putStrLn $ render $
+      nest 4 (
+        text "------------------------------------------------------------" $+$
+        text "GLFW C library:" $+$
+        nest 4 (
+          text "Version:" <+> renderVersion version $+$
+          text "Version string:" <+> renderVersionString versionString
+        ) $+$
+        --text "Monitors:" $+$
+        --nest 4 (
+          --renderMonitorInfos monitorInfos
+        --) $+$
+        --text "Joysticks:" $+$
+        --nest 4 (
+          --renderJoystickNames joystickNames
+        --) $+$
+        text "OpenGL context:" $+$
+        nest 4 (
+          text "Client API:" <+> renderClientAPI clientAPI $+$
+          text "Version:" <+> renderContextVersion cv0 cv1 cv2 $+$
+          text "Robustness:" <+> renderContextRobustness robustness $+$
+          text "Forward compatibility:" <+> renderForwardCompat forwardCompat $+$
+          text "Debug:" <+> renderDebug debug $+$
+          text "Profile:" <+> renderProfile profile
+        ) $+$
+        text "------------------------------------------------------------"
+      )
+  where
+    renderVersion (GLFW.Version v0 v1 v2) =
+        text $ intercalate "." $ map show [v0, v1, v2]
+
+    renderVersionString =
+        text . show
+
+    --renderMonitorInfos =
+    --    maybe (text "(error)") (vcat . map renderMonitorInfo)
+
+    --renderMonitorInfo (name, (x,y), (w,h), vms) =
+    --    text (show name) $+$
+    --    nest 4 (
+    --      location <+> size $+$
+    --      fsep (map renderVideoMode vms)
+    --    )
+    --  where
+    --    location = int x <> text "," <> int y
+    --    size = int w <> text "x" <> int h <> text "mm"
+
+    renderVideoMode (GLFW.VideoMode w h r g b rr) =
+        brackets $ res <+> rgb <+> hz
+      where
+        res = int w <> text "x" <> int h
+        rgb = int r <> text "x" <> int g <> text "x" <> int b
+        hz = int rr <> text "Hz"
+
+    --renderJoystickNames pairs =
+    --    vcat $ map (\(js, name) -> text (show js) <+> text (show name)) pairs
+
+    renderContextVersion v0 v1 v2 =
+        hcat [int v0, text ".", int v1, text ".", int v2]
+
+    renderClientAPI = text . show
+    renderContextRobustness = text . show
+    renderForwardCompat = text . show
+    renderDebug = text . show
+    renderProfile = text . show
