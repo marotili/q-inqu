@@ -10,6 +10,8 @@ module Game.World
 	, applyDelta
 
 	, wPlayerId, wPlayerPos
+	, wBoulderId, wBoulderPos
+	, wPhysics
 
 	, newWorld, newWorldManager, newWorldFromTiled
 	, testwire
@@ -60,10 +62,12 @@ makeLenses ''WorldManager
 
 data World = World
 	{ _wDoors :: Map.Map DoorId Door
+	, _wBoulders :: Map.Map BoulderId Boulder
 	, _wWalls :: Map.Map WallId Wall
 	, _wDoorControllers :: Map.Map DoorControllerId DoorController
 	, _wSwitches :: Map.Map SwitchId Switch
 	, _wPositions :: Map.Map ObjectId (Float, Float)
+	, _wPhysics :: Map.Map ObjectId ObjectPhysics
 	, _wPlayers :: Map.Map ObjectId Player
 	--, _wCollisionManager :: CollisionManager
 
@@ -92,9 +96,11 @@ newWorldManager = WorldManager
 newWorld = World
 	{ _wDoors = Map.empty
 	, _wWalls = Map.empty
+	, _wBoulders = Map.empty
 	, _wDoorControllers = Map.empty
 	, _wSwitches = Map.empty
 	, _wPositions = Map.empty
+	, _wPhysics = Map.empty
 	, _wPlayers = Map.empty
 	--, _wCollisionManager = cmNew
 	, _wCurrentCollisions = Map.empty
@@ -102,14 +108,46 @@ newWorld = World
 	}
 
 wPlayerId :: String -> Getter World (Maybe PlayerId)
-wPlayerId playerName' = to (\w -> case getPlayer w of
+wPlayerId playerName' = to (\w -> case getPlayer w playerName' of
 			[pId] -> Just pId
 			_ -> Nothing
 		)
 	where
-		getPlayer world = ifoldMap (\pId Player { playerName } ->
+		getPlayer world playerName' = ifoldMap (\pId Player { playerName } ->
 				[pId | playerName == playerName']
 			) (world^.wPlayers)
+
+wBoulderId :: String -> Getter World (Maybe BoulderId)
+wBoulderId boulderName' = to (\w -> case getBoulder w boulderName' of
+		[bId] -> Just bId
+		_ -> Nothing
+	)
+	where
+
+getBoulder :: World -> String -> [BoulderId]
+getBoulder w name = getObject w wBoulders ((==name) . boulderName)
+
+getObject :: World -> Lens' World (Map.Map k a) -> (a -> Bool) -> [k]
+getObject w g cond = ifoldMap (\oId object ->
+		[oId | cond object]
+		) (w^.g)
+
+wObjectPos :: Getter World (Maybe PlayerId) -> Getter World (Maybe (Float, Float))
+wObjectPos oId = to (\w -> case w^.oId of
+		Just oId -> w^.wPositions . L.at oId
+		Nothing -> Nothing
+	)
+
+wObjectSpeed :: ObjectId -> Getter World (Float, Float)
+wObjectSpeed oId = to (\w -> w^.wPhysics . L.at oId ^?! _Just . objectSpeed . tuple)
+
+wObjectAccel :: ObjectId -> Getter World (Float, Float)
+wObjectAccel oId = to (\w -> w^.wPhysics . L.at oId ^?! _Just . objectAcceleration . tuple)
+
+--wObjectPos w oId = w^.wPositions . L.at (w^.oId)
+
+wBoulderPos :: String -> Getter World (Maybe (Float, Float))
+wBoulderPos name = wObjectPos $ wBoulderId name
 
 wPlayerPos :: String -> Getter World (Maybe (Float, Float))
 wPlayerPos playerName' = to (\w -> case w^.pId of
@@ -135,6 +173,7 @@ newWorldFromTiled tiledMap = do
 		Just player2Obj = queryObject tiledMap "Player2"
 
 		wallPositions = mapWallPositions tiledMap
+		boulders = mapBoulders tiledMap
 
 		--genWalls :: [(Float, Float)] -> WorldWire a b
 		genWalls [] = returnA
@@ -143,11 +182,18 @@ newWorldFromTiled tiledMap = do
 			genWalls walls -< input
 			returnA -< input
 
+		genBoulders [] = returnA
+		genBoulders (boulder:boulders) = proc input -> do
+			spawnBoulderAt (boulder^.objectPos) (boulder^.objectName._Just) -< input
+			genBoulders boulders -< input
+			returnA -< input
+
 		initWire = proc input -> do
 			_ <- spawnPlayerAt "Neira" (player1Obj^.objectPos) -< input
 			_ <- spawnPlayerAt "TheGhost" (player2Obj^.objectPos) -< input
 
 			_ <- genWalls wallPositions -< input
+			_ <- genBoulders boulders -< input
 
 			returnA -< ()
 
@@ -162,14 +208,17 @@ movingDirectionR = mkGenN $ \playerId -> do
 		else
 			return (Right (0, 0), movingDirectionR)
 
-
-
 applyDelta :: World -> WorldDelta -> World
 applyDelta w wd = collisions
 	where
 		newWalls = w { _wWalls = foldr (\d -> Map.insert (wallId d) d) (_wWalls w) (_wdWallsAdd wd) }
 		newPlayers = newWalls { _wPlayers = foldr (\p -> Map.insert (playerId p) p) (_wPlayers newWalls) (_wdPlayerAdd wd) }
-		positions = newPlayers { _wPositions = foldr (\(k, v) m -> Map.alter (alterPos v) k m) (_wPositions newPlayers) (Map.toList . deltaPos . _wdPositionsDelta $ wd) }
+		newBoulders = newPlayers & wBoulders %~ (\boulderMap-> foldr (\b -> Map.insert (boulderId b) b) boulderMap (wd^.wdBouldersAdd))
+		positions = newBoulders { _wPositions = foldr (\(k, v) m -> Map.alter (alterPos v) k m) (_wPositions newBoulders) (Map.toList . deltaPos . _wdPositionsDelta $ wd) }
+		
+		physics = positions & wPhysics %~ (\physicsMap -> foldr (\(k, v) -> Map.alter (alterPhysics v) k) physicsMap (Map.toList . containerData $ wd^.wdPhysicsDelta))
+		--positions2 = positions & wPositions = foldr (\objectPhysics ->
+			--Map.alter (alterPos ))
 		--collidables = positions { _wCollisionManager = execState (do
 				--mapM_ cmAddStatic [newCollidable oId (newBoundary (objectPos oId) 5) | oId <- map wallId (_wdWallsAdd wd)]
 				--mapM_ cmAddFloating [newCollidable oId (newBoundary (objectPos oId) 5) | oId <- map playerId (_wdPlayerAdd wd)]
@@ -179,9 +228,12 @@ applyDelta w wd = collisions
 		--	) (_wCollisionManager positions) }
 
 		-- overwrite old ones
-		collisions = positions { _wCurrentCollisions = containerData $ wd^.wdCollisions }
+		collisions = physics { _wCurrentCollisions = containerData $ wd^.wdCollisions }
 
 		objectPos oId = (positions ^. wPositions) Map.! oId
+
+		alterPhysics op Nothing = Just op
+		alterPhysics (ObjectPhysics a1 v1) (Just (ObjectPhysics a2 v2)) = Just $ ObjectPhysics a1 (v1 `mappend` v2)
 		--doorControllers = positions { wDoorControllers = foldr (\dc -> Map.insert (doorControllerId dc) dc) (wDoorControllers positions) (wdDoorControllers wd) }
 
 --validateWorldDelta :: WorldDelta -> Bool
@@ -208,6 +260,45 @@ moveObject (vx, vy) = mkGen $ \ds oId -> do
 	deltaMoveObject oId (dt*vx, dt*vy)
 	return (Right (), moveObject (vx, vy))
 
+moveObjects :: WorldWire a ()
+moveObjects = mkGen $ \ds _ -> do
+	w <- ask
+	let dt = realToFrac (dtime ds)
+	mapMOf traverse (\oId -> do
+			let (ax, ay) = w^.wObjectAccel oId
+			let (vx, vy) = w^.wObjectSpeed oId
+			--deltaApplyForce oId (ax, ay)
+			deltaSpeed oId (ax*dt, ay*dt) -- apply force to speed
+			deltaMoveObject oId (vx*dt, vy*dt) -- apply speed to pos
+			return ()
+		) (map fst $ Map.toList $ w^.wPhysics)
+
+	return (Right (), moveObjects)
+
+deaccelObjects :: WorldWire a ()
+deaccelObjects = mkGen $ \ds _ -> do
+	w <- ask
+	let dt = realToFrac (dtime ds)
+	mapMOf traverse (\oId -> do
+			--let (ax, ay) = w^.wObjectAccel oId
+			let (vx, vy) = w^.wObjectSpeed oId
+			if abs vx < 0.0005 && abs vy < 0.0005
+				then 
+					deltaSpeed oId (-vx, -vy)
+				else deltaApplyForce oId (-vx/2, -vy/2)
+			--deltaMoveObject oId (vx*dt, vy*dt)
+			return ()
+		) (map fst $ Map.toList $ w^.wPhysics)
+
+	return (Right (), deaccelObjects)
+
+accelObject :: (Float, Float) -> WorldWire ObjectId ()
+accelObject (ax, ay) = mkGen $ \ds oId -> do
+	let dt = realToFrac (dtime ds)
+	deltaApplyForce oId (ax*dt, ay*dt)
+	lift $ print (ax*dt, ay*dt)
+	return (Right (), accelObject (ax, ay))
+
 objectCollided :: WorldWire ObjectId (Event ())
 objectCollided = mkGenN $ \oId -> do
 	w <- ask
@@ -218,22 +309,32 @@ objectCollided = mkGenN $ \oId -> do
 
 moveObjectR :: WorldWire (ObjectId, (Float, Float)) ()
 moveObjectR = mkGen $ \ds (oId, (vx, vy)) -> do
-	liftIO $ print "Moving object"
 	let dt = realToFrac (dtime ds)
 	deltaMoveObject oId (dt*vx, dt*vy)
-	liftIO $ print "finished moving object"
 	return (Right (), moveObjectR)
 
 spawnPlayerAt :: String -> (Float, Float) -> WorldWire a (Event PlayerId)
 spawnPlayerAt name pos = mkObjGenWire $ deltaAddPlayer name pos
 
 spawnWallAt pos = mkObjGenWire $ deltaAddWall pos
+spawnBoulderAt pos name = mkObjGenWire $ deltaAddBoulder pos name
 
-player name = mkGenN $ \_ -> do
-	pid <- magnify (wPlayerId name) ask
-	case pid of 
-		Just pId -> return (Right pId, player name)
-		Nothing -> return (Left (), player name)
+wireGet getter = mkGenN $ \_ -> do
+	result <- magnify getter ask
+	case result of 
+		Just result -> return (Right result, wireGet getter)
+		Nothing -> return (Left (), wireGet getter) 
+
+--accel = mkGenN $ \_ -> do
+
+--player name = mkGenN $ \_ -> do
+--	pid <- magnify (wPlayerId name) ask
+--	case pid of 
+--		Just pId -> return (Right pId, player name)
+--		Nothing -> return (Left (), player name)
+
+player name = wireGet (wPlayerId name)
+boulder name = wireGet (wBoulderId name) 
 
 nullObject :: ObjectId
 nullObject = 0
@@ -252,11 +353,19 @@ mkObjGenWire f = genLater . mkGenN (\_ -> do
 userSpeed = 100
 
 testwire = proc input -> do
+	_ <- deaccelObjects -< input
+	_ <- moveObjects -< input
+
 	playerId <- player "Neira" -< input
+	boulderId <- boulder "Boulder1" -< input
 	--_ <- asSoonAs . spawnWallAt (60, 60) -< input
 	(x, y) <- movingDirectionR -< playerId
 	--mul <- pure (-1) . for 3 . asSoonAs . objectCollided <|> pure 1 -< playerId
-	_ <- moveObjectR -< (playerId, (x*userSpeed, y*userSpeed))
+	_ <- accelObject (100, 0) . for 3 . after 2 -< playerId
+	--_ <- moveObjectR -< (playerId, (x*userSpeed, y*userSpeed))
+
+	--_ <- moveObjectR -< (boulderId, (20, 0))
+	--_ <- 
 	returnA -< ()
 
 worldLoop w' session' world' state' = do

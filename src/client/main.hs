@@ -134,7 +134,7 @@ main = withSocketsDo $ do
           GLFW.setKeyCallback             win $ Just $ keyCallback             eventsChan
           GLFW.setCharCallback            win $ Just $ charCallback            eventsChan
 
-          GLFW.swapInterval 1
+          GLFW.swapInterval 0
 
           printInformation win
 
@@ -195,6 +195,10 @@ withWindow :: Int -> Int -> String -> (GLFW.Window -> IO ()) -> IO ()
 withWindow width height title f = do
     GLFW.setErrorCallback $ Just simpleErrorCallback
     r <- GLFW.init
+    GLFW.windowHint $ GLFW.WindowHint'OpenGLDebugContext True
+    GLFW.windowHint $ GLFW.WindowHint'ContextVersionMajor 3
+    GLFW.windowHint $ GLFW.WindowHint'ContextVersionMinor 3
+
     when r $ do
         m <- GLFW.createWindow width height title Nothing Nothing
         case m of
@@ -281,6 +285,7 @@ run session w = do
     let V2 cx cy = screenToOpenGLCoords c 0 0
 
     q <- liftIO $ GLFW.windowShouldClose win
+    liftIO $ threadDelay 10000
     unless q (run session' w')
 
 processEvents :: Demo ()
