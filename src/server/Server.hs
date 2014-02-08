@@ -137,7 +137,7 @@ game recvEvents output = do
 
 eventUpdate = do
 	P.yield (0, A.ActionNothing)
-	lift $ threadDelay (millisecond*50)
+	lift $ threadDelay (oneSecond `div` 60)
 	eventUpdate
  
 main = withSocketsDo $ do

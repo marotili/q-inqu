@@ -1,0 +1,65 @@
+TODO
+====
+
+- Rendering
+render front to back (order by y coordinate) per layer
+
+- Camera movement
+start with camera centralized on user
+the camera always stays in a certain range to the user
+
+- Camera cutscenes
+support for guided camera movement
+support for multiple cameras and viewports
+
+- Gameplay
+create two 'realms' where interaction and visibility is restricted between the two
+* Collision, Entity actions, Visiblity (AI), Rendering
+link objects between realms
+player stun
+
+- Texts
+introduction, backstory
+
+- Character tilesets
+ghost tileset
+monster tileset
+more animations to neira (levers, hit/stun, attack?)
+
+- Object tilesets
+projectiles (arrows, stones)
+boulders
+traps
+
+- Environmental tilesets
+walls
+floor tiles
+decoration (torches, grass, plants)
+
+- User interface
+design menu etc.
+font + hitpoints...
+
+- Sound
+background music
+walk, hit feedback, 
+trap open/close
+door open/close
+lever switched
+
+- Engine
+sound (SDL 2.0)
+text (port harfbuzz and freetype-gl)
+
+- Tiled
+define gameplay elements in tiled using properties
+support for compression
+switch between maps
+
+- Server / Client
+wait for two clients to join and then start the game
+wait for user confirmation to start the game
+let the client start a local server when no server is found
+
+- Procedual
+generate rooms

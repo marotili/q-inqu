@@ -361,8 +361,8 @@ testwire = proc input -> do
 	--_ <- asSoonAs . spawnWallAt (60, 60) -< input
 	(x, y) <- movingDirectionR -< playerId
 	--mul <- pure (-1) . for 3 . asSoonAs . objectCollided <|> pure 1 -< playerId
-	_ <- accelObject (100, 0) . for 3 . after 2 -< playerId
-	--_ <- moveObjectR -< (playerId, (x*userSpeed, y*userSpeed))
+	--_ <- accelObject (100, 0) . for 3 . after 2 -< playerId
+	_ <- moveObjectR -< (playerId, (-x*userSpeed, y*userSpeed))
 
 	--_ <- moveObjectR -< (boulderId, (20, 0))
 	--_ <- 

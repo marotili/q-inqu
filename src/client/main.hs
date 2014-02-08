@@ -57,7 +57,7 @@ data Env = Env
     { envEventsChan    :: TQueue Event
     , envActionChan    :: TQueue (Float, InputActions)
     , envWindow        :: !GLFW.Window
-    , envRenderContext :: TVar (Render.RenderContext)
+    , envRenderContext :: TVar Render.RenderContext
     }
 
 data State = State
@@ -135,7 +135,7 @@ main = withSocketsDo $ do
           GLFW.setKeyCallback             win $ Just $ keyCallback             eventsChan
           GLFW.setCharCallback            win $ Just $ charCallback            eventsChan
 
-          GLFW.swapInterval 0
+          GLFW.swapInterval 1
 
           initLogging
           printInformation win
@@ -149,7 +149,7 @@ main = withSocketsDo $ do
 
           rc <- Render.newRenderContext rm
           -- default render context
-          renderContext <- newTVarIO (rc)
+          renderContext <- newTVarIO rc
 
           async $ do
             runEffect $ for (actionProducer actionsChan) PB.encode >-> toServer
@@ -280,7 +280,7 @@ run session w = do
     let input = asks stateInput state -- maybe not threadsafe
     (actions@(InputActions as), session', w') <- liftIO $ stepInput w session input
     ac <- asks envActionChan
-    unless (null (Set.toList as)) $ liftIO . atomically . writeTQueue ac $ (userTime, (actions))
+    unless (null (Set.toList as)) $ liftIO . atomically . writeTQueue ac $ (userTime, actions)
 
     -- update camera
     let c = asks stateCam state
@@ -303,6 +303,11 @@ processEvents = do
 processEvent :: Event -> Demo ()
 processEvent ev =
     case ev of
+      (EventError e s) -> do
+        liftIO $ print $ "Error :" ++ show (e, s)
+        win <- asks envWindow
+        liftIO $ GLFW.setWindowShouldClose win True
+
       (EventWindowSize _ width height) ->
           modify $ \s -> s { stateCam = cameraUpdateProjection (fromIntegral width) (fromIntegral height) (stateCam s) }
       (EventFramebufferSize _ width height) -> do
