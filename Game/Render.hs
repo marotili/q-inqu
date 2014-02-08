@@ -29,6 +29,8 @@ import System.Exit
 import Control.Lens
 
 import Game.Render.Error
+import Game.World.Import.Tiled
+import Data.Tiled
 
 data RenderContext = RenderContext
 	{ _rcMainProgram :: Program
@@ -68,7 +70,12 @@ render window rc cam = do
 	GL.currentProgram $= Just (rc^.rcMainProgram)
 	logGL "render: set current program"
 
-	programSetViewProjection (rc^.rcMainProgram) cam
+	let [playerPos@(x, y)] = rc^..rcWorldRenderContext.wrcMap.tiledMap.object "Player1".objectPos
+	let newCam = cameraUpdatePosition cam (-x) (y)
+	programSetViewProjection (rc^.rcMainProgram) newCam
 
 	updateWorldRenderContext (rc^.rcWorldRenderContext)
 	renderWorldRenderContext (rc^.rcMainProgram) (rc^.rcWorldRenderContext)
+
+	where
+		object name = mapLayers.traverse._ObjectLayer.layerObjects.traverse.objectsByName name

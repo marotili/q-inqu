@@ -114,7 +114,7 @@ tileCoords' :: Map -> Layer -> [(Float, Float)]
 --tileCoords' m ol@ObjectLayer { } = objectCoords m ol
 tileCoords' m Layer { _layerData } = toWorldCoords 
 	where
-		coords = map (\((x, y), _) -> (fromIntegral x, fromIntegral y)) (Map.toList _layerData)
+		coords = map (\((x, y), _) -> (fromIntegral x, -fromIntegral y)) (Map.toList _layerData)
 		V2 tlx tly = m^.mapTopLeft
 		(V2 tsx tsy) = mapTileSize m
 		toWorldCoords = map (\(lx, ly) -> (tsx * (tlx + lx), tsy * (tly + ly))) coords 
@@ -124,13 +124,13 @@ objectCoords m ObjectLayer { _layerObjects } = V.fromList $
 		concatMap (\o -> case ow o of
 				Just objectW ->
 					[lx + fromIntegral (o^.objectX), 
-					ly + fromIntegral (-fromJust (o^.objectHeight) + (o^.objectY))
+					-(ly + fromIntegral (-fromJust (o^.objectHeight) + (o^.objectY)))
 					, p, p]				
 				Nothing -> case o^.objectGid of
 					Just gid -> case mapTilesetByGid m (fromIntegral gid) of
 						Just tileset -> 
 							[ lx + fromIntegral (o^.objectX)
-							, ly + fromIntegral (-(tileset^.tsTileHeight) + (o^.objectY))
+							, -(ly + fromIntegral (-(tileset^.tsTileHeight) + (o^.objectY)))
 							, p, p
 							]
 						Nothing -> [0, 0, 0, 0]
@@ -242,6 +242,7 @@ newWorldRenderContext renderMap = do
 	mapM_ (\(layerBuffer, posBuffer, layer) -> do
 			uploadFromVec GL.UniformBuffer layerBuffer (tileIds layer)
 			uploadFromVec GL.UniformBuffer posBuffer (tileCoords renderMap layer)
+			print $ tileCoords renderMap layer
 			case layer of
 				ObjectLayer {} ->
 					print $ "Objectdata" ++ show (tileIds layer) ++ " / " ++ show (tileCoords renderMap layer)
