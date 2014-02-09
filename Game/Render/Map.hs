@@ -38,6 +38,7 @@ import Game.Render.Render
 
 import qualified Data.Tiled as T
 import Data.Tiled
+import Game.World.Import.Tiled
 
 import Control.Lens
 
@@ -53,13 +54,13 @@ renderMapWidth m = m^.tiledMap.mapWidth
 renderMapHeight :: Map -> Int
 renderMapHeight m = m^.tiledMap.mapHeight
 
-mapTileSize :: Map -> V2 Float
-mapTileSize Map { _tiledMap } = V2 (fromIntegral $ tiledMap^.mapTileWidth) (fromIntegral $ tiledMap^.mapTileHeight)
-	where
-		tiledMap = _tiledMap
+--mapTileSize :: Map -> V2 Float
+--mapTileSize Map { _tiledMap } = V2 (fromIntegral $ tiledMap^.mapTileWidth) (fromIntegral $ tiledMap^.mapTileHeight)
+	--where
+		--tiledMap = _tiledMap
 
-tilesetTileSize :: T.Tileset -> V2 Float
-tilesetTileSize tileSet = V2 (fromIntegral $ tileSet^.tsTileWidth) (fromIntegral $ tileSet^.tsTileHeight)
+--tilesetTileSize :: T.Tileset -> V2 Float
+--tilesetTileSize tileSet = V2 (fromIntegral $ tileSet^.tsTileWidth) (fromIntegral $ tileSet^.tsTileHeight)
 
 newRenderMap :: T.TiledMap -> Map
 newRenderMap tiledMap = Map
@@ -91,19 +92,19 @@ newTile ts = TileMesh $ V.fromList
 	, 0, 0
 	]
 	where
-		V2 dx dy = tilesetTileSize ts
+		(dx, dy) = ts^.tsTileSize
 
-mapTilesetByGid :: Map -> Int -> Maybe T.Tileset
-mapTilesetByGid Map { _tiledMap } gid = case find (
-		\ts -> fromIntegral (ts^.tsInitialGid) <= gid && 
-			fromIntegral (ts^.tsInitialGid) + numX ts * numY ts > gid) tilesets of
-				Just ts -> Just ts
-				Nothing -> Nothing
-	where
-		tiledMap = _tiledMap
-		tilesets = tiledMap^.mapTilesets
-		numX ts = fromIntegral $ fromJust (ts^.tsImages^?_head.iWidth) `div` (ts^.tsTileWidth)
-		numY ts = fromIntegral $ fromJust (ts^.tsImages^?_head.iHeight) `div` (ts^.tsTileHeight)
+--mapTilesetByGid :: Map -> Int -> Maybe T.Tileset
+--mapTilesetByGid Map { _tiledMap } gid = case find (
+--		\ts -> fromIntegral (ts^.tsInitialGid) <= gid && 
+--			fromIntegral (ts^.tsInitialGid) + numX ts * numY ts > gid) tilesets of
+--				Just ts -> Just ts
+--				Nothing -> Nothing
+--	where
+--		tiledMap = _tiledMap
+--		tilesets = tiledMap^.mapTilesets
+--		numX ts = fromIntegral $ fromJust (ts^.tsImages^?_head.iWidth) `div` (ts^.tsTileWidth)
+--		numY ts = fromIntegral $ fromJust (ts^.tsImages^?_head.iHeight) `div` (ts^.tsTileHeight)
 
 tileCoords :: Map -> Layer -> V.Vector Float
 tileCoords m ol@ObjectLayer {} = objectCoords m ol
@@ -116,36 +117,24 @@ tileCoords' m Layer { _layerData } = toWorldCoords
 	where
 		coords = map (\((x, y), _) -> (fromIntegral x, -fromIntegral y)) (Map.toList _layerData)
 		V2 tlx tly = m^.mapTopLeft
-		(V2 tsx tsy) = mapTileSize m
-		toWorldCoords = map (\(lx, ly) -> (tsx * (tlx + lx), tsy * (tly + ly))) coords 
+		(tsx, tsy) = m^.tiledMap.mapTileSize
+		toWorldCoords = map (\(lx, ly) -> (tlx + tsx * lx , tly + tsy * ly)) coords 
 
 objectCoords :: Map -> Layer -> V.Vector Float
 objectCoords m ObjectLayer { _layerObjects } = V.fromList $ 
-		concatMap (\o -> case ow o of
-				Just objectW ->
-					[lx + fromIntegral (o^.objectX), 
-					-(ly + fromIntegral (fromJust (o^.objectHeight) + (o^.objectY)))
-					, p, p]				
-				Nothing -> case o^.objectGid of
-					Just gid -> case mapTilesetByGid m (fromIntegral gid) of
-						Just tileset -> 
-							[ lx + fromIntegral (o^.objectX)
-							, -(ly + fromIntegral ((tileset^.tsTileHeight `div` 2) + (o^.objectY)))
-							, p, p
-							]
-						Nothing -> [0, 0, 0, 0]
-					Nothing -> [0, 0, 0, 0]
+		concatMap (\o -> let (ox, oy) = o^.objectPos (m^.tiledMap) in
+				[lx + ox, -(ly + oy), 0, 0]
 				) _layerObjects
 	where
 		V2 lx ly = m^.mapTopLeft
-		ow o = o^.objectWidth
-		p = 0.0 -- padding
 objectCoords _ _ = V.fromList []
 
 mapBottomRight :: Map -> V2 Float 
 mapBottomRight m@Map { _mapTopLeft } =
-	_mapTopLeft + numTiles * mapTileSize m
-	where numTiles = V2 (fromIntegral $ renderMapWidth m) (fromIntegral $ renderMapHeight m)
+	_mapTopLeft + numTiles * V2 w h
+	where 
+		numTiles = V2 (fromIntegral $ renderMapWidth m) (fromIntegral $ renderMapHeight m)
+		(w, h) = m^.tiledMap.mapTileSize
 
 mapSize :: Map -> V2 Float
 mapSize m = mapBottomRight m - _mapTopLeft m

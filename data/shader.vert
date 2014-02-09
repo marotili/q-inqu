@@ -90,27 +90,27 @@ void main()
 	// tx = 0;
 	// ty = 0;
 	if (gl_VertexID == 0) {
-		tileMeshCoords = vec2(0, tileSet.tileHeight);
+		tileMeshCoords = vec2(0, 0);
 		tx += 0;
 		ty += 0;
 	} else if (gl_VertexID == 1) {
-		tileMeshCoords = vec2(tileSet.tileWidth, tileSet.tileHeight);
+		tileMeshCoords = vec2(tileSet.tileWidth, 0);
 		tx += tileSet.tileWidth;
 		ty += 0;
 	} else if (gl_VertexID == 2) {
-		tileMeshCoords = vec2(tileSet.tileWidth, 0);
+		tileMeshCoords = vec2(tileSet.tileWidth, -tileSet.tileHeight);
 		tx += tileSet.tileWidth;
 		ty += tileSet.tileHeight;
 	} else if (gl_VertexID == 3) {
-		tileMeshCoords = vec2(tileSet.tileWidth, 0);
+		tileMeshCoords = vec2(tileSet.tileWidth, -tileSet.tileHeight);
 		tx += tileSet.tileWidth;
 		ty += tileSet.tileHeight;
 	} else if (gl_VertexID == 4) {
-		tileMeshCoords = vec2(0, 0);
+		tileMeshCoords = vec2(0, -tileSet.tileHeight);
 		tx += 0;
 		ty += tileSet.tileHeight;
 	} else if (gl_VertexID == 5) {
-		tileMeshCoords = vec2(0, tileSet.tileHeight);
+		tileMeshCoords = vec2(0, 0);
 		tx += 0;
 		ty += 0;
 	}

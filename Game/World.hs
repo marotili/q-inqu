@@ -107,13 +107,13 @@ newWorldFromTiled tiledMap = do
 
 		genBoulders [] = returnA
 		genBoulders (boulder:boulders) = proc input -> do
-			spawnBoulderAt (boulder^.objectPos) (boulder^.objectName._Just) -< input
+			spawnBoulderAt (boulder^.objectPos tiledMap) (boulder^.objectName._Just) -< input
 			genBoulders boulders -< input
 			returnA -< input
 
 		initWire = proc input -> do
-			_ <- spawnPlayerAt "Neira" (player1Obj^.objectPos) -< input
-			_ <- spawnPlayerAt "TheGhost" (player2Obj^.objectPos) -< input
+			_ <- spawnPlayerAt "Neira" (player1Obj^.objectPos tiledMap) -< input
+			_ <- spawnPlayerAt "TheGhost" (player2Obj^.objectPos tiledMap) -< input
 
 			_ <- genWalls wallPositions -< input
 			_ <- genBoulders boulders -< input

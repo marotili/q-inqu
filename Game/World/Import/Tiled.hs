@@ -6,6 +6,7 @@ module Game.World.Import.Tiled
 
 	, queryObject, objectPos, objectsByName
 	, mapTileSize, mapSize
+	, tsTileSize
 	) where
 
 import Control.Lens
@@ -18,10 +19,17 @@ tMap = loadMapFile "data/sewers.tmx"
 
 -- Helpers
 -- |Access the positions of an object. Converts float to int.
-objectPos :: Lens' Object (Float, Float)
-objectPos = lens
-	(\obj -> (fromIntegral $ obj^.objectX, fromIntegral $ obj^.objectY))
-	(\obj (x, y) -> obj & objectX .~ round x & objectY .~ round y)
+objectPos :: TiledMap -> Lens' Object (Float, Float)
+objectPos tm = lens
+	(\obj -> (fromIntegral $ obj^.objectX, fromIntegral (obj^.objectY) - obj^.objectSize tm._2))
+	(\obj (x, y) -> obj & objectX .~ round x & objectY .~ round y + round (obj^.objectSize tm._2))
+
+objectSize :: TiledMap -> Getter Object (Float, Float)
+objectSize tm = to getObjSize
+	where
+		getObjSize obj = case obj^.objectWidth of 
+			Just ow -> (fromIntegral ow, fromIntegral $ obj^.objectHeight^?! _Just) 
+			Nothing -> tm^.tileSize (fromIntegral $ obj^.objectGid^?! _Just)
 
 mapTileSize :: Getter TiledMap (Float, Float)
 mapTileSize = to (\tm -> (fromIntegral $ tm^.mapTileWidth, fromIntegral $ tm^.mapTileHeight))
@@ -31,7 +39,8 @@ mapSize = to
 	(\tm -> (fromIntegral $ tm^.mapWidth, fromIntegral $ tm^.mapHeight))
 	--(\tm (w, h) -> tm & mapWidth .~ round w & mapHeight .~ round h)
 
-tileSize tm tileGid = tilesetOfTile tm tileGid ^. tsTileSize
+tileSize :: Int -> Getter TiledMap (Float, Float)
+tileSize tileGid = to (\tm -> tilesetOfTile tm tileGid ^. tsTileSize)
 
 tsTileSize :: Getter Tileset (Float, Float)
 tsTileSize = to (\ts -> (fromIntegral $ ts^.tsTileWidth, fromIntegral $ ts^.tsTileHeight))
@@ -57,6 +66,7 @@ tileGid' = to (\o -> fromIntegral $ o^.tileGid)
 tsInitialGid' :: Getter Tileset Int
 tsInitialGid' = to (\ts -> fromIntegral (ts^.tsInitialGid))
 
+tilesetOfObject = tilesetOfTile
 tilesetOfTile :: TiledMap -> Int -> Tileset
 tilesetOfTile tm gid = fromJust $ findOf
 	traverse
@@ -84,8 +94,8 @@ mapTileByType tm typeName = map addGid $ filter cond (
 		addGid :: (Tileset, Word32, [(String, String)]) -> Int
 		addGid (ts, tileGid, properties) = fromIntegral (ts^.tsInitialGid) + fromIntegral tileGid
 
-takeTilesetWithProps :: Tileset -> [(Tileset, Word32, [(String, String)])]
-takeTilesetWithProps ts = [(ts, tileId, props) | (tileId, props) <- ts^.tsTileProperties]
+		takeTilesetWithProps :: Tileset -> [(Tileset, Word32, [(String, String)])]
+		takeTilesetWithProps ts = [(ts, tileId, props) | (tileId, props) <- ts^.tsTileProperties]
 
 -- | map -> list of tile ids -> (position, tile)
 mapTiles :: TiledMap -> [Int] -> [((Int, Int), Tile)]
@@ -95,17 +105,17 @@ mapTiles tm tileGids =
 		cond (pos, tile) = tile^.tileGid' `elem` tileGids
 		--cond _ = True
 
-mapIdxToCoords :: TiledMap -> (Int, Int) -> (Float, Float)
+mapIdxToCoords :: TiledMap -> (Int, Int) -> (Float, Float) -- coordinates top left
 mapIdxToCoords tm (x, y) = (fromIntegral $ tm^.mapTileWidth * x, fromIntegral $ tm^.mapTileHeight * y)
 
 tileIs :: TiledMap -> Int -> String -> Bool
 tileIs tm gid name = gid `elem` mapTileByType tm name
 -- Data
-mapWallPositions :: TiledMap -> [(Float, Float)]
+mapWallPositions :: TiledMap -> [(Float, Float)] -- top left
 mapWallPositions tm = map (mapIdxToCoords tm . fst) $ mapTiles tm (mapWallTiles tm)
 
 mapWallSize :: TiledMap -> (Float, Float)
-mapWallSize tm = tileSize tm $ head (mapWallTiles tm)
+mapWallSize tm = tm^.tileSize (head (mapWallTiles tm))
 
 --mapBoulderPositions :: TiledMap -> [(Float, Float)]
 --mapBoulderPositions tm = map (mapIdxToCoords tm . fst) $ mapTiles tm (mapBoulders tm)

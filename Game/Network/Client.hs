@@ -91,10 +91,10 @@ consumeClientWorld world manager w renderContextVar = do
 	let boulderPos = world'^.wBoulderPos "Boulder1"
 
 	lift $ print playerPos
-	--lift $ print $ world'^.wCollisionManager
 
 	lift $ atomically $ do
 		renderContext <- readTVar renderContextVar
+		let tm = renderContext^.rcWorldRenderContext.wrcMap.tiledMap
 		let newRenderContext = execState (do
 				case playerPos of
 					Just (px, py) -> do
@@ -103,7 +103,7 @@ consumeClientWorld world manager w renderContextVar = do
 					Nothing -> return ()
 				case boulderPos of
 					Just (px, py) ->
-						tMap.object "Boulder1".objectPos .= (px, py)
+						tMap.object "Boulder1".objectPos tm .= (px, py)
 					Nothing -> return ()
 			) renderContext
 		writeTVar renderContextVar newRenderContext

@@ -58,7 +58,7 @@ data CollisionManager = CollisionManager
 makeLenses ''CollisionManager
 
 instance Show CollisionManager where
-	show cm = show (cm^.cmStaticObjects) ++ show (cm^.cmFloatingObjects)
+	show cm = show (cm^.cmFloatingObjects)
 
 instance Eq CollisionManager where
 	(==) cm1 cm2 = (cm1^.cmStaticObjects == cm2^.cmStaticObjects) &&

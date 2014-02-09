@@ -70,7 +70,8 @@ render window rc cam = do
 	GL.currentProgram $= Just (rc^.rcMainProgram)
 	logGL "render: set current program"
 
-	let [playerPos@(x, y)] = rc^..rcWorldRenderContext.wrcMap.tiledMap.object "Player1".objectPos
+	let tm = rc^.rcWorldRenderContext.wrcMap.tiledMap
+	let [playerPos@(x, y)] = tm^..object "Player1".objectPos tm
 	let newCam = cameraUpdatePosition cam (-x) (y)
 	programSetViewProjection (rc^.rcMainProgram) newCam
 
