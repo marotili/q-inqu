@@ -6,7 +6,12 @@ import Control.Lens
 import Game.World.Objects
 import Data.Monoid
 import Control.Monad.Writer
+import Control.Monad.RWS
 import Linear
+import Game.World.Types
+import Game.Collision
+import Control.Monad.State
+import Control.Monad
 
 -- * Helper
 alterPos2 v Nothing = Just v
@@ -95,12 +100,12 @@ deltaSpeed oId (vx, vy) =
 	scribe wdPhysicsDelta $ MapContainer $ Map.insert oId (ObjectPhysics (V2 0 0) (V2 vx vy)) Map.empty
 
 -- | move object using delta
-deltaMoveObject :: MonadWriter WorldDelta m 
-	=> ObjectId 
-	-> (Float, Float) 
+deltaMoveObject :: (MonadWriter WorldDelta m)
+	=> ObjectId -> (Float, Float) 
 	-> m ()
-deltaMoveObject oId dPos@(dx, dy) =
+deltaMoveObject oId dPos@(dx, dy) = do
 	scribe wdPositionsDelta $ ObjectPositionDelta $ Map.insert oId dPos Map.empty
+
 
 -- | Add a new player to the game
 deltaAddPlayer :: MonadWriter WorldDelta m 

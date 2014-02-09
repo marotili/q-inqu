@@ -89,7 +89,7 @@ consumeClientWorld world manager w renderContextVar = do
 	let boulderPos = world'^.wBoulderPos "Boulder1"
 
 	lift $ print playerPos
-	lift $ print (delta^.wdPhysicsDelta)
+	lift $ print (dt, delta^.wdPhysicsDelta)
 	lift $ print (world'^.wPhysics)
 
 	lift $ atomically $ do

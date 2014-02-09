@@ -48,6 +48,8 @@ import Game.World.Import.Tiled
 
 import Game.Input.Actions as A
 
+import Game.World.Types
+
 import Game.World.Delta
 
 data WorldManager = WorldManager
@@ -59,22 +61,6 @@ data WorldManager = WorldManager
 	} deriving (Show, Eq)
 
 makeLenses ''WorldManager
-
-data World = World
-	{ _wDoors :: Map.Map DoorId Door
-	, _wBoulders :: Map.Map BoulderId Boulder
-	, _wWalls :: Map.Map WallId Wall
-	, _wDoorControllers :: Map.Map DoorControllerId DoorController
-	, _wSwitches :: Map.Map SwitchId Switch
-	, _wPositions :: Map.Map ObjectId (Float, Float)
-	, _wPhysics :: Map.Map ObjectId ObjectPhysics
-	, _wPlayers :: Map.Map ObjectId Player
-	--, _wCollisionManager :: CollisionManager
-
-	, _wCurrentCollisions :: Map.Map ObjectId [ObjectId]
-	} deriving (Eq)
-
-makeLenses ''World
 
 --type WorldContext = RWS World WorldDelta WorldManager
 type DebugWorldContext = RWST World WorldDelta WorldManager IO
@@ -92,70 +78,6 @@ newWorldManager = WorldManager
 	, _wmNextObjectId = 1
 	, _wmPlayerActions = Map.empty
 	}
-
-newWorld = World
-	{ _wDoors = Map.empty
-	, _wWalls = Map.empty
-	, _wBoulders = Map.empty
-	, _wDoorControllers = Map.empty
-	, _wSwitches = Map.empty
-	, _wPositions = Map.empty
-	, _wPhysics = Map.empty
-	, _wPlayers = Map.empty
-	--, _wCollisionManager = cmNew
-	, _wCurrentCollisions = Map.empty
-	--, wMap = gameMap
-	}
-
-wPlayerId :: String -> Getter World (Maybe PlayerId)
-wPlayerId playerName' = to (\w -> case getPlayer w playerName' of
-			[pId] -> Just pId
-			_ -> Nothing
-		)
-	where
-		getPlayer world playerName' = ifoldMap (\pId Player { playerName } ->
-				[pId | playerName == playerName']
-			) (world^.wPlayers)
-
-wBoulderId :: String -> Getter World (Maybe BoulderId)
-wBoulderId boulderName' = to (\w -> case getBoulder w boulderName' of
-		[bId] -> Just bId
-		_ -> Nothing
-	)
-	where
-
-getBoulder :: World -> String -> [BoulderId]
-getBoulder w name = getObject w wBoulders ((==name) . boulderName)
-
-getObject :: World -> Lens' World (Map.Map k a) -> (a -> Bool) -> [k]
-getObject w g cond = ifoldMap (\oId object ->
-		[oId | cond object]
-		) (w^.g)
-
-wObjectPos :: Getter World (Maybe PlayerId) -> Getter World (Maybe (Float, Float))
-wObjectPos oId = to (\w -> case w^.oId of
-		Just oId -> w^.wPositions . L.at oId
-		Nothing -> Nothing
-	)
-
-wObjectSpeed :: ObjectId -> Getter World (Float, Float)
-wObjectSpeed oId = to (\w -> w^.wPhysics . L.at oId ^?! _Just . objectSpeed . tuple)
-
-wObjectAccel :: ObjectId -> Getter World (Float, Float)
-wObjectAccel oId = to (\w -> w^.wPhysics . L.at oId ^?! _Just . objectAcceleration . tuple)
-
---wObjectPos w oId = w^.wPositions . L.at (w^.oId)
-
-wBoulderPos :: String -> Getter World (Maybe (Float, Float))
-wBoulderPos name = wObjectPos $ wBoulderId name
-
-wPlayerPos :: String -> Getter World (Maybe (Float, Float))
-wPlayerPos playerName' = to (\w -> case w^.pId of
-			Just _ -> w^.wPositions . L.at (fromJust $ w^.pId)
-			Nothing -> Nothing
-		)
-	where
-		pId = wPlayerId playerName'
 
 
 newWorldFromTiled :: TiledMap -> IO (World, WorldManager) -- io due to debug wire
@@ -219,16 +141,16 @@ applyDelta w wd = collisions
 		physics = positions & wPhysics %~ (\physicsMap -> foldr (\(k, v) -> Map.alter (alterPhysics v) k) physicsMap (Map.toList . containerData $ wd^.wdPhysicsDelta))
 		--positions2 = positions & wPositions = foldr (\objectPhysics ->
 			--Map.alter (alterPos ))
-		--collidables = positions { _wCollisionManager = execState (do
-				--mapM_ cmAddStatic [newCollidable oId (newBoundary (objectPos oId) 5) | oId <- map wallId (_wdWallsAdd wd)]
-				--mapM_ cmAddFloating [newCollidable oId (newBoundary (objectPos oId) 5) | oId <- map playerId (_wdPlayerAdd wd)]
-			--) (_wCollisionManager positions) }
-		--floatingCollidables = positions { _wCollisionManager = execState (
-		--		mapM_ ((\oId -> cmUpdateFloating oId (objectPos oId)) . fst) (Map.toList (wd^.wdPositionsDelta))
-		--	) (_wCollisionManager positions) }
+		collidables = physics { _wCollisionManager = execState (do
+				mapM_ cmAddStatic [newCollidable oId (newBoundary (objectPos oId) 100) | oId <- map wallId (_wdWallsAdd wd)]
+				mapM_ cmAddFloating [newCollidable oId (newBoundary (objectPos oId) 100) | oId <- map playerId (_wdPlayerAdd wd)]
+			) (_wCollisionManager physics) }
+		floatingCollidables = collidables { _wCollisionManager = execState (
+				mapM_ ((\oId -> cmUpdateFloating oId (objectPos oId)) . fst) (Map.toList (deltaPos $ wd^.wdPositionsDelta))
+			) (_wCollisionManager collidables) }
 
 		-- overwrite old ones
-		collisions = physics { _wCurrentCollisions = containerData $ wd^.wdCollisions }
+		collisions = floatingCollidables { _wCurrentCollisions = containerData $ wd^.wdCollisions }
 
 		objectPos oId = (positions ^. wPositions) Map.! oId
 
@@ -245,6 +167,37 @@ applyDelta w wd = collisions
 alterPos (x, y) Nothing = Just (x, y)
 alterPos (x, y) (Just (x', y')) = Just (x + x', y + y')
 
+norm x = if abs(x) < 0.0005 then 0 else x/abs(x)
+sgn x = norm x
+
+-- FIXME
+collisionTransformation :: (MonadReader World m) 
+	=> ObjectId
+	-> (Float, Float)
+	-> m (Float, Float)
+collisionTransformation oId (dx, dy) = do
+	cm <- view wCollisionManager
+	if cmCanCollide oId cm 
+		then do
+			-- FIXME: right now objects can jump through other objects if delta is too big
+			let ((dx', dy'), collisions) = collisionLoop cm (dx, dy) (sgn dx, sgn dy) []
+			--scribe wdPositionsDelta $ ObjectPositionDelta $ Map.insert oId dPos Map.empty
+			return (dx', dy')
+		else
+			return (dx, dy)
+
+	where			
+		collisionLoop cm (dx, dy) dir@(sx, sy) collisionHappened = traceShow (dx, dy) $ 
+			if null collisions then
+				((dx, dy), collisionHappened)
+			else 
+				collisionLoop cm (dx - sx * 0.1, dy - sy * 0.1) dir collisions
+			where
+				collisions = evalState (do
+						(px, py) <- cmObjectPos oId
+						cmUpdateFloating oId (px+dx, py+dy)
+						cmCollisions oId
+					) cm
 
 newObject :: MonadState WorldManager m => m ObjectId
 newObject = do
@@ -257,7 +210,9 @@ newObject = do
 moveObject :: (Float, Float) -> WorldWire ObjectId ()
 moveObject (vx, vy) = mkGen $ \ds oId -> do
 	let dt = realToFrac (dtime ds)
-	deltaMoveObject oId (dt*vx, dt*vy)
+	let (dx, dy) = (dt*vx, dt*vy)
+	(dx', dy') <- collisionTransformation oId (dx, dy)
+	deltaMoveObject oId (dx', dy')
 	return (Right (), moveObject (vx, vy))
 
 moveObjects :: WorldWire a ()
@@ -269,7 +224,11 @@ moveObjects = mkGen $ \ds _ -> do
 			let (vx, vy) = w^.wObjectSpeed oId
 			--deltaApplyForce oId (ax, ay)
 			deltaSpeed oId (ax*dt, ay*dt) -- apply force to speed
-			deltaMoveObject oId (vx*dt, vy*dt) -- apply speed to pos
+
+			let (dx, dy) = (dt*vx, dt*vy)
+			(dx', dy') <- collisionTransformation oId (dx, dy)
+			deltaMoveObject oId (dx', dy')
+			--deltaMoveObject oId (vx*dt, vy*dt) -- apply speed to pos
 			return ()
 		) (map fst $ Map.toList $ w^.wPhysics)
 
@@ -310,7 +269,9 @@ objectCollided = mkGenN $ \oId -> do
 moveObjectR :: WorldWire (ObjectId, (Float, Float)) ()
 moveObjectR = mkGen $ \ds (oId, (vx, vy)) -> do
 	let dt = realToFrac (dtime ds)
-	deltaMoveObject oId (dt*vx, dt*vy)
+	let (dx, dy) = (dt*vx, dt*vy)
+	(dx', dy') <- collisionTransformation oId (dx, dy)
+	deltaMoveObject oId (dx', dy')
 	return (Right (), moveObjectR)
 
 spawnPlayerAt :: String -> (Float, Float) -> WorldWire a (Event PlayerId)

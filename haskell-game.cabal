@@ -30,9 +30,11 @@ library
         Game.Render.Camera
         Game.Render
         Game.Render.Error
+        
+        Game.Collision 
 
         Game.World
-        Game.Collision 
+        Game.World.Types
         Game.World.Import.Tiled
         Game.World.Objects
         Game.World.Delta

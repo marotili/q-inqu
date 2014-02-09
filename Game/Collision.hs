@@ -1,6 +1,13 @@
 {-# LANGUAGE TemplateHaskell, NamedFieldPuns #-}
 module Game.Collision 
-	( 
+	(
+	  CollisionManager
+	, newBoundary
+	, newCollidable
+	, cmNew, cmAddStatic, cmAddFloating
+	, cmObjectPos, cmQuery
+	, cmCanCollide, cmUpdateFloating
+	, cmCollisions
 	) where
 
 import GHC.Float
@@ -78,32 +85,40 @@ cmRemoveFloating objectId = do
 	cmNeedsUpdate .= True
 
 cmUpdateQT :: State CollisionManager ()
-cmUpdateQT = do
-	cm <- get
-	let update = cm^.cmNeedsUpdate
-	let floatObjects = cm^.cmFloatingObjects
-	let staticQT = cm^.cmStaticQuadTree
-	traceShow "stateless" $
-		when update $ do
-			cmCachedQuadTree .= staticQT
-			traceShow "insert statics" $
-				cmCachedQuadTree %= \qt -> 
-					foldr (insert.snd) qt (Map.toList floatObjects)
-			traceShow "insert floats" $
-				cmNeedsUpdate .= False
-	traceShow "updated" (return ())
+cmUpdateQT = return ()
+	--cm <- get
+	--let update = cm^.cmNeedsUpdate
+	--let floatObjects = cm^.cmFloatingObjects
+	--let staticQT = cm^.cmStaticQuadTree
+	--traceShow "stateless" $
+	--	when update $ do
+	--		cmCachedQuadTree .= staticQT
+	--		traceShow "insert statics" $
+	--			cmCachedQuadTree %= \qt -> 
+	--				foldr (insert.snd) qt (Map.toList floatObjects)
+	--		traceShow "insert floats" $
+	--			cmNeedsUpdate .= False
+	--traceShow "updated" (return ())
 
 cmQuery :: Boundary -> State CollisionManager [ObjectId]
 cmQuery b = do
-	traceShow "cmUpdateQt" cmUpdateQT
+	cmUpdateQT
 	cm <- get
 
-	let qt = traceShow "cached" $ cm^.cmCachedQuadTree
-	
-	let results = traceShow ("Test" ++ show (cm^.cmFloatingObjects))  $
-		query b qt
-	traceShow ("results" ++ show (Set.toList . Set.fromList $ map objectId results)) $
-		return $ Set.toList . Set.fromList $ map objectId results
+	let qt = cm^.cmCachedQuadTree
+	let results = queryNoQt b cm
+	return $ Set.toList . Set.fromList $ results
+
+queryNoQt :: Boundary -> CollisionManager -> [ObjectId]
+queryNoQt b cm = collisions
+	where
+		statics = map snd $ Map.toList (cm^.cmStaticObjects)
+		floating = map snd $ Map.toList (cm^.cmFloatingObjects)
+
+		collisions = foldr (\collidable colls -> if boundaries_intersect b collidable 
+				then (objectId collidable) : colls
+				else colls)
+			[] (statics ++ floating)
 
 cmObjectBoundarySize oId = do
 	cm <- get
