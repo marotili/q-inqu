@@ -41,6 +41,7 @@ import Control.Lens
 import Data.Maybe
 import qualified Data.Map as Map
 import Game.World.Delta
+import Game.World.Objects
 import Game.World.Types
 type ProdDecoder a = (Monad m)	 
 	=> Producer B.ByteString m r
@@ -87,10 +88,14 @@ consumeClientWorld world manager w renderContextVar = do
 	 --update our world state
 	let world' = applyDelta world delta
 
+	let (Just pId) = world'^.wPlayerId "Neira"
 	let playerPos = world'^.wPlayerPos "Neira"
+	let playerGid = world'^.wObjectAnim pId.animTileGid
 	let boulderPos = world'^.wBoulderPos "Boulder1"
 
-	lift $ print playerPos
+	--lift $ print playerPos
+	--lift $ print $ world'^.wAnimations
+	--lift $ print $ delta^.wdAnimations
 
 	lift $ atomically $ do
 		renderContext <- readTVar renderContextVar
@@ -100,6 +105,7 @@ consumeClientWorld world manager w renderContextVar = do
 					Just (px, py) -> do
 						tMap.object "Player1".objectX .= round px
 						tMap.object "Player1".objectY .= round py
+						tMap.object "Player1".objectGid .= Just (fromIntegral playerGid)
 					Nothing -> return ()
 				case boulderPos of
 					Just (px, py) ->

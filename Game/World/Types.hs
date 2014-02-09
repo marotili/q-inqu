@@ -11,6 +11,7 @@ module Game.World.Types
     , wObjectSpeed, wObjectAccel
     , wCurrentCollisions
     , wTileBoundary
+    , wAnimations, wObjectAnim
 
     , newWorld
     ) where
@@ -20,6 +21,8 @@ import qualified Data.Map as Map
 import Game.World.Objects
 import Game.Collision
 import Data.Maybe
+
+
 
 data World = World
     { _wDoors :: Map.Map DoorId Door
@@ -33,6 +36,7 @@ data World = World
     , _wCollisionManager :: CollisionManager
     , _wCurrentCollisions :: Map.Map ObjectId [ObjectId]
     , _wTileBoundary :: (Float, Float)
+    , _wAnimations :: Map.Map ObjectId Animation
     } deriving (Eq)
 
 makeLenses ''World
@@ -49,6 +53,7 @@ newWorld = World
     , _wCollisionManager = cmNew
     , _wCurrentCollisions = Map.empty
     , _wTileBoundary = (0, 0)
+    , _wAnimations = Map.empty
     --, wMap = gameMap
     }
 
@@ -87,6 +92,9 @@ wObjectSpeed oId = to (\w -> w^.wPhysics . at oId ^?! _Just . objectSpeed . tupl
 
 wObjectAccel :: ObjectId -> Getter World (Float, Float)
 wObjectAccel oId = to (\w -> w^.wPhysics . at oId ^?! _Just . objectAcceleration . tuple)
+
+wObjectAnim :: ObjectId -> Getter World Animation
+wObjectAnim oId = to (\w -> w^.wAnimations . at oId ^?! _Just)
 
 --wObjectPos w oId = w^.wPositions . at (w^.oId)
 

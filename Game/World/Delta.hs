@@ -45,6 +45,7 @@ data WorldDelta = WorldDelta
 	, _wdPlayerAdd :: [Player] -- absolute
 	, _wdDoorControllers :: [DoorController] -- absolute
 	, _wdCollisions :: MapContainer ObjectId [ObjectId]
+	, _wdAnimations :: Map.Map ObjectId Animation
 	} deriving (Show, Eq)
 makeLenses ''WorldDelta
 
@@ -57,6 +58,7 @@ newDelta = WorldDelta
 	, _wdPlayerAdd = mempty
 	, _wdDoorControllers = mempty
 	, _wdCollisions = mempty
+	, _wdAnimations = Map.empty
 	}
 
 instance Monoid WorldDelta where
@@ -70,6 +72,7 @@ instance Monoid WorldDelta where
 		, _wdPlayerAdd = players
 		, _wdDoorControllers = doorControllers
 		, _wdCollisions = collisions
+		, _wdAnimations = Map.union (wd2^.wdAnimations) (wd1^.wdAnimations) -- left-biased
 		}
 		where
 			walls = (wd1^.wdWallsAdd) `mappend` (wd2^.wdWallsAdd)
@@ -88,7 +91,8 @@ instance Monoid WorldDelta where
 --	-> n ()
 --scribeTo getter writer = scribe getter (execWriter writer)
 
-
+deltaAnim :: MonadWriter WorldDelta m => ObjectId -> Animation -> m ()
+deltaAnim oId anim = scribe wdAnimations $ Map.insert oId anim Map.empty
 
 -- * Writers
 deltaApplyForce :: MonadWriter WorldDelta m => ObjectId -> (Float, Float) -> m ()

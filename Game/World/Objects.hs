@@ -10,7 +10,8 @@ module Game.World.Objects
 	, Switch(..)
 	, Boulder(..)
 	, ObjectPhysics(..), objectAcceleration, objectSpeed
-
+	, Animation(..), animTime, animCurrentTime, animNext, animTileGid
+	, defaultCharacterAnim
 	, tuple
 	) where
 
@@ -82,3 +83,23 @@ instance Monoid ObjectPhysics where
 	mempty = ObjectPhysics (V2 0 0) (V2 0 0)
 	mappend (ObjectPhysics a1 v1) (ObjectPhysics a2 v2) = 
 		ObjectPhysics (a1 `mappend` a2) (v1 `mappend` v2)
+
+data Animation = Animation
+    { _animTileGid :: Int
+    , _animTime :: Float
+    , _animNext :: Animation
+    , _animCurrentTime :: Float
+    } deriving (Eq)
+makeLenses ''Animation
+
+instance Show Animation where
+	show anim = show (anim^.animTileGid) ++ " / " ++ show (anim^.animTime) ++ " / " ++ show (anim ^.animCurrentTime)
+
+
+defaultCharacterAnim :: Animation
+defaultCharacterAnim = a1
+    where
+        a1 = Animation 73 0.25 a2 0 
+        a2 = Animation 74 0.25 a3 0
+        a3 = Animation 75 0.25 a4 0
+        a4 = Animation 76 0.25 a1 0

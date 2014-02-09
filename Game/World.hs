@@ -79,10 +79,11 @@ newWorldManager = WorldManager
 	, _wmPlayerActions = Map.empty
 	}
 
-
 newWorldFromTiled :: TiledMap -> IO (World, WorldManager) -- io due to debug wire
 newWorldFromTiled tiledMap = do
-	let world = newWorld { _wTileBoundary = tiledMap^.mapTileSize }
+	let world = newWorld 
+		{ _wTileBoundary = tiledMap^.mapTileSize
+		}
 	(worldManager, worldDelta) <- execRWST (
 			stepWire initWire (Timed 0 ()) (Right ())
 		) world newWorldManager
@@ -131,6 +132,34 @@ movingDirectionR = mkGenN $ \playerId -> do
 		else
 			return (Right (0, 0), movingDirectionR)
 
+--animSubWire :: Animation -> Wire s e m a b
+--animSubWire = mkGen $ \ds oId -> do
+--	let dt = realToFrac (dtime ds)
+--	if anim^.animCurrentTime + dt > anim ^. animTime
+--		then do
+--			let remaining = anim^.animCurrentTime + dt - anim^.animTime
+--			let next = (anim^.animNext) & animCurrentTime .~ remaining
+--			let (mx, w') = stepWire (animate next) ds (Right oId)
+--			return (mx, w')
+--		else do
+--			let current = anim & animCurrentTime += dt
+--			deltaAnim oId current
+--			return (Right (), animate current)
+
+animate :: Animation -> WorldWire ObjectId ()
+animate anim = mkGen $ \ds oId -> do
+	let dt = realToFrac (dtime ds)
+	if anim^.animCurrentTime + dt > anim ^. animTime
+		then do
+			let remaining = anim^.animCurrentTime + dt - anim^.animTime
+			let next = (anim^.animNext) & animCurrentTime .~ remaining
+			(mx, w') <- stepWire (animate next) ds (Right oId)
+			return (mx, w')
+		else do
+			let current = anim & animCurrentTime %~ (+) dt
+			deltaAnim oId current
+			return (Right (), animate current)
+
 applyDelta :: World -> WorldDelta -> World
 applyDelta w wd = collisions
 	where
@@ -150,8 +179,10 @@ applyDelta w wd = collisions
 				mapM_ ((\oId -> cmUpdateFloating oId (objectPos oId)) . fst) (Map.toList (deltaPos $ wd^.wdPositionsDelta))
 			) (_wCollisionManager collidables) }
 
+		anims = floatingCollidables & wAnimations .~ Map.union (wd^.wdAnimations) (w^.wAnimations) -- left-biased
+
 		-- overwrite old ones
-		collisions = floatingCollidables { _wCurrentCollisions = containerData $ wd^.wdCollisions }
+		collisions = anims { _wCurrentCollisions = containerData $ wd^.wdCollisions }
 
 		objectPos oId = (positions ^. wPositions) Map.! oId
 
@@ -325,6 +356,7 @@ testwire = proc input -> do
 	--mul <- pure (-1) . for 3 . asSoonAs . objectCollided <|> pure 1 -< playerId
 	--_ <- accelObject (100, 0) . for 3 . after 2 -< playerId
 	_ <- moveObjectR -< (playerId, (-x*userSpeed, y*userSpeed))
+	_ <- animate defaultCharacterAnim -< playerId
 
 	--_ <- moveObjectR -< (boulderId, (20, 0))
 	--_ <- 
