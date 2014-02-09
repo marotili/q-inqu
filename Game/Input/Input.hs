@@ -129,7 +129,9 @@ directionY = pure (V2 0 (-1)) . keyDown GLFW.Key'W . keyUp GLFW.Key'S <|>
 
 --movement = (stopMoveAction . W.when (\(V2 x y) -> x == 0 && y == 0) <|> moveAction) . liftA2 (+) directionX directionY
 movement :: InputWire a ()
-movement = moveAction . liftA2 (+) directionX directionY
+movement = fmap (\_ -> ()) (W.when (\(V2 dx dy) -> abs dx < 0.005 && abs dy < 0.005)) . liftA2 (+) directionX directionY
+    W.--> moveAction . liftA2 (+) directionX directionY
+    W.--> stopMoveAction W.--> movement
 
 untilV source = W.until . fmap(\e -> ((), e)) source
 
@@ -149,13 +151,16 @@ userInput = proc input -> do
 stopMoveAction :: InputWire a ()
 stopMoveAction = mkGenN $ \_ -> do
 	writer ((), newInputAction ActionStopMove)
-	return (Right (), stopMoveAction)
+	return (Right (), inhibit ())
 
 moveAction :: InputWire (V2 Float) ()
-moveAction = mkGenN $ \(V2 x y) -> do
-	Control.Monad.unless (x == 0 && y == 0) $
-		writer ((), newInputAction (newMoveAction x y))
-	return (Right (), moveAction)
+moveAction = mkGenN $ \(V2 x y) ->
+	if abs x < 0.005 && abs y < 0.005
+        then
+            return (Left (), moveAction)
+        else do
+            writer ((), newInputAction (newMoveAction x y))
+            return (Right (), moveAction)
 
 activateAction :: InputWire a (Event ())
 activateAction = mkGenN $ \_ -> do

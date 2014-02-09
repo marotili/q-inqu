@@ -312,7 +312,7 @@ mkObjGenWire f = genLater . mkGenN (\_ -> do
 		return (Right (Event oId), never)
 	)
 
-userSpeed = 100
+userSpeed = 200
 
 testwire = proc input -> do
 	_ <- deaccelObjects -< input
