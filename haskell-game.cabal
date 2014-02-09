@@ -1,6 +1,6 @@
 name:          cell
 version:       0.1.0.0
-cabal-version: >= 1.19
+cabal-version: >= 1.18
 license:       BSD3
 
 build-type:    Simple
