@@ -124,13 +124,13 @@ objectCoords m ObjectLayer { _layerObjects } = V.fromList $
 		concatMap (\o -> case ow o of
 				Just objectW ->
 					[lx + fromIntegral (o^.objectX), 
-					-(ly + fromIntegral (-fromJust (o^.objectHeight) + (o^.objectY)))
+					-(ly + fromIntegral (fromJust (o^.objectHeight) + (o^.objectY)))
 					, p, p]				
 				Nothing -> case o^.objectGid of
 					Just gid -> case mapTilesetByGid m (fromIntegral gid) of
 						Just tileset -> 
 							[ lx + fromIntegral (o^.objectX)
-							, -(ly + fromIntegral (-(tileset^.tsTileHeight) + (o^.objectY)))
+							, -(ly + fromIntegral ((tileset^.tsTileHeight `div` 2) + (o^.objectY)))
 							, p, p
 							]
 						Nothing -> [0, 0, 0, 0]

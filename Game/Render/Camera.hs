@@ -109,7 +109,7 @@ newOrthogonalProjectionMatrix width height = OrthogonalProjection
 	where
 		fov = 3.14/3.0
 		f = 100
-		n = 0.1
+		n = 0
 
 programSetViewProjection program camera = do
 	let projMat = projectionMatrix . cameraProjection $ camera

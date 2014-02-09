@@ -5,6 +5,7 @@ module Game.World.Import.Tiled
 	, mapWallPositions
 
 	, queryObject, objectPos, objectsByName
+	, mapTileSize, mapSize
 	) where
 
 import Control.Lens
@@ -22,10 +23,18 @@ objectPos = lens
 	(\obj -> (fromIntegral $ obj^.objectX, fromIntegral $ obj^.objectY))
 	(\obj (x, y) -> obj & objectX .~ round x & objectY .~ round y)
 
+mapTileSize :: Getter TiledMap (Float, Float)
+mapTileSize = to (\tm -> (fromIntegral $ tm^.mapTileWidth, fromIntegral $ tm^.mapTileHeight))
+
 mapSize :: Getter TiledMap (Float, Float)
 mapSize = to 
 	(\tm -> (fromIntegral $ tm^.mapWidth, fromIntegral $ tm^.mapHeight))
 	--(\tm (w, h) -> tm & mapWidth .~ round w & mapHeight .~ round h)
+
+tileSize tm tileGid = tilesetOfTile tm tileGid ^. tsTileSize
+
+tsTileSize :: Getter Tileset (Float, Float)
+tsTileSize = to (\ts -> (fromIntegral $ ts^.tsTileWidth, fromIntegral $ ts^.tsTileHeight))
 
 numTiles :: Getter Tileset Int
 numTiles = to _numTiles
@@ -87,14 +96,16 @@ mapTiles tm tileGids =
 		--cond _ = True
 
 mapIdxToCoords :: TiledMap -> (Int, Int) -> (Float, Float)
-mapIdxToCoords tm (x, y) = (fromIntegral $ tm^.mapWidth * x, fromIntegral $ tm^.mapHeight * y)
-
+mapIdxToCoords tm (x, y) = (fromIntegral $ tm^.mapTileWidth * x, fromIntegral $ tm^.mapTileHeight * y)
 
 tileIs :: TiledMap -> Int -> String -> Bool
 tileIs tm gid name = gid `elem` mapTileByType tm name
 -- Data
 mapWallPositions :: TiledMap -> [(Float, Float)]
 mapWallPositions tm = map (mapIdxToCoords tm . fst) $ mapTiles tm (mapWallTiles tm)
+
+mapWallSize :: TiledMap -> (Float, Float)
+mapWallSize tm = tileSize tm $ head (mapWallTiles tm)
 
 --mapBoulderPositions :: TiledMap -> [(Float, Float)]
 --mapBoulderPositions tm = map (mapIdxToCoords tm . fst) $ mapTiles tm (mapBoulders tm)

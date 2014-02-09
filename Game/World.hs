@@ -82,10 +82,11 @@ newWorldManager = WorldManager
 
 newWorldFromTiled :: TiledMap -> IO (World, WorldManager) -- io due to debug wire
 newWorldFromTiled tiledMap = do
-	let world = newWorld
+	let world = newWorld { _wTileBoundary = tiledMap^.mapTileSize }
 	(worldManager, worldDelta) <- execRWST (
 			stepWire initWire (Timed 0 ()) (Right ())
 		) world newWorldManager
+	print worldDelta
 
 	let world' = applyDelta world worldDelta
 	return (world', worldManager)
@@ -142,8 +143,8 @@ applyDelta w wd = collisions
 		--positions2 = positions & wPositions = foldr (\objectPhysics ->
 			--Map.alter (alterPos ))
 		collidables = physics { _wCollisionManager = execState (do
-				mapM_ cmAddStatic [newCollidable oId (newBoundary (objectPos oId) 100) | oId <- map wallId (_wdWallsAdd wd)]
-				mapM_ cmAddFloating [newCollidable oId (newBoundary (objectPos oId) 100) | oId <- map playerId (_wdPlayerAdd wd)]
+				mapM_ cmAddStatic [newCollidable oId (newBoundary (objectPos oId) (w^.wTileBoundary._1)) | oId <- map wallId (_wdWallsAdd wd)]
+				mapM_ cmAddFloating [newCollidable oId (newBoundary (objectPos oId) (w^.wTileBoundary._1)) | oId <- map playerId (_wdPlayerAdd wd)]
 			) (_wCollisionManager physics) }
 		floatingCollidables = collidables { _wCollisionManager = execState (
 				mapM_ ((\oId -> cmUpdateFloating oId (objectPos oId)) . fst) (Map.toList (deltaPos $ wd^.wdPositionsDelta))

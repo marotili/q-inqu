@@ -41,6 +41,7 @@ import Control.Lens
 import Data.Maybe
 import qualified Data.Map as Map
 import Game.World.Delta
+import Game.World.Types
 type ProdDecoder a = (Monad m)	 
 	=> Producer B.ByteString m r
 	-> Producer' (ByteOffset, a) m (Either (DecodingError, Producer B.ByteString m r) r)
@@ -78,6 +79,7 @@ consumeClientWorld world manager w renderContextVar = do
 		then (manager^.wmPlayerActions) Map.! playerId
 		else mempty
 
+	--let manager2 = manager  &wmPlayerActions %~ Map.insert playerId (A.newInputAction action)
 	let manager2 = manager  &wmPlayerActions %~ Map.insert playerId (playerActions `mappend` A.newInputAction action)
 
 	(w', (manager', delta)) <- lift $ clientStepWorld w world manager2 dt
@@ -89,8 +91,7 @@ consumeClientWorld world manager w renderContextVar = do
 	let boulderPos = world'^.wBoulderPos "Boulder1"
 
 	lift $ print playerPos
-	lift $ print (dt, delta^.wdPhysicsDelta)
-	lift $ print (world'^.wPhysics)
+	--lift $ print $ world'^.wCollisionManager
 
 	lift $ atomically $ do
 		renderContext <- readTVar renderContextVar

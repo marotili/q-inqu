@@ -123,7 +123,7 @@ void main()
 	// color_out = color_in;
     gl_Position = projection*view*vec4(vec3(newPos, 0) + vec3(tileMeshCoords, 0.0), 1.0);
     // debug[1] = instanceID;
-    // debug[2] = tileGid;
+    // debug[2] = tileSet.tileWidth;
     // debug[instanceID*6+gl_VertexID] = gl_Position;
     texCoords = texCoords;
     image = tileSet.tilesetImage;

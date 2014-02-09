@@ -10,6 +10,7 @@ module Game.World.Types
     , wBoulders, wPositions
     , wObjectSpeed, wObjectAccel
     , wCurrentCollisions
+    , wTileBoundary
 
     , newWorld
     ) where
@@ -31,6 +32,7 @@ data World = World
     , _wPlayers :: Map.Map ObjectId Player
     , _wCollisionManager :: CollisionManager
     , _wCurrentCollisions :: Map.Map ObjectId [ObjectId]
+    , _wTileBoundary :: (Float, Float)
     } deriving (Eq)
 
 makeLenses ''World
@@ -46,6 +48,7 @@ newWorld = World
     , _wPlayers = Map.empty
     , _wCollisionManager = cmNew
     , _wCurrentCollisions = Map.empty
+    , _wTileBoundary = (0, 0)
     --, wMap = gameMap
     }
 

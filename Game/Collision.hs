@@ -29,7 +29,9 @@ import qualified Data.Map as Map
 --type ObjectId = Int
 emptyBoundary = Boundary (0, 0) 0
 newBoundary :: (Float, Float) -> Float -> Boundary
-newBoundary (dx, dy) ds = Boundary (float2Double dx, float2Double dy) (float2Double ds)
+newBoundary (dx, dy) ds = Boundary (float2Double dx, float2Double dy) ds'
+	where
+		ds' = float2Double ds
 
 data CollidableObject = CollidableObject
 	{ objectId :: ObjectId
@@ -54,6 +56,9 @@ data CollisionManager = CollisionManager
 	, _cmNeedsUpdate :: Bool
 	}
 makeLenses ''CollisionManager
+
+instance Show CollisionManager where
+	show cm = show (cm^.cmStaticObjects) ++ show (cm^.cmFloatingObjects)
 
 instance Eq CollisionManager where
 	(==) cm1 cm2 = (cm1^.cmStaticObjects == cm2^.cmStaticObjects) &&

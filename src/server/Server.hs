@@ -90,6 +90,7 @@ produceWorld world manager w session = do
 	--lift $ print playerActions
 	--lift $ print action
 	let manager2 = manager & wmPlayerActions %~	Map.insert playerId (playerActions `mappend` A.newInputAction action)
+	--let manager2 = manager & wmPlayerActions %~	Map.insert playerId (A.newInputAction action)
 	-- run wires
 	lift $ print "before main wire"
 	((w', session'), (manager', delta), dt) <- lift $ stepWorld w session world manager2
