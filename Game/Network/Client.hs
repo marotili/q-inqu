@@ -93,6 +93,13 @@ consumeClientWorld world manager w renderContextVar = do
 	let playerGid = world'^.wObjectAnim pId.animTileGid
 	let boulderPos = world'^.wBoulderPos "Boulder1"
 
+	let (Just dinoId) = world'^.wPlayerId "Dino"
+	let (Just beeId) = world'^.wPlayerId "Bee"
+	let dinoPos = world'^.wPlayerPos "Dino"
+	let beePos = world'^.wPlayerPos "Bee"
+	let dinoGid = world'^.wObjectAnim dinoId.animTileGid
+	let beeGid = world'^.wObjectAnim beeId.animTileGid
+
 	--lift $ print playerPos
 	--lift $ print $ world'^.wAnimations
 	--lift $ print $ delta^.wdAnimations
@@ -103,9 +110,14 @@ consumeClientWorld world manager w renderContextVar = do
 		let newRenderContext = execState (do
 				case playerPos of
 					Just (px, py) -> do
-						tMap.object "Player1".objectX .= round px
-						tMap.object "Player1".objectY .= round py
+						tMap.object "Player1".objectPos tm .= (fromJust playerPos)
+						tMap.object "Dino".objectPos tm .= (fromJust dinoPos)
+						tMap.object "Bee".objectPos tm .= (fromJust beePos)
+						--tMap.object "Player1".objectX .= round px
+						--tMap.object "Player1".objectY .= round py
 						tMap.object "Player1".objectGid .= Just (fromIntegral playerGid)
+						tMap.object "Dino".objectGid .= Just (fromIntegral dinoGid)
+						tMap.object "Bee".objectGid .= Just (fromIntegral beeGid)
 					Nothing -> return ()
 				case boulderPos of
 					Just (px, py) ->

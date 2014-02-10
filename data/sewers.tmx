@@ -126,6 +126,9 @@
  <tileset firstgid="73" name="sprite_klein3" tilewidth="50" tileheight="90">
   <image source="sprite_klein3.png" width="400" height="360"/>
  </tileset>
+ <tileset firstgid="105" name="dino" tilewidth="64" tileheight="64">
+  <image source="dino.png" width="256" height="128"/>
+ </tileset>
  <layer name="Bottom" width="50" height="50">
   <data>
    <tile gid="13"/>
@@ -2634,6 +2637,8 @@
   <object name="Player1" gid="76" x="150" y="526"/>
   <object name="Player2" gid="73" x="400" y="563"/>
   <object name="Boulder1" gid="45" x="313" y="473"/>
+  <object name="Dino" gid="105" x="594" y="459"/>
+  <object name="Bee" gid="109" x="696" y="526"/>
  </objectgroup>
  <layer name="Top" width="50" height="50" opacity="0.49">
   <data>

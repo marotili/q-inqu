@@ -95,6 +95,8 @@ newWorldFromTiled tiledMap = do
 	where
 		Just player1Obj = queryObject tiledMap "Player1"
 		Just player2Obj = queryObject tiledMap "Player2"
+		Just dinoObj = queryObject tiledMap "Dino"
+		Just beeObj = queryObject tiledMap "Bee"
 
 		wallPositions = mapWallPositions tiledMap
 		boulders = mapBoulders tiledMap
@@ -115,7 +117,14 @@ newWorldFromTiled tiledMap = do
 		initWire = proc input -> do
 			_ <- spawnPlayerAt "Neira" (player1Obj^.objectPos tiledMap) -< input
 			_ <- spawnPlayerAt "TheGhost" (player2Obj^.objectPos tiledMap) -< input
+			_ <- spawnPlayerAt "Dino" (dinoObj^.objectPos tiledMap) -< input
+			_ <- spawnPlayerAt "Bee" (beeObj^.objectPos tiledMap) -< input
+
+			-- Initialize: need maybe check in client to remove this TODO
 			_ <- animate (defaultCharacterAnim (0, 0)) -< 1
+			_ <- animate (defaultCharacterAnim (0, 0)) -< 2
+			_ <- animate (defaultCharacterAnim (0, 0)) -< 3
+			_ <- animate (defaultCharacterAnim (0, 0)) -< 4
 
 			_ <- genWalls wallPositions -< input
 			_ <- genBoulders boulders -< input
@@ -375,17 +384,28 @@ playerMovement = proc playerId -> do
 	_ <- moveObjectR -< (playerId, (-x*userSpeed, y*userSpeed))
 	returnA -< ()
 
+playerResetAnimation = animate (defaultCharacterAnim (0, 0))
+
 testwire = proc input -> do
 	_ <- deaccelObjects -< input
 	_ <- moveObjects -< input
 
 	playerId <- player "Neira" -< input
+	dinoId <- player "Dino" -< input
+	beeId <- player "Bee" -< input
+
 	boulderId <- boulder "Boulder1" -< input
 	_ <- movement -< playerId
 
+	_ <- animate dinoAnim -< dinoId
+	_ <- void (for 1) W.--> animate beeAnim -< beeId
+
 	returnA -< ()
 	where
-		movement = W.until . (fmap (\e ->  ((), e))) movingDirectionR W.--> playerMovement W.--> movement
+		movement = W.until . (fmap (\e ->  ((), e))) movingDirectionR 
+			W.--> playerMovement 
+			W.--> inhibit () . playerResetAnimation
+			W.--> movement
 
 worldLoop w' session' world' state' = do
 	(dt, session) <- stepSession session'

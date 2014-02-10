@@ -17,11 +17,27 @@ uniform sampler2D Texture6;
 
 void main()
 {
-
-	if (image == 0) {
-		color = texture(Texture0, texCoords);
-	} else if (image == 1) {
-		color = texture(Texture1, texCoords);
+	switch (image) {
+		case 0:
+			color = texture(Texture0, texCoords);
+			break;
+		case 1:
+			color = texture(Texture1, texCoords);
+			break;
+		case 2:
+			color = texture(Texture2, texCoords);
+			break;
+		case 3:
+			color = texture(Texture3, texCoords);
+			break;
+		case 4:
+			color = texture(Texture4, texCoords);
+			break;
+		case 5:
+			color = texture(Texture5, texCoords);
+			break;
+		default:
+			color = vec4(0, 0, 0, 1);
 	}
     // color = vec4(texCoords, 0, 1);//colors[data[instanceID]];
     // color = vec4(1, 0, 0, 1);

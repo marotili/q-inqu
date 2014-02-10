@@ -231,11 +231,6 @@ newWorldRenderContext renderMap = do
 	mapM_ (\(layerBuffer, posBuffer, layer) -> do
 			uploadFromVec GL.UniformBuffer layerBuffer (tileIds layer)
 			uploadFromVec GL.UniformBuffer posBuffer (tileCoords renderMap layer)
-			print $ tileCoords renderMap layer
-			case layer of
-				ObjectLayer {} ->
-					print $ "Objectdata" ++ show (tileIds layer) ++ " / " ++ show (tileCoords renderMap layer)
-				_ -> return ()
 		) $ zip3 layerBuffers posBuffers (renderMap^.tiledMap.mapLayers)
 
 	-- per image stuff

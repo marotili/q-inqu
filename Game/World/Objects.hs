@@ -11,7 +11,7 @@ module Game.World.Objects
 	, Boulder(..)
 	, ObjectPhysics(..), objectAcceleration, objectSpeed
 	, Animation(..), animTime, animCurrentTime, animNext, animTileGid
-	, defaultCharacterAnim
+	, defaultCharacterAnim, beeAnim, dinoAnim
 	, tuple
 	) where
 
@@ -126,3 +126,17 @@ defaultCharacterAnim (dx, dy)
         d2 = Animation 4 102 0.25 d3 0
         d3 = Animation 4 103 0.25 d4 0
         d4 = Animation 4 104 0.25 d1 0
+
+dinoAnim = a1
+    where
+        a1 = Animation 5 105 2 a2 0 
+        a2 = Animation 5 106 0.1 a3 0
+        a3 = Animation 5 107 0.1 a4 0
+        a4 = Animation 5 108 0.1 a1 0
+
+beeAnim = a1
+    where
+        a1 = Animation 6 109 2 a2 0 
+        a2 = Animation 6 110 0.1 a3 0
+        a3 = Animation 6 111 0.1 a4 0
+        a4 = Animation 6 112 0.1 a1 0
