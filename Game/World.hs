@@ -115,50 +115,13 @@ newWorldFromTiled tiledMap = do
 		initWire = proc input -> do
 			_ <- spawnPlayerAt "Neira" (player1Obj^.objectPos tiledMap) -< input
 			_ <- spawnPlayerAt "TheGhost" (player2Obj^.objectPos tiledMap) -< input
+			_ <- animate defaultCharacterAnim -< 1
 
 			_ <- genWalls wallPositions -< input
 			_ <- genBoulders boulders -< input
 
 			returnA -< ()
 
-movingDirectionR :: WorldWire PlayerId (Float, Float)
-movingDirectionR = mkGenN $ \playerId -> do
-	wm <- get
-	if Map.member playerId (wm^.wmPlayerActions) 
-		then do
-			let playerActions = asks _wmPlayerActions wm Map.! playerId
-			let direction = A.movingDirection playerActions
-			return (Right direction, movingDirectionR)
-		else
-			return (Right (0, 0), movingDirectionR)
-
---animSubWire :: Animation -> Wire s e m a b
---animSubWire = mkGen $ \ds oId -> do
---	let dt = realToFrac (dtime ds)
---	if anim^.animCurrentTime + dt > anim ^. animTime
---		then do
---			let remaining = anim^.animCurrentTime + dt - anim^.animTime
---			let next = (anim^.animNext) & animCurrentTime .~ remaining
---			let (mx, w') = stepWire (animate next) ds (Right oId)
---			return (mx, w')
---		else do
---			let current = anim & animCurrentTime += dt
---			deltaAnim oId current
---			return (Right (), animate current)
-
-animate :: Animation -> WorldWire ObjectId ()
-animate anim = mkGen $ \ds oId -> do
-	let dt = realToFrac (dtime ds)
-	if anim^.animCurrentTime + dt > anim ^. animTime
-		then do
-			let remaining = anim^.animCurrentTime + dt - anim^.animTime
-			let next = (anim^.animNext) & animCurrentTime .~ remaining
-			(mx, w') <- stepWire (animate next) ds (Right oId)
-			return (mx, w')
-		else do
-			let current = anim & animCurrentTime %~ (+) dt
-			deltaAnim oId current
-			return (Right (), animate current)
 
 applyDelta :: World -> WorldDelta -> World
 applyDelta w wd = collisions
@@ -302,8 +265,11 @@ moveObjectR :: WorldWire (ObjectId, (Float, Float)) ()
 moveObjectR = mkGen $ \ds (oId, (vx, vy)) -> do
 	let dt = realToFrac (dtime ds)
 	let (dx, dy) = (dt*vx, dt*vy)
+	lift $ print $ "Move: " ++ show (dx, dy, dt)
 	(dx', dy') <- collisionTransformation oId (dx, dy)
+	lift $ print "Coll trans"
 	deltaMoveObject oId (dx', dy')
+	lift $ print "delta move"
 	return (Right (), moveObjectR)
 
 spawnPlayerAt :: String -> (Float, Float) -> WorldWire a (Event PlayerId)
@@ -318,6 +284,40 @@ wireGet getter = mkGenN $ \_ -> do
 		Just result -> return (Right result, wireGet getter)
 		Nothing -> return (Left (), wireGet getter) 
 
+movingDirectionR :: WorldWire PlayerId (Event (Float, Float))
+movingDirectionR = mkGen $ \ds playerId -> do
+	wm <- get
+	if Map.member playerId (wm^.wmPlayerActions) 
+		then do
+			let playerActions = asks _wmPlayerActions wm Map.! playerId
+			let direction = A.movingDirection playerActions
+			case direction of
+				(0, 0) -> do
+					lift $ print $ "left" ++ show ds
+					return (Right NoEvent, movingDirectionR)
+				_ -> do
+					lift $ print "right"
+					return (Right (Event direction), movingDirectionR)
+		else
+			return (Right NoEvent, movingDirectionR)
+
+-- TODO write tests for overlapping dt
+animate :: Animation -> WorldWire ObjectId ()
+animate anim = mkGen $ \ds oId -> do
+	let dt = realToFrac (dtime ds)
+	lift $ print $ "anim delta: " ++ show dt
+	if anim^.animCurrentTime + dt > anim ^. animTime
+		then do
+			let remaining = realToFrac $ anim^.animCurrentTime + dt - anim^.animTime
+			let next = (anim^.animNext) & animCurrentTime .~ 0
+			lift $ print $ "anim next: " ++ show next
+			(mx, w') <- stepWire (animate next) (W.Timed (fromRational remaining) ()) (Right oId)
+			return (mx, w')
+		else do
+			let current = anim & animCurrentTime %~ (+) dt
+			deltaAnim oId current
+			lift $ print $ "anim update: " ++ show current
+			return (Right (), animate current)
 --accel = mkGenN $ \_ -> do
 
 --player name = mkGenN $ \_ -> do
@@ -345,6 +345,21 @@ mkObjGenWire f = genLater . mkGenN (\_ -> do
 
 userSpeed = 200
 
+inhibitNoEvent = mkGenN $ \e -> do
+	case e of
+		Event _ ->
+			return (Right e, inhibitNoEvent)
+		NoEvent ->
+			return (Left (), inhibitNoEvent)
+
+playerMovement = proc playerId -> do
+	Event (x, y) <- inhibitNoEvent . movingDirectionR -< playerId
+	--mul <- pure (-1) . for 3 . asSoonAs . objectCollided <|> pure 1 -< playerId
+	--_ <- accelObject (100, 0) . for 3 . after 2 -< playerId
+	_ <- animate defaultCharacterAnim -< playerId
+	_ <- moveObjectR -< (playerId, (-x*userSpeed, y*userSpeed))
+	returnA -< ()
+
 testwire = proc input -> do
 	_ <- deaccelObjects -< input
 	_ <- moveObjects -< input
@@ -352,15 +367,17 @@ testwire = proc input -> do
 	playerId <- player "Neira" -< input
 	boulderId <- boulder "Boulder1" -< input
 	--_ <- asSoonAs . spawnWallAt (60, 60) -< input
-	(x, y) <- movingDirectionR -< playerId
+	_ <- movement -< playerId
 	--mul <- pure (-1) . for 3 . asSoonAs . objectCollided <|> pure 1 -< playerId
 	--_ <- accelObject (100, 0) . for 3 . after 2 -< playerId
-	_ <- moveObjectR -< (playerId, (-x*userSpeed, y*userSpeed))
-	_ <- animate defaultCharacterAnim -< playerId
+	--_ <- animate defaultCharacterAnim -< playerId
+	--_ <- moveObjectR -< (playerId, (-x*userSpeed, y*userSpeed))
 
 	--_ <- moveObjectR -< (boulderId, (20, 0))
 	--_ <- 
 	returnA -< ()
+	where
+		movement = W.until . (fmap (\e ->  ((), e))) movingDirectionR W.--> playerMovement W.--> movement
 
 worldLoop w' session' world' state' = do
 	(dt, session) <- stepSession session'
