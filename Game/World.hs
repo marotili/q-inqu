@@ -87,7 +87,6 @@ newWorldFromTiled tiledMap = do
 	(worldManager, worldDelta) <- execRWST (
 			stepWire initWire (Timed 0 ()) (Right ())
 		) world newWorldManager
-	print worldDelta
 
 	let world' = applyDelta world worldDelta
 	return (world', worldManager)
@@ -131,12 +130,16 @@ newWorldFromTiled tiledMap = do
 
 			returnA -< ()
 
+colAdd v Nothing = Just $ v
+colAdd v (Just v2) = Just $ v `mappend` v2
+
 
 applyDelta :: World -> WorldDelta -> World
 applyDelta w wd = collisions
 	where
 		newWalls = w { _wWalls = foldr (\d -> Map.insert (wallId d) d) (_wWalls w) (_wdWallsAdd wd) }
-		newPlayers = newWalls { _wPlayers = foldr (\p -> Map.insert (playerId p) p) (_wPlayers newWalls) (_wdPlayerAdd wd) }
+		newObjects = newWalls & wObjects .~ foldr (\o -> Map.insert (o^.objId) o) (w^.wObjects) (wd^.wdObjectsAdd)
+		newPlayers = newObjects { _wPlayers = foldr (\p -> Map.insert (playerId p) p) (_wPlayers newObjects) (_wdPlayerAdd wd) }
 		newBoulders = newPlayers & wBoulders %~ (\boulderMap-> foldr (\b -> Map.insert (boulderId b) b) boulderMap (wd^.wdBouldersAdd))
 		positions = newBoulders { _wPositions = foldr (\(k, v) m -> Map.alter (alterPos v) k m) (_wPositions newBoulders) (Map.toList . deltaPos . _wdPositionsDelta $ wd) }
 		
@@ -152,9 +155,13 @@ applyDelta w wd = collisions
 			) (_wCollisionManager collidables) }
 
 		anims = floatingCollidables & wAnimations .~ Map.union (wd^.wdAnimations) (w^.wAnimations) -- left-biased
+		cb = anims & wCollisionCallbacks .~ Map.union (wd^.wdCollisionCallbacks) (anims^.wCollisionCallbacks)
+
+		collisionEvents = cb & wCollisionEvents .~ foldr (\(k, v) m -> Map.alter (colAdd [v]) k m) Map.empty (wd^.wdCollisionEvents) 
+
 
 		-- overwrite old ones
-		collisions = anims { _wCurrentCollisions = containerData $ wd^.wdCollisions }
+		collisions = collisionEvents { _wCurrentCollisions = containerData $ wd^.wdCollisions }
 
 		objectPos oId = (positions ^. wPositions) Map.! oId
 
@@ -175,23 +182,32 @@ norm x = if abs(x) < 0.0005 then 0 else x/abs(x)
 sgn x = norm x
 
 -- FIXME
-collisionTransformation :: (MonadReader World m) 
-	=> ObjectId
+collisionTransformation :: --(MonadReader World m) 
+	 ObjectId
 	-> (Float, Float)
-	-> m (Float, Float)
+	-> WorldContext (Float, Float)
 collisionTransformation oId (dx, dy) = do
 	cm <- view wCollisionManager
 	if cmCanCollide oId cm 
 		then do
 			-- FIXME: right now objects can jump through other objects if delta is too big
 			let ((dx', dy'), collisions) = collisionLoop cm (dx, dy) (sgn dx, sgn dy) []
+			Control.Monad.unless (null collisions) $ 
+				mapM_ (deltaCollisionEvent oId) collisions
+				--colCb <- view wCollisionCallbacks
+				--if Map.member oId colCb 
+				--	then do
+				--		let cb = colCb Map.! oId
+				--		lift $ print "Callback"
+				--	else return ()
+
 			--scribe wdPositionsDelta $ ObjectPositionDelta $ Map.insert oId dPos Map.empty
 			return (dx', dy')
 		else
 			return (dx, dy)
 
 	where			
-		collisionLoop cm (dx, dy) dir@(sx, sy) collisionHappened = traceShow (dx, dy) $ 
+		collisionLoop cm (dx, dy) dir@(sx, sy) collisionHappened = 
 			if null collisions then
 				((dx, dy), collisionHappened)
 			else 
@@ -259,7 +275,6 @@ accelObject :: (Float, Float) -> WorldWire ObjectId ()
 accelObject (ax, ay) = mkGen $ \ds oId -> do
 	let dt = realToFrac (dtime ds)
 	deltaApplyForce oId (ax*dt, ay*dt)
-	lift $ print (ax*dt, ay*dt)
 	return (Right (), accelObject (ax, ay))
 
 objectCollided :: WorldWire ObjectId (Event ())
@@ -274,12 +289,25 @@ moveObjectR :: WorldWire (ObjectId, (Float, Float)) ()
 moveObjectR = mkGen $ \ds (oId, (vx, vy)) -> do
 	let dt = realToFrac (dtime ds)
 	let (dx, dy) = (dt*vx, dt*vy)
-	lift $ print $ "Move: " ++ show (dx, dy, dt)
 	(dx', dy') <- collisionTransformation oId (dx, dy)
-	lift $ print "Coll trans"
 	deltaMoveObject oId (dx', dy')
-	lift $ print "delta move"
 	return (Right (), moveObjectR)
+
+collision :: WorldWire ObjectId (Event [ObjectId])
+collision = mkGenN $ \oId -> do
+	events <- view wCollisionEvents
+	if Map.member oId events 
+		then do
+			return (Right $ Event $ events Map.! oId, collision)
+		else do
+			return (Right NoEvent, collision)
+
+spawnObjectAt name pos = mkObjGenWire $ deltaAddObject name pos
+
+spawnObjectAtR :: String -> WorldWire (ObjectId, (Float, Float)) (Event ObjectId)
+spawnObjectAtR name = mkGen $ \ds (oId, pos) -> do
+	(mx, w') <- stepWire (spawnObjectAt name pos) ds (Right oId)
+	return (mx, never)
 
 spawnPlayerAt :: String -> (Float, Float) -> WorldWire a (Event PlayerId)
 spawnPlayerAt name pos = mkObjGenWire $ deltaAddPlayer name pos
@@ -302,10 +330,8 @@ movingDirectionR = mkGen $ \ds playerId -> do
 			let direction = A.movingDirection playerActions
 			case direction of
 				(0, 0) -> do
-					lift $ print $ "left" ++ show ds
 					return (Right NoEvent, movingDirectionR)
 				_ -> do
-					lift $ print "right"
 					return (Right (Event direction), movingDirectionR)
 		else
 			return (Right NoEvent, movingDirectionR)
@@ -314,23 +340,19 @@ movingDirectionR = mkGen $ \ds playerId -> do
 animate :: Animation -> WorldWire ObjectId ()
 animate anim = mkGen $ \ds oId -> do
 	let dt = realToFrac (dtime ds)
-	lift $ print $ "anim delta: " ++ show dt
 	if anim^.animCurrentTime + dt > anim ^. animTime
 		then do
 			let remaining = realToFrac $ anim^.animCurrentTime + dt - anim^.animTime
 			let next = (anim^.animNext) & animCurrentTime .~ 0
-			lift $ print $ "anim next: " ++ show next
 			(mx, w') <- stepWire (animate next) (W.Timed (fromRational remaining) ()) (Right oId)
 			return (mx, w')
 		else do
 			let current = anim & animCurrentTime %~ (+) dt
 			deltaAnim oId current
-			lift $ print $ "anim update: " ++ show current
 			return (Right (), animate current)
 
 animateR :: WorldWire (Animation, ObjectId) ()
 animateR = mkGen $ \ds (animation, oId) -> do
-	lift $ print $ animation
 	oAnim <- view (wObjectAnim oId)
 	if oAnim == animation 
 		then do
@@ -360,7 +382,7 @@ genLater = delay NoEvent
 
 
 mkObjGenWire :: (ObjectId -> WorldContext ()) -> WorldWire a (Event ObjectId)
-mkObjGenWire f = genLater . mkGenN (\_ -> do
+mkObjGenWire f = mkGenN (\_ -> do
 		oId <- newObject
 		f oId
 		return (Right (Event oId), never)
@@ -386,6 +408,45 @@ playerMovement = proc playerId -> do
 
 playerResetAnimation = animate (defaultCharacterAnim (0, 0))
 
+liftW :: WorldContext r -> WorldWire a r
+liftW f = mkGenN $ \_ -> do 
+	r <- f
+	return (Right r, liftW f)
+
+--t :: World -> Maybe (Float, Float)
+--t w = w^.wPlayerPos "Neira"
+
+untilV source = W.until . fmap(\e -> ((), e)) source
+colLoop = untilV collision 
+	W.--> for 0.1 . liftW (lift $ print "PlayerCollision") . asSoonAs . collision 
+	W.--> colLoop
+
+spawnArrowEvent :: WorldWire PlayerId (Event ())
+spawnArrowEvent = mkGenN $ \pId -> do
+	lift $ print "SpawnArrowEvent"
+	actions <- get >>= \wm -> return $ wm^.wmPlayerActions
+	let (InputActions playerActions) = actions Map.! pId
+	if Set.member ActionSpawnArrow playerActions
+		then do
+			lift $ print "event ()"
+			return (Right $ Event (), spawnArrowEvent)
+		else do
+			lift $ print "no event"
+			return (Right NoEvent, spawnArrowEvent)
+	where
+		arrowCooldown = 1
+
+spawnObjectAtPlayerLocation = proc playerId -> do
+	Just (px, py) <- liftW $ asks (\w -> w^.wPlayerPos "Neira") -< playerId
+	objectId <- asSoonAs . spawnObjectAtR "Arrow" -< (playerId, (px + 20, py + 20)) 
+	_ <- for 2 . animate arrowAnim -< objectId
+	returnA -< ()
+
+spawnArrow = untilV spawnArrowEvent
+	W.--> spawnObjectAtPlayerLocation 
+	W.--> spawnArrow
+
+
 testwire = proc input -> do
 	_ <- deaccelObjects -< input
 	_ <- moveObjects -< input
@@ -398,7 +459,17 @@ testwire = proc input -> do
 	_ <- movement -< playerId
 
 	_ <- animate dinoAnim -< dinoId
+	Just (x, y) <- liftW $ asks (\w -> w^.wPlayerPos "Neira") -< input
+	Just (x', y') <- liftW $ asks (\w -> w^.wPlayerPos "Dino") -< input
+	_ <- moveObjectR -< (dinoId, (userSpeed / 1.5 * norm (x - x'), userSpeed / 1.5 * norm (y - y')))
+
+	_ <- liftW $ deltaSetCollisionCb (\oId w -> w) 1 -< input
+
 	_ <- void (for 1) W.--> animate beeAnim -< beeId
+
+	_ <- colLoop -< playerId
+
+	_ <- spawnArrow -< playerId
 
 	returnA -< ()
 	where

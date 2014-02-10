@@ -1,1 +1,1 @@
-cabal configure --enable-tests --enable-executable-profiling --enable-library-profiling
+cabal configure --enable-tests --enable-executable-profiling --enable-library-profiling --ghc-option=-auto-all

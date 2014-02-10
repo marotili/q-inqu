@@ -38,6 +38,7 @@ instance Monoid ObjectPositionDelta where
 -- * World delta
 data WorldDelta = WorldDelta
 	{ _wdDoorsAdd :: [Door] -- absolute
+	, _wdObjectsAdd :: [Object] -- absolute
 	, _wdWallsAdd :: [Wall] -- absolute
 	, _wdBouldersAdd :: [Boulder]
 	, _wdPositionsDelta :: ObjectPositionDelta
@@ -46,11 +47,14 @@ data WorldDelta = WorldDelta
 	, _wdDoorControllers :: [DoorController] -- absolute
 	, _wdCollisions :: MapContainer ObjectId [ObjectId]
 	, _wdAnimations :: Map.Map ObjectId Animation
-	} deriving (Show, Eq)
+	, _wdCollisionCallbacks :: Map.Map ObjectId CollisionCallback
+	, _wdCollisionEvents :: [(ObjectId, ObjectId)]
+	}
 makeLenses ''WorldDelta
 
 newDelta = WorldDelta 
 	{ _wdDoorsAdd = mempty
+	, _wdObjectsAdd = mempty
 	, _wdWallsAdd = mempty
 	, _wdBouldersAdd = mempty
 	, _wdPositionsDelta = mempty
@@ -59,12 +63,15 @@ newDelta = WorldDelta
 	, _wdDoorControllers = mempty
 	, _wdCollisions = mempty
 	, _wdAnimations = Map.empty
+	, _wdCollisionCallbacks = mempty
+	, _wdCollisionEvents = mempty
 	}
 
 instance Monoid WorldDelta where
 	mempty = newDelta
 	mappend wd1 wd2 = newDelta
 		{ _wdDoorsAdd = doors
+		, _wdObjectsAdd = (wd1^.wdObjectsAdd) `mappend` (wd2^.wdObjectsAdd)
 		, _wdWallsAdd = walls
 		, _wdBouldersAdd = (wd1^.wdBouldersAdd) `mappend` (wd2^.wdBouldersAdd)
 		, _wdPositionsDelta = positions
@@ -73,6 +80,8 @@ instance Monoid WorldDelta where
 		, _wdDoorControllers = doorControllers
 		, _wdCollisions = collisions
 		, _wdAnimations = Map.union (wd2^.wdAnimations) (wd1^.wdAnimations) -- left-biased
+		, _wdCollisionCallbacks = Map.union (wd2^.wdCollisionCallbacks) (wd1^.wdCollisionCallbacks) -- left-biased
+		, _wdCollisionEvents = (wd1^.wdCollisionEvents) `mappend` (wd2^.wdCollisionEvents)
 		}
 		where
 			walls = (wd1^.wdWallsAdd) `mappend` (wd2^.wdWallsAdd)
@@ -107,7 +116,7 @@ deltaSpeed oId (vx, vy) =
 deltaMoveObject :: (MonadWriter WorldDelta m)
 	=> ObjectId -> (Float, Float) 
 	-> m ()
-deltaMoveObject oId dPos@(dx, dy) = do
+deltaMoveObject oId dPos@(dx, dy) = 
 	scribe wdPositionsDelta $ ObjectPositionDelta $ Map.insert oId dPos Map.empty
 
 
@@ -124,6 +133,14 @@ deltaAddPlayer name pos oId = do
 
 deltaAddBoulder pos name oId = deltaMoveObject oId pos >> scribe wdBouldersAdd [Boulder oId name]
 
+deltaSetCollisionCb :: MonadWriter WorldDelta m => CollisionCallback -> ObjectId -> m ()
+deltaSetCollisionCb cb oId = 
+	scribe wdCollisionCallbacks $ Map.insert oId cb Map.empty
+
+deltaCollisionEvent :: MonadWriter WorldDelta m => ObjectId -> ObjectId -> m ()
+deltaCollisionEvent oId1 oId2 =
+	scribe wdCollisionEvents [(oId1, oId2)]
+
 -- | Add a new wall
 deltaAddWall :: MonadWriter WorldDelta m => (Float, Float) -> ObjectId -> m ()
 deltaAddWall pos oId = do
@@ -131,6 +148,11 @@ deltaAddWall pos oId = do
 	deltaMoveObject oId pos
 
 	scribe wdWallsAdd [Wall oId]
+
+deltaAddObject :: MonadWriter WorldDelta m => String -> (Float, Float) -> ObjectId -> m ()
+deltaAddObject name pos oId = do
+	deltaMoveObject oId pos
+	scribe wdObjectsAdd [Object oId name]
 
 --deltaMoveObject' :: MonadWriter ObjectPositionDelta m
 --	=> ObjectId 

@@ -1,11 +1,16 @@
 TODO
 ====
 
+- fix timestep interval for game state updates
+- * collect user actions. (FIXME what to do if move and stop are sent in one interval?)
+
+- screenshake
+
 - Rendering
 render front to back (order by y coordinate) per layer
 
 - Camera movement
-start with camera centralized on user
+start with camera centralized on user (done for one player)
 the camera always stays in a certain range to the user
 
 - Camera cutscenes
@@ -22,7 +27,7 @@ player stun
 introduction, backstory
 
 - Character tilesets
-ghost tileset
+ghost tileset (walk animation done)
 monster tileset
 more animations to neira (levers, hit/stun, attack?)
 

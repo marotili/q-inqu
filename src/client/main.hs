@@ -108,6 +108,8 @@ main = withSocketsDo $ do
     let width  = 640
         height = 480
 
+    _ <- writeFile "timelog" ""
+
     args <- getArgs
     let ip = case args of [] -> "127.0.0.1"; _ -> head args
 
@@ -254,12 +256,18 @@ charCallback            tc win c          = atomically $ writeTQueue tc $ EventC
 
 runDemo :: Env -> State -> IO ()
 runDemo env state =
-    void $ evalRWST (adjustWindow >> run W.clockSession_ userInput) env state
+    void $ evalRWST (adjustWindow >> run 0 W.clockSession_ userInput) env state 
 
-run :: (Num a, Show a, Show b) => W.Session IO (W.Timed W.NominalDiffTime ()) ->
-        InputWire a b -> Demo ()
-run session w = do
+run :: (Num a, Show a, Show b) 
+  => Int 
+  -> W.Session IO (W.Timed W.NominalDiffTime ()) 
+  -> InputWire a b 
+  -> Demo ()
+run i session w = do
     win <- asks envWindow
+
+    Just start <- liftIO GLFW.getTime
+
 
     -- render
     draw
@@ -287,17 +295,26 @@ run session w = do
     let V2 cx cy = screenToOpenGLCoords c 0 0
 
     q <- liftIO $ GLFW.windowShouldClose win
-    liftIO $ threadDelay 10000
-    unless q (run session' w')
+    --liftIO performGC
+    --when (i `mod` 20 == 0) $ liftIO performGC
+
+    -- time
+    Just end <- liftIO GLFW.getTime
+    liftIO $ print ("Time :", end - start)
+    _ <- liftIO $ appendFile "timelog" ("Time: " ++ show i ++ " / " ++ show (end - start) ++ "\n")
+
+    -- delay
+    liftIO $ threadDelay $ 1000 * (1000 `div` 60 - 1000 * round (end - start))
+    unless q (run (i+1) session' w')
 
 processEvents :: Demo ()
 processEvents = do
     tc <- asks envEventsChan
     me <- liftIO $ atomically $ tryReadTQueue tc
     case me of
-      Just e -> do
-          processEvent e
-          processEvents
+      Just e -> do 
+        processEvent e
+        processEvents
       Nothing -> return ()
 
 processEvent :: Event -> Demo ()

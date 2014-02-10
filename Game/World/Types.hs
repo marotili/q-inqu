@@ -3,7 +3,9 @@ module Game.World.Types
     (
     -- * World
       World(..)
+    , CollisionCallback
 
+    , wObjects, wObjectPos'
     , wPlayerId, wPlayerPos
     , wBoulderId, wBoulderPos
     , wPhysics, wCollisionManager
@@ -12,6 +14,7 @@ module Game.World.Types
     , wCurrentCollisions
     , wTileBoundary
     , wAnimations, wObjectAnim
+    , wCollisionCallbacks, wCollisionEvents
 
     , newWorld
     ) where
@@ -22,7 +25,7 @@ import Game.World.Objects
 import Game.Collision
 import Data.Maybe
 
-
+type CollisionCallback = ObjectId -> World -> World
 
 data World = World
     { _wDoors :: Map.Map DoorId Door
@@ -37,12 +40,16 @@ data World = World
     , _wCurrentCollisions :: Map.Map ObjectId [ObjectId]
     , _wTileBoundary :: (Float, Float)
     , _wAnimations :: Map.Map ObjectId Animation
-    } deriving (Eq)
+    , _wObjects :: Map.Map ObjectId Object
+    , _wCollisionCallbacks :: Map.Map ObjectId CollisionCallback
+    , _wCollisionEvents :: Map.Map ObjectId [ObjectId] 
+    } 
 
 makeLenses ''World
 
 newWorld = World
     { _wDoors = Map.empty
+    , _wObjects = Map.empty
     , _wWalls = Map.empty
     , _wBoulders = Map.empty
     , _wDoorControllers = Map.empty
@@ -54,6 +61,8 @@ newWorld = World
     , _wCurrentCollisions = Map.empty
     , _wTileBoundary = (0, 0)
     , _wAnimations = Map.empty
+    , _wCollisionCallbacks = Map.empty
+    , _wCollisionEvents = Map.empty
     --, wMap = gameMap
     }
 
@@ -66,6 +75,8 @@ wPlayerId playerName' = to (\w -> case getPlayer w playerName' of
         getPlayer world playerName' = ifoldMap (\pId Player { playerName } ->
                 [pId | playerName == playerName']
             ) (world^.wPlayers)
+
+
 
 wBoulderId :: String -> Getter World (Maybe BoulderId)
 wBoulderId boulderName' = to (\w -> case getBoulder w boulderName' of
@@ -86,6 +97,9 @@ wObjectPos oId = to (\w -> case w^.oId of
         Just oId -> w^.wPositions . at oId
         Nothing -> Nothing
     )
+
+wObjectPos' :: ObjectId -> Getter World (Maybe (Float, Float))
+wObjectPos' oId = to (\w -> w^.wPositions . at oId)
 
 wObjectSpeed :: ObjectId -> Getter World (Float, Float)
 wObjectSpeed oId = to (\w -> w^.wPhysics . at oId ^?! _Just . objectSpeed . tuple)

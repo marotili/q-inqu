@@ -141,11 +141,14 @@ actionActivate = untilV (keyDownEvent GLFW.Key'X) W.-->
 	W.--> for 0.5 . asSoonAs . activateAction W.--> actionActivate
 
 --actionPickup = asSoonAs . keyDownEvent GLFW.Key'C
+spawn = untilV (keyDownEvent GLFW.Key'X)
+	W.--> for 1 . asSoonAs . spawnAction . once . keyDownEvent GLFW.Key'X 
+	W.--> spawn
 
 userInput :: InputWire a ((), ())
 userInput = proc input -> do
 	m <- movement -< input
-	a <- actionActivate -< input
+	a <- spawn -< input
 	returnA -< (m, a)
 
 stopMoveAction :: InputWire a ()
@@ -165,4 +168,8 @@ moveAction = mkGenN $ \(V2 x y) ->
 activateAction :: InputWire a (Event ())
 activateAction = mkGenN $ \_ -> do
 	writer ((), newInputAction (ActionActivate DirNorth))
+	return (Right (Event ()), never)
+
+spawnAction = mkGenN $ \a -> do
+	writer ((), newInputAction ActionSpawnArrow)
 	return (Right (Event ()), never)

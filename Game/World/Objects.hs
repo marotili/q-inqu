@@ -3,6 +3,7 @@ module Game.World.Objects
 	( 
 	  ObjectId, ObjectIds, DoorId, DoorControllerId, SwitchId
 	, PlayerId, WallId, BoulderId
+	, Object(..), objId, objName
 	, Player(..)
 	, Wall(..)
 	, Door(..)
@@ -11,7 +12,7 @@ module Game.World.Objects
 	, Boulder(..)
 	, ObjectPhysics(..), objectAcceleration, objectSpeed
 	, Animation(..), animTime, animCurrentTime, animNext, animTileGid
-	, defaultCharacterAnim, beeAnim, dinoAnim
+	, defaultCharacterAnim, beeAnim, dinoAnim, arrowAnim
 	, tuple
 	) where
 
@@ -31,6 +32,13 @@ type SwitchId = ObjectId
 type PlayerId = ObjectId
 type WallId = ObjectId
 type BoulderId = ObjectId
+
+
+data Object = Object
+	{ _objId :: ObjectId
+	, _objName :: String
+	} deriving (Show, Eq)
+makeLenses ''Object
 
 data Wall = Wall 
 	{ wallId :: WallId
@@ -99,6 +107,9 @@ instance Show Animation where
 instance Eq Animation where
 	a1 == a2 = (a1^.animId) == (a2^.animId)
 
+arrowAnim = a1
+	where
+		a1 = Animation 200 113 4 a1 0
 defaultCharacterAnim :: (Float, Float) -> Animation
 defaultCharacterAnim (dx, dy) 
 	| dy > 0.5 = a1 

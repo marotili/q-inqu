@@ -36,6 +36,7 @@ import Game.Render
 import Game.Render.Map
 import Game.World.Import.Tiled
 import Data.Tiled
+import qualified Data.Tiled as T
 import Control.Concurrent.STM   (TQueue, TVar, readTVar, writeTVar, atomically, newTQueueIO, tryReadTQueue, writeTQueue, readTQueue)
 import Control.Lens
 import Data.Maybe
@@ -100,6 +101,10 @@ consumeClientWorld world manager w renderContextVar = do
 	let dinoGid = world'^.wObjectAnim dinoId.animTileGid
 	let beeGid = world'^.wObjectAnim beeId.animTileGid
 
+	let newObjects = delta^.wdObjectsAdd
+	let objectGids = [world'^.wObjectAnim (o^.objId).animTileGid | o <- newObjects]
+	let objectPoss = [world'^.wObjectPos' (o^.objId) | o <- newObjects]
+
 	--lift $ print playerPos
 	--lift $ print $ world'^.wAnimations
 	--lift $ print $ delta^.wdAnimations
@@ -108,6 +113,15 @@ consumeClientWorld world manager w renderContextVar = do
 		renderContext <- readTVar renderContextVar
 		let tm = renderContext^.rcWorldRenderContext.wrcMap.tiledMap
 		let newRenderContext = execState (do
+				mapM_ (\(obj, objGid, Just (x, y)) -> layerObj.layerObjects <>= 
+						[T.Object { _objectName=Just $ obj^.objName
+							   , _objectGid=Just (fromIntegral objGid)
+							   , _objectX = fromIntegral . round $ x
+							   , _objectY = fromIntegral . round $ y
+							   , _objectWidth = Nothing
+							   , _objectHeight = Nothing
+							   }]
+					) $ zip3 newObjects objectGids objectPoss
 				case playerPos of
 					Just (px, py) -> do
 						tMap.object "Player1".objectPos tm .= (fromJust playerPos)
@@ -133,5 +147,8 @@ consumeClientWorld world manager w renderContextVar = do
 	where
 		tMap :: Traversal' RenderContext TiledMap
 		tMap = rcWorldRenderContext.wrcMap.tiledMap
+		layerObj :: Traversal' RenderContext Layer
+		layerObj = tMap.mapLayers.traverse._ObjectLayer
+		--layerObj1 :: Traversal' RenderContext [Layer]
 		object name = mapLayers.traverse._ObjectLayer.layerObjects.traverse.objectsByName name
 

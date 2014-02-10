@@ -24,6 +24,7 @@ data Action =
 	| ActionStopMove -- maybe needed for interpolation
 	| ActionPickup
 	| ActionActivate Direction
+	| ActionSpawnArrow
 	deriving (Show, Eq, Ord)
 
 newMoveAction :: Float -> Float -> Action
@@ -99,6 +100,7 @@ instance Binary Action where
 		put dir
 	put ActionPickup = put (3 :: Word8)
 	put ActionStopMove = put (4 :: Word8)
+	put ActionSpawnArrow = put (5 :: Word8)
 
 	get = do
 		t <- get :: Get Word8
@@ -116,3 +118,5 @@ instance Binary Action where
 				return ActionPickup	
 			4 -> 
 				return ActionStopMove
+			5 ->
+				return ActionSpawnArrow

@@ -126,6 +126,6 @@ executable client
 
         pretty >= 1.1 && < 1.2
 
-  ghc-options: -rtsopts -threaded -fprof-auto
+  ghc-options: -rtsopts -threaded -threaded -fprof-auto
   main-is: main.hs
 

@@ -57,7 +57,7 @@ updateFromVec target buf vec = do
     GL.bindBuffer target $= Just buf
     logGL "updateFromVec: bind buffer"
     V.unsafeWith vec $ \ptr ->
-    	GL.bufferSubData target WriteToBuffer 0 (fromIntegral $ sizeOf(undefined::Float) * V.length vec) ptr
+    	GL.bufferData target $= (fromIntegral $ sizeOf(undefined::Float) * V.length vec, ptr, GL.DynamicDraw)
     logGL "updateFromVec: buffer sub data"
 
 setupShaders :: IO Program
