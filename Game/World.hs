@@ -115,7 +115,7 @@ newWorldFromTiled tiledMap = do
 		initWire = proc input -> do
 			_ <- spawnPlayerAt "Neira" (player1Obj^.objectPos tiledMap) -< input
 			_ <- spawnPlayerAt "TheGhost" (player2Obj^.objectPos tiledMap) -< input
-			_ <- animate defaultCharacterAnim -< 1
+			_ <- animate (defaultCharacterAnim (0, 0)) -< 1
 
 			_ <- genWalls wallPositions -< input
 			_ <- genBoulders boulders -< input
@@ -318,7 +318,21 @@ animate anim = mkGen $ \ds oId -> do
 			deltaAnim oId current
 			lift $ print $ "anim update: " ++ show current
 			return (Right (), animate current)
---accel = mkGenN $ \_ -> do
+
+animateR :: WorldWire (Animation, ObjectId) ()
+animateR = mkGen $ \ds (animation, oId) -> do
+	lift $ print $ animation
+	oAnim <- view (wObjectAnim oId)
+	if oAnim == animation 
+		then do
+			-- w' is is animate plus the updated animation
+			-- we can drop it since on the next invocation we pass the new state using wObjectName
+			(mx, w') <- stepWire (animate oAnim) ds (Right oId)
+			return (mx, animateR)
+		else do
+			(mx, w') <- stepWire (animate animation) ds (Right oId)
+			return (mx, animateR)
+
 
 --player name = mkGenN $ \_ -> do
 --	pid <- magnify (wPlayerId name) ask
@@ -354,9 +368,10 @@ inhibitNoEvent = mkGenN $ \e -> do
 
 playerMovement = proc playerId -> do
 	Event (x, y) <- inhibitNoEvent . movingDirectionR -< playerId
+	let animation = defaultCharacterAnim (x, y)
 	--mul <- pure (-1) . for 3 . asSoonAs . objectCollided <|> pure 1 -< playerId
 	--_ <- accelObject (100, 0) . for 3 . after 2 -< playerId
-	_ <- animate defaultCharacterAnim -< playerId
+	_ <- animateR -< (animation, playerId)
 	_ <- moveObjectR -< (playerId, (-x*userSpeed, y*userSpeed))
 	returnA -< ()
 
@@ -366,15 +381,8 @@ testwire = proc input -> do
 
 	playerId <- player "Neira" -< input
 	boulderId <- boulder "Boulder1" -< input
-	--_ <- asSoonAs . spawnWallAt (60, 60) -< input
 	_ <- movement -< playerId
-	--mul <- pure (-1) . for 3 . asSoonAs . objectCollided <|> pure 1 -< playerId
-	--_ <- accelObject (100, 0) . for 3 . after 2 -< playerId
-	--_ <- animate defaultCharacterAnim -< playerId
-	--_ <- moveObjectR -< (playerId, (-x*userSpeed, y*userSpeed))
 
-	--_ <- moveObjectR -< (boulderId, (20, 0))
-	--_ <- 
 	returnA -< ()
 	where
 		movement = W.until . (fmap (\e ->  ((), e))) movingDirectionR W.--> playerMovement W.--> movement
