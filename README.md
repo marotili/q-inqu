@@ -2,7 +2,7 @@ Q'inqu
 ============
 Overview
 --------
-![screen](https://github.com/mfpi/q-inqu/blob/development/screen.png)
+![](https://raw.github.com/mfpi/q-inqu/development/screen.png)
 
 ### [License] (https://github.com/mfpi/q-inqu/blob/development/LICENSE)
 
