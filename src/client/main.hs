@@ -50,7 +50,8 @@ import Pipes.Binary
 import Game.World
 import qualified Pipes.Binary as PB
 import Game.Render.Error
-
+import qualified Data.ByteString as B
+import qualified Control.Monad.Trans.State.Strict as StrictState
 --------------------------------------------------------------------------------
 
 data Env = Env
@@ -93,15 +94,18 @@ data Event =
 --------------------------------------------------------------------------------
 
 --actionProducer :: Producer InputActions 
-actionProducer ac = do
+actionProducer ac playerId = do
     mtimeactions <- liftIO $ atomically $ readTQueue ac
     --case mtimeactions of
     let (time, InputActions actions) = mtimeactions
-    mapM_ (\a -> P.yield (time, a)) (Set.toList actions)
+    mapM_ (\a -> P.yield (time, playerId, a)) (Set.toList actions)
       --Nothing -> return ()
         --lift . threadDelay $ 100000
 
-    actionProducer ac
+    actionProducer ac playerId
+
+decodeId :: StrictState.StateT (Producer B.ByteString IO ()) IO (Either PB.DecodingError (PB.ByteOffset, Int))
+decodeId = PB.decode
 
 main :: IO ()
 main = withSocketsDo $ do
@@ -118,6 +122,11 @@ main = withSocketsDo $ do
       let toServer = toSocket sock
       actionsChan <- newTQueueIO :: IO (TQueue (Float, InputActions))
 
+      let fromServerFirst = fromSocket sock 4096 -- :: Producer ByteString IO ()
+      print "Send player id"
+      (mres, _) <- StrictState.runStateT decodeId fromServerFirst
+      let playerId = case mres of Right (_, b) -> b+1; _ -> -1 -- playerIds are 1 and 2, we receive 0 or
+      print ("Sent player id", playerId)
 
       eventsChan <- newTQueueIO :: IO (TQueue Event)
 
@@ -154,7 +163,7 @@ main = withSocketsDo $ do
           renderContext <- newTVarIO rc
 
           async $ do
-            runEffect $ for (actionProducer actionsChan) PB.encode >-> toServer
+            runEffect $ for (actionProducer actionsChan playerId) PB.encode >-> toServer
             performGC
 
           --let f e = do

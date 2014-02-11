@@ -1,9 +1,6 @@
 TODO
 ====
 
-- fix timestep interval for game state updates
-- * collect user actions. (FIXME what to do if move and stop are sent in one interval?)
-
 - screenshake
 
 - Rendering
@@ -68,3 +65,9 @@ let the client start a local server when no server is found
 
 - Procedual
 generate rooms
+
+Done
+====
+- fix timestep interval for game state updates 
+- * collect user actions. (FIXME what to do if move and stop are sent in one interval?)
+

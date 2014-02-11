@@ -13,7 +13,8 @@ import Control.Monad.RWS
 --import Control.Monad.Identity
 --import Control.Monad.Reader
 --import Control.Monad.Writer
---import Control.Monad.State
+import Control.Monad.State
+import qualified Control.Monad.State as State
 import Control.Monad as CM
 
 --import qualified Data.Binary as B
@@ -49,6 +50,7 @@ import Data.Tiled
 
 import qualified Game.Input.Actions as A
 import Data.Maybe
+import Data.Binary
 
 oneSecond = 1000000
 millisecond = oneSecond `div` 1000
@@ -56,7 +58,7 @@ millisecond = oneSecond `div` 1000
 type ProdDecoder a = (Monad m)	 
 	=> Producer B.ByteString m r
 	-> Producer' (PB.ByteOffset, a) m (Either (PB.DecodingError, Producer B.ByteString m r) r)
-decodeAction :: ProdDecoder (Float, A.Action)
+decodeAction :: ProdDecoder FromClientData
 decodeAction = PB.decodeMany
 
 
@@ -66,8 +68,6 @@ stepWorld w' session' world' state' = do
 	-- update session
 	(dt, session) <- stepSession session'
 
-	print dt
-
 	-- run wires
 	((out, w), worldManager, worldDelta) <- runRWST (
 		stepWire w' dt (Right ())
@@ -75,36 +75,42 @@ stepWorld w' session' world' state' = do
 
 	return ((w, session), (worldManager, worldDelta), dtime dt)
 
-type ClientData = ([A.Action], Rational)
+type FromClientData = (Float, Int, A.Action)
+type ClientData = ([(Int, A.Action)], Rational)
 
 collect actions = do
-	(t, action) <- P.await
+	(t, pId, action) <- P.await
 	if action == A.ActionUpdateGameState then
-		return (actions ++ [action])
+		return (actions ++ [(pId, action)])
 	else
-		collect (actions ++ [action])
+		collect (actions ++ [(pId, action)])
 
 produceWorld :: World -> WorldManager -> WorldWire () b -> WorldSession ->
-	Pipe (Float, A.Action) ClientData IO ()
+	Pipe FromClientData ClientData IO ()
 produceWorld world manager w session = do
 	--(t, action) <- P.await
 	actions <- collect []
 	lift $ print actions
+	--let playerId = fromJust $ world^.wPlayerId "Neira"
+	let manager2 = execState (do
+		mapM_ (\(pId, action) -> do
+				CM.unless (pId <= 0) $ do
+					manager <- State.get
+					let playerActions = if Map.member pId (manager^.wmPlayerActions)
+						then (manager^.wmPlayerActions) Map.! pId
+						else mempty
 
-	let playerId = fromJust $ world^.wPlayerId "Neira"
-	let playerActions = if Map.member playerId (manager^.wmPlayerActions)
-		then (manager^.wmPlayerActions) Map.! playerId
-		else mempty
-
-	--lift $ print playerActions
-	--lift $ print action
-	let manager2 = manager & wmPlayerActions %~	Map.insert playerId (
-			playerActions `mappend` 
-				foldr (\action as -> as `mappend` A.newInputAction action) mempty actions
-		)
+					wmPlayerActions %= Map.insert pId (
+							playerActions `mappend` A.newInputAction action
+						)
+			) actions
+		) manager
 	--let manager2 = manager & wmPlayerActions %~	Map.insert playerId (A.newInputAction action)
 	-- run wires
+	lift $ print "run main loop"
+	lift $ print manager2
 	((w', session'), (manager', delta), dt) <- lift $ stepWorld w session world manager2
+	lift $ print "update clients"
 	-- update our world state
 	let world' = applyDelta world delta
 	--lift $ print world'
@@ -113,6 +119,7 @@ produceWorld world manager w session = do
 	--lift $ print world'
 
 	-- Send to user
+	lift $ print actions
 	P.yield (actions, realToFrac dt)
 
 	-- wait
@@ -129,17 +136,17 @@ produceWorld world manager w session = do
 --	lift $ print p
 --	P.yield p
 
-game :: Input (Float, A.Action) -> Output C.ByteString -> IO ()
+game :: Input FromClientData -> Output C.ByteString -> IO ()
 game recvEvents output = do
 	let session = clockSession_
 	tiledMap <- loadMapFile "data/sewers.tmx"
 	(world, manager) <- newWorldFromTiled tiledMap
 
 	let
-		worldProducer :: Pipe (Float, A.Action) ClientData IO ()
+		worldProducer :: Pipe (Float, Int, A.Action) ClientData IO ()
 		worldProducer = produceWorld world manager testwire session
 
-		eventProducer :: Producer (Float, A.Action) IO ()
+		--eventProducer :: Producer (Float, A.Action) IO ()
 		eventProducer = P.for (fromInput recvEvents) P.yield
 	runEffect $
 		P.for (eventProducer >-> worldProducer) PB.encode 
@@ -147,7 +154,7 @@ game recvEvents output = do
 	performGC
 
 eventUpdate = do
-	P.yield (0, A.ActionUpdateGameState)
+	P.yield (0, -1, A.ActionUpdateGameState)
 	lift $ threadDelay (oneSecond `div` 60)
 	eventUpdate
  
@@ -155,11 +162,11 @@ main = withSocketsDo $ do
 	(output1, input1) <- spawn Unbounded
 	(output2, input2) <- spawn Unbounded
 
-	(sendEvents1, recvEvents1) <- spawn Unbounded :: IO (Output (Float, A.Action), Input (Float, A.Action))
+	(sendEvents1, recvEvents1) <- spawn Unbounded :: IO (Output FromClientData, Input FromClientData)
 	--(sendEvents2, recvEvents2) <- spawn Unbounded
 	--(sendEvents3, recvEvents3) <- spawn Unbounded
 
-	numClient <- newTVarIO 0
+	numClient <- newTVarIO (0 :: Int)
 
 	let recvEvents = recvEvents1
 	--let sendEvents = sens
@@ -177,40 +184,67 @@ main = withSocketsDo $ do
 	return ()
 
 
-forward :: Pipe (PB.ByteOffset, (Float, A.Action)) (Float, A.Action) IO ()
+forward :: Pipe (PB.ByteOffset, (Float, Int, A.Action)) (Float, Int, A.Action) IO ()
 forward = do
-	(_, d) <- P.await
-	P.yield d
-	forward
+	(off, d@(dt, pId, actions)) <- P.await
+	lift $ print (off, d)
+	CM.unless (off < 0) $ do
+		P.yield d
+		forward
 
 --connCb :: (Output (Float, A.Action), Input C.ByteString, Input C.ByteString)
 	-- -> (Socket, SockAddr) 
 	-- -> IO ()
 connCb (numClient, sendEvents, input1, input2) (sock, addr) = do
+	print "Server info: player joined"
 	cl <- atomically $ do
 		n <- readTVar numClient
-		writeTVar numClient (n+1)
-		return n
-	--sClose sock
+		if n == 2 then
+			return (-1)
+		else do
+			if n + 1 == 2 then return () else return ()
+				-- send game start
 
-	let toClient = toSocket sock
-	let fromClient = fromSocket sock 4096
-	let
-		testX :: Producer (PB.ByteOffset, (Float, A.Action)) IO ()
-		testX = void (decodeAction fromClient) >> testX
+			writeTVar numClient (n+1)
+			return n
 
-	--runEffect $ (P.yield "Test" >-> cons)
-	a1 <- async $ do
-		runEffect $ fromInput (if cl == 0 then input1 else input2) >-> toClient
-		performGC
-	a2 <- async $ do
-		runEffect $ testX >-> forward >-> toOutput sendEvents
-		performGC
+	CM.unless (cl == -1) $ do
+		let toClient = toSocket sock
+		let toClientFirst = toSocket sock
+		print "Send player id"
+		runEffect $ PB.encode cl >-> toClientFirst
+		print "Sent player id"
 
+		let fromClient = fromSocket sock 4096
+		let
+			--testX :: Producer (PB.ByteOffset, (Float, Int, A.Action)) IO ()
+			testX = decodeAction fromClient >>= (\e ->
+					case e of
+						Right _ -> do
+							P.yield (-1, (0, -1, A.ActionNothing))
+							return ()
+						Left _ -> do
+							P.yield (-2, (0, -1, A.ActionNothing))
+							return ()
+				)
 
-	mapM_ wait (a1:[a2])
+		--runEffect $ (P.yield "Test" >-> cons)
+		a1 <- async $ do
+			runEffect $ fromInput (if cl == 0 then input1 else input2) >-> toClient
+			performGC
+		a2 <- async $ do
+			runEffect $ testX >-> forward >-> toOutput sendEvents
+			performGC
 
-	return ()
-	where
+		print "Wait for quit"
 
+		mapM_ wait [a2]
 
+		cl <- atomically $ do
+			n <- readTVar numClient
+			writeTVar numClient (n-1)
+			return n
+
+		return ()
+
+	print ("Server info: player left", cl)

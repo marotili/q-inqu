@@ -72,7 +72,7 @@ instance Monoid InputActions where
 				where
 					V2 a b = normalize (V2 (x + x') (y + y'))
 
-			left = if isMoving (InputActions as2) || ActionStopMove `elem` Set.toList as1 then removeMovement as1 else as1
+			left = if isMoving (InputActions as2) || ActionStopMove `elem` Set.toList as2 then removeMovement as1 else as1
 
 			removeStops as = foldr (\a as -> case a of ActionStopMove -> as; _ -> Set.insert a as) Set.empty (Set.toList as)
 

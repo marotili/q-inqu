@@ -94,7 +94,8 @@ executable server
         lens >= 4.0 && < 4.1,
 
         mtl >= 2.1 && < 2.2,
-        containers >= 0.5 && < 0.6
+        containers >= 0.5 && < 0.6,
+        binary >= 0.7 && < 0.8
     main-is: Server.hs
 
 executable client

@@ -417,18 +417,23 @@ liftW f = mkGenN $ \_ -> do
 
 untilV source = W.until . fmap(\e -> ((), e)) source
 colLoop = untilV collision 
-	W.--> for 0.1 . liftW (lift $ print "PlayerCollision") . asSoonAs . collision 
+	W.--> for 0.1 . void asSoonAs . collision 
 	W.--> colLoop
 
 spawnArrowEvent :: WorldWire PlayerId (Event ())
 spawnArrowEvent = mkGenN $ \pId -> do
 	actions <- get >>= \wm -> return $ wm^.wmPlayerActions
-	let (InputActions playerActions) = actions Map.! pId
-	if Set.member ActionSpawnArrow playerActions
+	if (Map.member pId actions) 
 		then do
-			return (Right $ Event (), spawnArrowEvent)
+			let (InputActions playerActions) = actions Map.! pId
+			if Set.member ActionSpawnArrow playerActions
+				then do
+					return (Right $ Event (), spawnArrowEvent)
+				else do
+					return (Right NoEvent, spawnArrowEvent)
 		else do
 			return (Right NoEvent, spawnArrowEvent)
+
 	where
 		arrowCooldown = 1
 
@@ -448,11 +453,13 @@ testwire = proc input -> do
 	_ <- moveObjects -< input
 
 	playerId <- player "Neira" -< input
+	player2Id <- player "TheGhost" -< input
 	dinoId <- player "Dino" -< input
 	beeId <- player "Bee" -< input
-
 	boulderId <- boulder "Boulder1" -< input
+
 	_ <- movement -< playerId
+	_ <- movement -< player2Id
 
 	_ <- animate dinoAnim -< dinoId
 	Just (x, y) <- liftW $ asks (\w -> w^.wPlayerPos "Neira") -< input

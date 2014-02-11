@@ -43,12 +43,13 @@ import Data.Maybe
 import qualified Data.Map as Map
 import Game.World.Delta
 import Game.World.Objects
+import qualified Control.Monad.State as State
 import Game.World.Types
 type ProdDecoder a = (Monad m)	 
 	=> Producer B.ByteString m r
 	-> Producer' (ByteOffset, a) m (Either (DecodingError, Producer B.ByteString m r) r)
 
-decodeSteps :: ProdDecoder ([A.Action], Rational)
+decodeSteps :: ProdDecoder ([(PlayerId, A.Action)], Rational)
 decodeSteps = decodeMany
 
 clientStepWorld :: 
@@ -71,21 +72,28 @@ consumeClientWorld ::
 	-> WorldManager 
 	-> WorldWire () b 
 	-> TVar RenderContext
-	-> Consumer (ByteOffset, ([A.Action], Rational)) IO r
+	-> Consumer (ByteOffset, ([(Int, A.Action)], Rational)) IO r
 consumeClientWorld world manager w renderContextVar = do
 	-- run wires
 	(_, (actions, dt)) <- await
 
-	let playerId = fromJust $ world^.wPlayerId "Neira"
-	let playerActions = if Map.member playerId (manager^.wmPlayerActions)
-		then (manager^.wmPlayerActions) Map.! playerId
-		else mempty
+	--let playerId = fromJust $ world^.wPlayerId "Neira"
+	let manager2 = execState (do
+		mapM_ (\(pId, action) -> do
+				CM.unless (pId <= 0) $ do
+					manager <- State.get
+					let playerActions = if Map.member pId (manager^.wmPlayerActions)
+						then (manager^.wmPlayerActions) Map.! pId
+						else mempty
 
-	--let manager2 = manager  &wmPlayerActions %~ Map.insert playerId (A.newInputAction action)
-	let manager2 = manager & wmPlayerActions %~	Map.insert playerId (
-			playerActions `mappend` 
-				foldr (\action as -> as `mappend` A.newInputAction action) mempty actions
-		)
+					wmPlayerActions %= Map.insert pId (
+							playerActions `mappend` A.newInputAction action
+						)
+			) actions
+		) manager
+
+	lift $ print manager2
+
 	(w', (manager', delta)) <- lift $ clientStepWorld w world manager2 dt
 
 	 --update our world state
@@ -95,6 +103,15 @@ consumeClientWorld world manager w renderContextVar = do
 	let playerPos = world'^.wPlayerPos "Neira"
 	let playerGid = world'^.wObjectAnim pId.animTileGid
 	let boulderPos = world'^.wBoulderPos "Boulder1"
+
+	let (Just p2Id) = world'^.wPlayerId "TheGhost"
+	let player2Pos = world'^.wPlayerPos "TheGhost"
+	let player2Gid = case world'^.wObjectAnim p2Id.animTileGid of
+		73 -> 137
+		74 -> 138
+		75 -> 139
+		76 -> 140
+		x -> x
 
 	let (Just dinoId) = world'^.wPlayerId "Dino"
 	let (Just beeId) = world'^.wPlayerId "Bee"
@@ -127,11 +144,13 @@ consumeClientWorld world manager w renderContextVar = do
 				case playerPos of
 					Just (px, py) -> do
 						tMap.object "Player1".objectPos tm .= (fromJust playerPos)
+						tMap.object "Player2".objectPos tm .= (fromJust player2Pos)
 						tMap.object "Dino".objectPos tm .= (fromJust dinoPos)
 						tMap.object "Bee".objectPos tm .= (fromJust beePos)
 						--tMap.object "Player1".objectX .= round px
 						--tMap.object "Player1".objectY .= round py
 						tMap.object "Player1".objectGid .= Just (fromIntegral playerGid)
+						tMap.object "Player2".objectGid .= Just (fromIntegral player2Gid)
 						tMap.object "Dino".objectGid .= Just (fromIntegral dinoGid)
 						tMap.object "Bee".objectGid .= Just (fromIntegral beeGid)
 					Nothing -> return ()
