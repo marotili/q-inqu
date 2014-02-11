@@ -44,7 +44,7 @@ newRenderContext renderMap = do
 	logGL "newRenderContext: blend setup failed"
 
 	program <- setupShaders
-
+	uniformInfo program
 	wrc <- newWorldRenderContext renderMap
 	bindWorldRenderContext wrc program
 

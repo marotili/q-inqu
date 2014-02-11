@@ -300,7 +300,6 @@ run i session w = do
 
     -- time
     Just end <- liftIO GLFW.getTime
-    liftIO $ print ("Time :", end - start)
     _ <- liftIO $ appendFile "timelog" ("Time: " ++ show i ++ " / " ++ show (end - start) ++ "\n")
 
     -- delay

@@ -198,7 +198,6 @@ collisionTransformation oId (dx, dy) = do
 				--if Map.member oId colCb 
 				--	then do
 				--		let cb = colCb Map.! oId
-				--		lift $ print "Callback"
 				--	else return ()
 
 			--scribe wdPositionsDelta $ ObjectPositionDelta $ Map.insert oId dPos Map.empty
@@ -423,15 +422,12 @@ colLoop = untilV collision
 
 spawnArrowEvent :: WorldWire PlayerId (Event ())
 spawnArrowEvent = mkGenN $ \pId -> do
-	lift $ print "SpawnArrowEvent"
 	actions <- get >>= \wm -> return $ wm^.wmPlayerActions
 	let (InputActions playerActions) = actions Map.! pId
 	if Set.member ActionSpawnArrow playerActions
 		then do
-			lift $ print "event ()"
 			return (Right $ Event (), spawnArrowEvent)
 		else do
-			lift $ print "no event"
 			return (Right NoEvent, spawnArrowEvent)
 	where
 		arrowCooldown = 1

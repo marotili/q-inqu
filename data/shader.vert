@@ -35,9 +35,9 @@ struct TileSet {
 	// int padding[8];
 };
 
-layout(std140) uniform TileSets {
+layout(shared) uniform TileSets {
 	TileSet tileSets[10];
-} tileSetTest;
+};
 
 // Coord
 layout(std140) uniform Pos {
@@ -65,16 +65,16 @@ void main()
 
 	int myTileSet = 0; 
 	for (int i = 0; i < numTileSets; i++) {
-		int numX = tileSetTest.tileSets[i].imageWidth / tileSetTest.tileSets[i].tileWidth;
-		int numY = tileSetTest.tileSets[i].imageHeight / tileSetTest.tileSets[i].tileHeight;
+		int numX = tileSets[i].imageWidth / tileSets[i].tileWidth;
+		int numY = tileSets[i].imageHeight / tileSets[i].tileHeight;
 
-		if (tileSetTest.tileSets[i].firstgid <= tileGid && tileSetTest.tileSets[i].firstgid + numX*numY > tileGid) {
+		if (tileSets[i].firstgid <= tileGid && tileSets[i].firstgid + numX*numY > tileGid) {
 			myTileSet = i;
 			break;
 		}
 	}
 
-	TileSet tileSet = tileSetTest.tileSets[myTileSet];
+	TileSet tileSet = tileSets[myTileSet];
 	int localTileId = tileId[instanceID].x - tileSet.firstgid;
 
 	int numX = tileSet.imageWidth / tileSet.tileWidth;
