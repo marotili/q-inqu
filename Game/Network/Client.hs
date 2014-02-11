@@ -48,7 +48,7 @@ type ProdDecoder a = (Monad m)
 	=> Producer B.ByteString m r
 	-> Producer' (ByteOffset, a) m (Either (DecodingError, Producer B.ByteString m r) r)
 
-decodeSteps :: ProdDecoder ((Float, A.Action), Rational)
+decodeSteps :: ProdDecoder ([A.Action], Rational)
 decodeSteps = decodeMany
 
 clientStepWorld :: 
@@ -71,10 +71,10 @@ consumeClientWorld ::
 	-> WorldManager 
 	-> WorldWire () b 
 	-> TVar RenderContext
-	-> Consumer (ByteOffset, ((Float, A.Action), Rational)) IO r
+	-> Consumer (ByteOffset, ([A.Action], Rational)) IO r
 consumeClientWorld world manager w renderContextVar = do
 	-- run wires
-	(_, ((userTime, action), dt)) <- await
+	(_, (actions, dt)) <- await
 
 	let playerId = fromJust $ world^.wPlayerId "Neira"
 	let playerActions = if Map.member playerId (manager^.wmPlayerActions)
@@ -82,8 +82,10 @@ consumeClientWorld world manager w renderContextVar = do
 		else mempty
 
 	--let manager2 = manager  &wmPlayerActions %~ Map.insert playerId (A.newInputAction action)
-	let manager2 = manager  &wmPlayerActions %~ Map.insert playerId (playerActions `mappend` A.newInputAction action)
-
+	let manager2 = manager & wmPlayerActions %~	Map.insert playerId (
+			playerActions `mappend` 
+				foldr (\action as -> as `mappend` A.newInputAction action) mempty actions
+		)
 	(w', (manager', delta)) <- lift $ clientStepWorld w world manager2 dt
 
 	 --update our world state

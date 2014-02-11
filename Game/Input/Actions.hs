@@ -25,6 +25,7 @@ data Action =
 	| ActionPickup
 	| ActionActivate Direction
 	| ActionSpawnArrow
+	| ActionUpdateGameState
 	deriving (Show, Eq, Ord)
 
 newMoveAction :: Float -> Float -> Action
@@ -101,6 +102,7 @@ instance Binary Action where
 	put ActionPickup = put (3 :: Word8)
 	put ActionStopMove = put (4 :: Word8)
 	put ActionSpawnArrow = put (5 :: Word8)
+	put ActionUpdateGameState = put (6 :: Word8)
 
 	get = do
 		t <- get :: Get Word8
@@ -120,3 +122,5 @@ instance Binary Action where
 				return ActionStopMove
 			5 ->
 				return ActionSpawnArrow
+			6 -> 
+				return ActionUpdateGameState
