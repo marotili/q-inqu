@@ -46,6 +46,7 @@ import Pipes.Concurrent
 import qualified Pipes.Binary as PB
 
 import Game.World.Import.Tiled
+import Game.World.Common
 import Data.Tiled
 
 import qualified Game.Input.Actions as A

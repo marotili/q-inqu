@@ -38,6 +38,8 @@ library
         Game.World.Import.Tiled
         Game.World.Objects
         Game.World.Delta
+        Game.World.Common
+        Game.World.Wires
 
         Game.Network.Common
         Game.Network.Client
