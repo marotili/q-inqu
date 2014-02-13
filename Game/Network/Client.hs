@@ -94,8 +94,8 @@ consumeClientWorld world manager w renderContextVar = do
 	--let playerGid = world'^.wObjectAnim pId.animTileGid
 	--let boulderPos = world'^.wBoulderPos "Boulder1"
 
-	--let (Just p2Id) = world'^.wPlayerId "TheGhost"
-	--let player2Pos = world'^.wPlayerPos "TheGhost"
+	let (Just p2Id) = fmap _objId (world'^.findObject "TheGhost")
+	let player2Pos = world'^.objectPosition p2Id
 	--let player2Gid = case world'^.wObjectAnim p2Id.animTileGid of
 	--	73 -> 137
 	--	74 -> 138
@@ -134,7 +134,7 @@ consumeClientWorld world manager w renderContextVar = do
 				case playerPos of
 					Just (px, py) -> do
 						tMap.object "Player1".objectPos tm .= (fromJust playerPos)
-						--tMap.object "Player2".objectPos tm .= (fromJust player2Pos)
+						tMap.object "Player2".objectPos tm .= (fromJust player2Pos)
 						--tMap.object "Dino".objectPos tm .= (fromJust dinoPos)
 						--tMap.object "Bee".objectPos tm .= (fromJust beePos)
 						----tMap.object "Player1".objectX .= round px

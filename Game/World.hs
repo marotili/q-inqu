@@ -151,20 +151,29 @@ spawnArrow = spawn . thenDo (inhibit WireFinished)
 
 playerSpawnArrow = untilV spawnArrowEvent
 	W.--> spawnArrow 
+	W.--> void while . spawnArrowEvent
 	W.--> playerSpawnArrow
+
+playerMovement = untilV movingDirectionE 
+	W.--> move
+	W.--> playerMovement
+	where
+		move = proc pId -> do
+			(dx, dy) <- movingDirectionR -< pId
+			_ <- moveR -< (pId, (-dx*200, dy*200))
+			returnA -< ()
 
 playerWire :: ObjectWire ObjectId ()
 playerWire = proc pId -> do
 	_ <- playerSpawnArrow -< pId
-
-	(dx, dy) <- movingDirectionR -< pId
-	_ <- moveR -< (pId, (dx*200, dy*200))
+	_ <- playerMovement -< pId
 	returnA -< ()
 
 testwire :: WorldWire a ()
 testwire = proc input -> do
 	_ <- stepObjectWires -< input
 	_ <- once . newObjectWire 1 playerWire -< input
+	_ <- once . newObjectWire 2 playerWire -< input
 	--_ <- deaccelObjects -< input
 	--_ <- moveObjects -< input
 
