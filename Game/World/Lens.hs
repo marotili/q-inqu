@@ -45,7 +45,7 @@ compPosition = Component
     , _compSet = wdCommon.delta.wcPositions
     }    
 
-compWires :: Component' (ObjectProp [ObjectWire])
+compWires :: Component' (ObjectProp [ObjectWire ObjectId ()])
 compWires = Component
     { _compGet = wCommon.wcWires
     , _compSet = wdCommon.delta.wcWires
@@ -57,9 +57,9 @@ compAnimations = Component
     , _compSet = wdCommon.delta.wcAnimations
     }
 
-getWires :: Get (ObjectProp [ObjectWire])
+getWires :: Get (ObjectProp [ObjectWire ObjectId ()])
 getWires = _compGet compWires
-setWires :: Set (ObjectProp [ObjectWire])
+setWires :: Set (ObjectProp [ObjectWire ObjectId ()])
 setWires = _compSet compWires
 
 writeProp :: (MonadWriter WorldDelta m) 
@@ -69,7 +69,7 @@ writeProp :: (MonadWriter WorldDelta m)
     -> m ()
 writeProp set oId a = scribe (set . at oId) (Just a)
 
-addWire = writeProp setWires
+addWire oId w = writeProp setWires oId [w]
 
 setAnimations :: Set (ObjectProp Animation)
 setAnimations = _compSet compAnimations

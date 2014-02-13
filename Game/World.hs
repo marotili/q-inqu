@@ -19,11 +19,11 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Control.Monad.RWS
 import Control.Monad.Identity
-import Control.Monad.Reader
 import Control.Monad.Writer
 import Control.Monad.State
 import Control.Monad
 import Data.Maybe
+import Game.Input.Input
 
 import qualified Data.Binary as B
 
@@ -93,10 +93,10 @@ newWorldFromTiled tiledMap = do
 			_ <- spawnObjectAt "Bee" (beeObj^.objectPos tiledMap) -< input
 
 			-- Initialize: need maybe check in client to remove this TODO
-			_ <- animate (defaultCharacterAnim (0, 0)) -< 1
-			_ <- animate (defaultCharacterAnim (0, 0)) -< 2
-			_ <- animate (defaultCharacterAnim (0, 0)) -< 3
-			_ <- animate (defaultCharacterAnim (0, 0)) -< 4
+			--_ <- animate (defaultCharacterAnim (0, 0)) -< 1
+			--_ <- animate (defaultCharacterAnim (0, 0)) -< 2
+			--_ <- animate (defaultCharacterAnim (0, 0)) -< 3
+			--_ <- animate (defaultCharacterAnim (0, 0)) -< 4
 
 			_ <- genWalls wallPositions -< input
 			_ <- genBoulders boulders -< input
@@ -138,13 +138,33 @@ newWorldFromTiled tiledMap = do
 	--	alterPhysics (ObjectPhysics a1 v1) (Just (ObjectPhysics a2 v2)) = Just $ ObjectPhysics a1 (v1 `mappend` v2)
 	--	--doorControllers = positions { wDoorControllers = foldr (\dc -> Map.insert (doorControllerId dc) dc) (wDoorControllers positions) (wdDoorControllers wd) }
 
+moveArrow = proc oId -> do
+	_ <- move (0, 100) . for 2 -< oId
+	returnA -< ()
+
+spawnArrow = spawn . thenDo (inhibit WireFinished)
+	where
+		spawn = proc input -> do	
+			oId <- spawnObjectAt "Arrow" (50, 50) -< input
+			_ <- newObjectWireR moveArrow -< oId
+			returnA -< ()
+
+playerSpawnArrow = untilV spawnArrowEvent
+	W.--> spawnArrow 
+	W.--> playerSpawnArrow
+
+playerWire :: ObjectWire ObjectId ()
 playerWire = proc pId -> do
+	_ <- playerSpawnArrow -< pId
+
 	(dx, dy) <- movingDirectionR -< pId
 	_ <- moveR -< (pId, (dx*200, dy*200))
 	returnA -< ()
 
 testwire :: WorldWire a ()
 testwire = proc input -> do
+	_ <- stepObjectWires -< input
+	_ <- once . newObjectWire 1 playerWire -< input
 	--_ <- deaccelObjects -< input
 	--_ <- moveObjects -< input
 
@@ -169,7 +189,7 @@ testwire = proc input -> do
 	--_ <- colLoop -< playerId
 
 	--_ <- spawnArrow -< playerId
-	_ <- playerWire -< 1
+	--_ <- playerWire -< 1
 	returnA -< ()
 	where
 		--movement = W.until . (fmap (\e ->  ((), e))) movingDirectionR 

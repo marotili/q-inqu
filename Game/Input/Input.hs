@@ -11,6 +11,9 @@ module Game.Input.Input
 	-- * Wires
 	, InputWire
 	, stepInput, userInput
+
+	-- * Utils
+	, untilV
 	) where
 
 import Prelude hiding ((.))

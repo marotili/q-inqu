@@ -2,6 +2,7 @@
 module Game.World.Wires where
 
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Game.World.Objects
 import qualified Game.World.Lens as World
 import Data.Monoid
@@ -23,6 +24,7 @@ import Data.Maybe
 import qualified Game.Input.Actions as A
 import Prelude hiding ((.))
 import qualified Prelude as P
+import qualified Game.Input.Actions as A
 
 stepObjectWires  :: WorldWire a ()
 stepObjectWires = mkGen $ \ds a -> do
@@ -38,8 +40,12 @@ stepObjectWires = mkGen $ \ds a -> do
 			(mx, w') <- stepWire w ds (Right oId)
 			case mx of
 				Right _ ->
-					World.addWire oId [w']
-				Left _ -> return ()
+					World.addWire oId w'
+				Left i -> case i of
+					WireRunning ->
+						World.addWire oId w'
+					WireFinished ->
+						return ()
 
 wLiftF :: (a -> WorldContext b) -> WorldWire a b
 wLiftF f = mkGenN $ \a -> do
@@ -54,7 +60,7 @@ wLiftM f = mkGenN $ \a -> do
 	mb <- f a
 	case mb of
 		Just b -> return (Right b, wLiftM f)
-		Nothing -> return (Left (), wLiftM f)
+		Nothing -> return (Left WireRunning, wLiftM f)
 
 --objectR :: WorldWire ObjectId (Maybe Object)
 --objectR = mkGenN $ \oId -> do
@@ -73,7 +79,7 @@ _move ds oId (vx, vy) = do
 	let (dx, dy) = (dt * vx, dt * vy)
 	World.moveObject oId (dx, dy)
 
-move :: (Float, Float) -> WorldWire ObjectId ()
+move :: (Float, Float) -> ObjectWire ObjectId ()
 move speed = mkGen $ \ds oId -> do
 	_move ds oId speed
 	return (Right (), move speed)
@@ -82,7 +88,7 @@ setPos pos = mkGenN $ \oId -> do
 	World.moveObject oId pos
 	return (Right (W.Event ()), never)
 
-moveR :: WorldWire (ObjectId, (Float, Float)) ()
+moveR :: ObjectWire (ObjectId, (Float, Float)) ()
 moveR = mkGen $ \ds (oId, speed) -> do
 	_move ds oId speed
 	return (Right (), moveR)
@@ -94,23 +100,65 @@ newObject = do
 	wmNextObjectId += 1
 	return oId
 
+newObjectWire :: ObjectId -> ObjectWire ObjectId () -> WorldWire a (Event ())
+newObjectWire oId w = doOnce $ wLift (addWire oId w)
+
+newObjectWireR :: ObjectWire PlayerId () -> WorldWire ObjectId (Event ())
+newObjectWireR w = newObjectWireR' w newObjectWire 
+	where
+		newObjectWireR' w newObjectW = mkGen $ \ds oId -> do
+			(mx, w') <- stepWire (newObjectW oId w) ds (Right ())
+			return (mx, newObjectWireR' w (\_ _ -> w'))
+
 spawnObject :: String -> WorldWire a (Event ObjectId)
 spawnObject name = mkGenN $ \_ -> do
 	oId <- newObject
 	World.addObject oId (Object oId name)
 	return (Right (W.Event oId), never)
 
-spawnObjectAt :: String -> (Float, Float) -> WorldWire a ()
+spawnObjectAt :: String -> (Float, Float) -> WorldWire a ObjectId
 spawnObjectAt name pos = proc input -> do
 	W.Event oId <- spawnObject name -< input
 	_ <- setPos pos -< oId
-	returnA -< ()
+	returnA -< oId
+
+doOnce :: WorldWire a b -> WorldWire a (Event b)
+doOnce w = mkGen $ \ds a -> do
+	(mx, w') <- stepWire w ds (Right a)
+	return $ case mx of
+		Right b -> (Right (W.Event b), never)	
+		Left x -> (Left x, never)
+
+thenDo :: WorldWire a a -> WorldWire a a
+thenDo w = mkGen $ \ds a -> return (Right a, w)
+
+while :: WorldWire (Event a) (Event a)
+while = W.when (\a ->
+		case a of
+			W.Event _ -> True
+			W.NoEvent -> False
+	)
 
 --asLongAs = mkGenN $ \a -> do
 	--case a of
 		--Event x -> return (Right x, asLongAs)
+spawnArrowEvent :: WorldWire PlayerId (Event ())
+spawnArrowEvent = mkGenN $ \pId -> do
+	actions <- get >>= \wm -> return $ wm^.wmPlayerActions
+	lift $ print "Maybe spawn arrow"
+	if Map.member pId actions
+		then do
+			let (A.InputActions playerActions) = actions Map.! pId
+			if Set.member A.ActionSpawnArrow playerActions
+				then do
+					lift $ print "Spawn arrow"
+					return (Right $ W.Event (), spawnArrowEvent)
+				else
+					return (Right W.NoEvent, spawnArrowEvent)
+		else
+			return (Right W.NoEvent, spawnArrowEvent)
 
-movingDirectionR :: WorldWire PlayerId (Float, Float)
+movingDirectionR :: ObjectWire PlayerId (Float, Float)
 movingDirectionR = mkGenN $ \playerId -> do
 	wm <- get
 	if Map.member playerId (wm^.wmPlayerActions)
@@ -119,13 +167,13 @@ movingDirectionR = mkGenN $ \playerId -> do
 			let direction = A.movingDirection playerActions
 			case direction of
 				(0, 0) -> 
-					return (Left (), movingDirectionR)
+					return (Left WireRunning, movingDirectionR)
 				_ -> 
 					return (Right direction, movingDirectionR)
 		else
-			return (Left (), movingDirectionR)
+			return (Left WireRunning, movingDirectionR)
 
-movingDirectionE :: WorldWire PlayerId (W.Event (Float, Float))
+movingDirectionE :: ObjectWire PlayerId (W.Event (Float, Float))
 movingDirectionE = mkGenN $ \playerId -> do
 	wm <- get
 	if Map.member playerId (wm^.wmPlayerActions)
@@ -140,7 +188,7 @@ movingDirectionE = mkGenN $ \playerId -> do
 		else
 			return (Right W.NoEvent, movingDirectionE)
 
-animate :: Animation -> WorldWire ObjectId ()
+animate :: Animation -> ObjectWire ObjectId ()
 animate anim = mkGen $ \ds oId -> do
 	let dt = realToFrac (dtime ds)
 	if anim^.animCurrentTime + dt > anim ^. animTime
@@ -154,7 +202,7 @@ animate anim = mkGen $ \ds oId -> do
 			World.setAnimation oId current
 			return (Right (), animate current)
 
-animateR :: WorldWire (Animation, ObjectId) ()
+animateR :: ObjectWire (Animation, ObjectId) ()
 animateR = mkGen $ \ds (animation, oId) -> do
 	mObjAnim <- view (World.getAnimations P.. L.at oId)
 	case mObjAnim of

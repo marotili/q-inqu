@@ -79,27 +79,15 @@ consumeClientWorld world manager w renderContextVar = do
 	-- run wires
 	(_, (actions, dt)) <- await
 
-	--let playerId = fromJust $ world^.wPlayerId "Neira"
-	let manager2 = execState (do
-		mapM_ (\(pId, action) -> do
-				CM.unless (pId <= 0) $ do
-					manager <- State.get
-					let playerActions = if Map.member pId (manager^.wmPlayerActions)
-						then (manager^.wmPlayerActions) Map.! pId
-						else mempty
-
-					wmPlayerActions %= Map.insert pId (
-							playerActions `mappend` A.newInputAction action
-						)
-			) actions
-		) manager
+	let manager2 = worldManagerUpdate manager actions
 
 
 	(w', (manager', delta)) <- lift $ clientStepWorld w world manager2 dt
-	lift $ print delta
+	--lift $ print delta
 
 	 --update our world state
 	let world' = applyDelta world delta
+	lift $ print ("Num wires", length $ Map.toList $ world'^.wCommon.wcWires)
 
 	let (Just pId) = fmap _objId (world'^.findObject "Neira")
 	let playerPos = world'^.objectPosition pId

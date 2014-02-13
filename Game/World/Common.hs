@@ -6,10 +6,12 @@ import Control.Monad.RWS
 import qualified Control.Wire as W
 import Game.Collision
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Control.Lens
 import Game.Input.Actions
 import Control.Monad.State
 import Data.Monoid
+import qualified Control.Monad as CM
 
 type ObjectProp a = Map.Map ObjectId a
 type Position = (Float, Float)
@@ -20,7 +22,7 @@ data WorldCommon = WorldCommon
 	, _wcPhysics :: ObjectProp Physics
 	, _wcAnimations :: ObjectProp Animation
 	, _wcCollisions :: ObjectProp [ObjectId]
-	, _wcWires :: ObjectProp [ObjectWire]
+	, _wcWires :: ObjectProp [ObjectWire ObjectId ()]
 	}
 
 instance Show WorldCommon where
@@ -33,8 +35,19 @@ type DebugWorldContext = RWST World WorldDelta WorldManager IO
 type WorldContext = DebugWorldContext
 
 --type WorldWire a b = Wire (Timed NominalDiffTime ()) () WorldContext a b
-type DebugWire a b = W.Wire (W.Timed W.NominalDiffTime ()) () DebugWorldContext a b
-type WorldWire a b = DebugWire a b 
+type DebugWireS s a b = W.Wire (W.Timed W.NominalDiffTime ()) s DebugWorldContext a b
+type DebugWire a b = DebugWireS () a b
+
+data WireControl = WireRunning | WireFinished
+instance Monoid WireControl where
+	mempty = WireFinished
+	mappend WireFinished _ = WireFinished
+	mappend _ WireFinished = WireFinished
+	mappend _ _ = WireRunning
+type ObjectWire a b = WorldWire a b
+
+type WorldWireS s a b = DebugWireS s a b
+type WorldWire a b = WorldWireS WireControl a b
 type WorldSession = W.Session IO (W.Timed W.NominalDiffTime ())
 
 data WorldDelta = WorldDelta
@@ -78,7 +91,6 @@ newtype WorldCommonDelta = WorldCommonDelta
 	{ _delta :: WorldCommon
 	} deriving (Show)
 
-type ObjectWire = W.Wire (W.Timed W.NominalDiffTime ()) () WorldContext ObjectId ()
 
 makeLenses ''WorldManager
 makeLenses ''WorldCommonDelta
@@ -95,6 +107,8 @@ mergeCommonDelta wc2 = do
 		foldr (\(k, v) -> Map.alter (alterPos v) k) positions $
 			Map.toList (wc2^.wcPositions)
 
+	wcWires %= Map.unionWith (++) (wc2^.wcWires)
+
 instance Monoid WorldCommonDelta where
     mempty = WorldCommonDelta wcEmpty
     mappend (WorldCommonDelta wc1) (WorldCommonDelta wc2) = 
@@ -105,4 +119,34 @@ instance Monoid WorldDelta where
     mempty = WorldDelta mempty Map.empty
     mappend (WorldDelta wc1 obj1) (WorldDelta wc2 obj2) = 
         WorldDelta (wc1 `mappend` wc2) (obj1 `Map.union` obj2)
+
+worldManagerUpdate manager actions = manager2
+	where
+		manager0 = execState (do
+			mapM_ (\pId -> do
+				manager <- get
+				let (InputActions playerActions) = if Map.member pId (manager^.wmPlayerActions)
+					then (manager^.wmPlayerActions) Map.! pId
+					else mempty
+
+				wmPlayerActions %= \pa -> foldr (\action -> 
+						if action == ActionSpawnArrow || action == ActionStopMove 
+							then Map.delete pId
+							else id
+						) pa $ Set.toList playerActions 
+				) (map fst $ Map.toList $ manager^.wmPlayerActions)
+			) manager
+		manager2 = execState (do
+			mapM_ (\(pId, action) -> do
+					CM.unless (pId <= 0) $ do
+						manager <- get
+						let playerActions = if Map.member pId (manager^.wmPlayerActions)
+							then (manager^.wmPlayerActions) Map.! pId
+							else mempty
+
+						wmPlayerActions %= Map.insert pId (
+								playerActions `mappend` newInputAction action
+							)
+				) actions
+			) manager0
 

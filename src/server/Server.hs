@@ -93,19 +93,8 @@ produceWorld world manager w session = do
 	actions <- collect []
 	--lift $ print actions
 	--let playerId = fromJust $ world^.wPlayerId "Neira"
-	let manager2 = execState (do
-		mapM_ (\(pId, action) -> do
-				CM.unless (pId <= 0) $ do
-					manager <- State.get
-					let playerActions = if Map.member pId (manager^.wmPlayerActions)
-						then (manager^.wmPlayerActions) Map.! pId
-						else mempty
+	let manager2 = worldManagerUpdate manager actions
 
-					wmPlayerActions %= Map.insert pId (
-							playerActions `mappend` A.newInputAction action
-						)
-			) actions
-		) manager
 	--let manager2 = manager & wmPlayerActions %~	Map.insert playerId (A.newInputAction action)
 	-- run wires
 	--lift $ print "run main loop"
