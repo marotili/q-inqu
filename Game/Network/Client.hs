@@ -46,6 +46,7 @@ import Game.World.Objects
 import qualified Control.Monad.State as State
 import Game.World.Types
 import Game.World.Lens
+import Game.World
 import Game.World.Common
 type ProdDecoder a = (Monad m)	 
 	=> Producer B.ByteString m r
@@ -89,13 +90,15 @@ consumeClientWorld world manager w renderContextVar = do
 	let world' = applyDelta world delta
 	lift $ print ("Num wires", length $ Map.toList $ world'^.wCommon.wcWires)
 
-	let (Just pId) = fmap _objId (world'^.findObject "Neira")
-	let playerPos = world'^.objectPosition pId
-	--let playerGid = world'^.wObjectAnim pId.animTileGid
-	--let boulderPos = world'^.wBoulderPos "Boulder1"
+	--updateTiled
 
-	let (Just p2Id) = fmap _objId (world'^.findObject "TheGhost")
-	let player2Pos = world'^.objectPosition p2Id
+	--let (Just pId) = fmap _objId (world'^.findObject "Neira")
+	--let playerPos = world'^.objectPosition pId
+	----let playerGid = world'^.wObjectAnim pId.animTileGid
+	----let boulderPos = world'^.wBoulderPos "Boulder1"
+
+	--let (Just p2Id) = fmap _objId (world'^.findObject "TheGhost")
+	--let player2Pos = world'^.objectPosition p2Id
 	--let player2Gid = case world'^.wObjectAnim p2Id.animTileGid of
 	--	73 -> 137
 	--	74 -> 138
@@ -121,7 +124,9 @@ consumeClientWorld world manager w renderContextVar = do
 	lift $ atomically $ do
 		renderContext <- readTVar renderContextVar
 		let tm = renderContext^.rcWorldRenderContext.wrcMap.tiledMap
-		let newRenderContext = execState (do
+		let newTm = updateTiled world' delta tm
+		let newRenderContext = renderContext & tMap .~ newTm
+		--let newTM = execState (do
 				--mapM_ (\(obj, objGid, Just (x, y)) -> layerObj.layerObjects <>= 
 				--		[T.Object { _objectName=Just $ obj^.objName
 				--			   , _objectGid=Just (fromIntegral objGid)
@@ -131,20 +136,20 @@ consumeClientWorld world manager w renderContextVar = do
 				--			   , _objectHeight = Nothing
 				--			   }]
 				--	) $ zip3 newObjects objectGids objectPoss
-				case playerPos of
-					Just (px, py) -> do
-						tMap.object "Player1".objectPos tm .= (fromJust playerPos)
-						tMap.object "Player2".objectPos tm .= (fromJust player2Pos)
-						--tMap.object "Dino".objectPos tm .= (fromJust dinoPos)
-						--tMap.object "Bee".objectPos tm .= (fromJust beePos)
-						----tMap.object "Player1".objectX .= round px
-						----tMap.object "Player1".objectY .= round py
-						--tMap.object "Player1".objectGid .= Just (fromIntegral playerGid)
-						--tMap.object "Player2".objectGid .= Just (fromIntegral player2Gid)
-						--tMap.object "Dino".objectGid .= Just (fromIntegral dinoGid)
-						--tMap.object "Bee".objectGid .= Just (fromIntegral beeGid)
-					Nothing -> return ()
-			) renderContext
+			--	case playerPos of
+			--		Just (px, py) -> do
+			--			object "Player1".objectPos tm .= (fromJust playerPos)
+			--			object "Player2".objectPos tm .= (fromJust player2Pos)
+			--			--tMap.object "Dino".objectPos tm .= (fromJust dinoPos)
+			--			--tMap.object "Bee".objectPos tm .= (fromJust beePos)
+			--			----tMap.object "Player1".objectX .= round px
+			--			----tMap.object "Player1".objectY .= round py
+			--			--tMap.object "Player1".objectGid .= Just (fromIntegral playerGid)
+			--			--tMap.object "Player2".objectGid .= Just (fromIntegral player2Gid)
+			--			--tMap.object "Dino".objectGid .= Just (fromIntegral dinoGid)
+			--			--tMap.object "Bee".objectGid .= Just (fromIntegral beeGid)
+			--		Nothing -> return ()
+			--) tm
 		writeTVar renderContextVar newRenderContext
 
 

@@ -10,6 +10,7 @@ module Game.World
 
 	, newWorldFromTiled
 	, testwire
+	, updateTiled
 	) where
 
 import Debug.Trace
@@ -48,6 +49,32 @@ import Game.World.Types
 import Game.World.Delta
 import Game.World.Wires
 import Game.World.Common
+
+updateTiled :: World -> WorldDelta -> TiledMap -> TiledMap
+updateTiled world delta tiled = newTiled
+	where
+		newTiled = execState (do
+			case playerPos of
+				Just (px, py) -> do
+					object "Player1".objectPos tiled .= (fromJust playerPos)
+					object "Player2".objectPos tiled .= (fromJust player2Pos)
+				Nothing -> return ()
+			) tiled
+
+		(Just pId) = fmap _objId (world^.findObject "Neira")
+		playerPos = world^.objectPosition pId
+		--let playerGid = world'^.wObjectAnim pId.animTileGid
+		--let boulderPos = world'^.wBoulderPos "Boulder1"
+
+		(Just p2Id) = fmap _objId (world^.findObject "TheGhost")
+		player2Pos = world^.objectPosition p2Id
+
+		--layerObj :: Traversal' RenderContext Layer
+		--layerObj = mapLayers.traverse._ObjectLayer
+		--layerObj1 :: Traversal' RenderContext [Layer]
+		object name = mapLayers.traverse._ObjectLayer.layerObjects.traverse.objectsByName name
+
+
 
 newWorldFromTiled :: TiledMap -> IO (World, WorldManager) -- io due to debug wire
 newWorldFromTiled tiledMap = do
