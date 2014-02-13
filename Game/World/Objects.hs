@@ -83,8 +83,8 @@ instance Eq Animation where
 arrowAnim = a1
 	where
 		a1 = Animation 200 113 4 a1 0
-defaultCharacterAnim :: (Float, Float) -> Animation
-defaultCharacterAnim (dx, dy) 
+defaultCharacterAnim1 :: (Float, Float) -> Animation
+defaultCharacterAnim1 (dx, dy) 
 	| dy > 0.5 = a1 
 	| dy < -0.5 = b1
 	| dx > 0.5 = c1
@@ -110,6 +110,34 @@ defaultCharacterAnim (dx, dy)
         d2 = Animation 4 102 0.25 d3 0
         d3 = Animation 4 103 0.25 d4 0
         d4 = Animation 4 104 0.25 d1 0
+
+defaultCharacterAnim2 :: (Float, Float) -> Animation
+defaultCharacterAnim2 (dx, dy) 
+    | dy > 0.5 = a1 
+    | dy < -0.5 = b1
+    | dx > 0.5 = c1
+    | dx < -0.5 = d1
+    | otherwise = a1
+    where
+        a1 = Animation 7 137 0.25 a2 0 
+        a2 = Animation 7 138 0.25 a3 0
+        a3 = Animation 7 139 0.25 a4 0
+        a4 = Animation 7 140 0.25 a1 0
+
+        b1 = Animation 8 141 0.25 b2 0
+        b2 = Animation 8 142 0.25 b3 0
+        b3 = Animation 8 143 0.25 b4 0
+        b4 = Animation 8 144 0.25 b1 0
+
+        c1 = Animation 9 145 0.25 c2 0
+        c2 = Animation 9 146 0.25 c3 0
+        c3 = Animation 9 147 0.25 c4 0
+        c4 = Animation 9 148 0.25 c1 0
+
+        d1 = Animation 10 149 0.25 d2 0
+        d2 = Animation 10 150 0.25 d3 0
+        d3 = Animation 10 151 0.25 d4 0
+        d4 = Animation 10 152 0.25 d1 0
 
 dinoAnim = a1
     where

@@ -99,6 +99,15 @@ addObject oId obj = writeProp setObjects oId (Just obj)
 deleteObject :: (MonadWriter WorldDelta m) => ObjectId -> m ()
 deleteObject oId = writeProp setObjects oId Nothing
 
+newObjects :: Getter WorldDelta [Object]
+newObjects = to getNew
+    where
+        getNew wd = newObjects (wd^.wdObjects)
+        -- new objects are inserted into the map with Just
+        newObjects objectMap = map fromJust . 
+            filter (\mobj -> case mobj of Just obj -> True; _ -> False) $
+            map snd $ Map.toList objectMap
+
 newtype One a = One { unOne :: Maybe a }
 instance Monoid (One a) where
     mempty = One Nothing

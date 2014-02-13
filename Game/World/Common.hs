@@ -27,7 +27,8 @@ data WorldCommon = WorldCommon
 
 instance Show WorldCommon where
 	show wc = "WorldCommon{\n" ++
-		"wcPositions = " ++ show (_wcPositions wc) ++ "\n" ++
+		"\twcPositions = " ++ show (_wcPositions wc) ++ "\n" ++
+		"\twcAnimations = " ++ show (_wcAnimations wc) ++ "\n" ++
 		"}\n"
 
 --type WorldContext = RWS World WorldDelta WorldManager
@@ -108,6 +109,8 @@ mergeCommonDelta wc2 = do
 			Map.toList (wc2^.wcPositions)
 
 	wcWires %= Map.unionWith (++) (wc2^.wcWires)
+
+	wcAnimations %= \oldAnim -> Map.union (wc2^.wcAnimations) oldAnim -- left biased
 
 instance Monoid WorldCommonDelta where
     mempty = WorldCommonDelta wcEmpty

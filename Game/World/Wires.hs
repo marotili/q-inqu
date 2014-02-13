@@ -116,6 +116,12 @@ spawnObject name = mkGenN $ \_ -> do
 	World.addObject oId (Object oId name)
 	return (Right (W.Event oId), never)
 
+spawnObjectMakeName :: WorldWire a (Event ObjectId)
+spawnObjectMakeName = mkGenN $ \_ -> do
+	oId <- newObject
+	World.addObject oId (Object oId (show oId))
+	return (Right (W.Event oId), never)
+
 spawnObjectAt :: String -> (Float, Float) -> WorldWire a ObjectId
 spawnObjectAt name pos = proc input -> do
 	W.Event oId <- spawnObject name -< input
@@ -145,13 +151,11 @@ while = W.when (\a ->
 spawnArrowEvent :: WorldWire PlayerId (Event ())
 spawnArrowEvent = mkGenN $ \pId -> do
 	actions <- get >>= \wm -> return $ wm^.wmPlayerActions
-	lift $ print "Maybe spawn arrow"
 	if Map.member pId actions
 		then do
 			let (A.InputActions playerActions) = actions Map.! pId
 			if Set.member A.ActionSpawnArrow playerActions
 				then do
-					lift $ print "Spawn arrow"
 					return (Right $ W.Event (), spawnArrowEvent)
 				else
 					return (Right W.NoEvent, spawnArrowEvent)

@@ -175,7 +175,7 @@ main = withSocketsDo $ do
 
           a1 <- async $ do
             (world, manager) <- newWorldFromTiled tiledMap
-            runEffect $ decodeSteps fromServer >-> consumeClientWorld world manager testwire renderContext
+            runEffect $ decodeSteps fromServer >-> consumeClientWorld world manager testwire renderContext []
             performGC
 
           let 

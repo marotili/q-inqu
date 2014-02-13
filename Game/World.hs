@@ -11,6 +11,9 @@ module Game.World
 	, newWorldFromTiled
 	, testwire
 	, updateTiled
+	, newRenderObjects
+	, update
+	, Renderable
 	) where
 
 import Debug.Trace
@@ -39,6 +42,7 @@ import qualified Control.Lens as L
 import Game.World.Objects
 import Game.Collision
 
+import qualified Data.Tiled as T
 import Data.Tiled
 import Game.World.Import.Tiled
 
@@ -49,32 +53,91 @@ import Game.World.Types
 import Game.World.Delta
 import Game.World.Wires
 import Game.World.Common
+import qualified Game.World.Objects as World
+
+import Debug.Trace
+
+whenMaybeDo :: (Monad m) => Maybe a -> (a -> m ()) -> m ()
+whenMaybeDo m f = 
+	case m of
+		Just v -> f v
+		Nothing -> return ()
+
+type Renderer = RWST (World, WorldDelta, [Renderable]) [Renderable] TiledMap IO
+
+newRenderObjects :: Renderer ()
+newRenderObjects = do
+	(world, delta, _) <- ask
+
+	let newObjects' = delta^.newObjects
+	let objectGids = [world^?getAnimations. L.at (o^.objId)._Just.animTileGid | o <- newObjects']
+	let objectPoss = [world^?getPositions. L.at (o^.objId)._Just | o <- newObjects']
+
+	mapM_ (\(obj, objGid, pos) -> do
+			layerObj.layerObjects <>= buildObject objGid obj pos
+			writer ((), [obj])
+		) $ zip3 newObjects' objectGids objectPoss
+
+	where
+		buildObject objGid obj mpos = ifPosObj
+			where
+				ifPosObj = case mpos of
+					Just pos -> case objGid of 
+						Just gid -> object gid
+						Nothing -> object 1
+					Nothing -> []
+				object objGid = [T.Object { _objectName= Just $ obj^.objName
+							   , _objectGid= Just (fromIntegral objGid)
+							   , _objectX = fromIntegral . round $ fst . fromJust $ mpos
+							   , _objectY = fromIntegral . round $ snd . fromJust $ mpos
+							   , _objectWidth = Nothing
+							   , _objectHeight = Nothing
+							   }]
+
+update :: Renderer ()
+update = do
+	(world, delta, renderables) <- ask
+	mapM_ (\obj -> do
+			let oId = obj^.objId 
+			--let Just oId = fmap _objId (world^.findObject (obj^.))
+			let Just oPos = world^.objectPosition oId
+			let oGid = world^?getAnimations. L.at oId._Just.animTileGid
+
+			tiledMap <- get
+			tiledObject (obj^.objName).objectPos tiledMap .= oPos
+			whenMaybeDo oGid (\gid -> 
+				tiledObject (obj^.objName).objectGid .= Just (fromIntegral gid))
+		) renderables
 
 updateTiled :: World -> WorldDelta -> TiledMap -> TiledMap
 updateTiled world delta tiled = newTiled
 	where
 		newTiled = execState (do
-			case playerPos of
-				Just (px, py) -> do
-					object "Player1".objectPos tiled .= (fromJust playerPos)
-					object "Player2".objectPos tiled .= (fromJust player2Pos)
-				Nothing -> return ()
+				tiledObject "Player1".objectPos tiled .= playerPos
+				tiledObject "Player2".objectPos tiled .= player2Pos
+				whenMaybeDo playerGid (\gid -> 
+					tiledObject "Player1".objectGid .= Just (fromIntegral gid))
+
+				whenMaybeDo player2Gid (\gid -> 
+					tiledObject "Player2".objectGid .= Just (fromIntegral gid))
 			) tiled
 
-		(Just pId) = fmap _objId (world^.findObject "Neira")
-		playerPos = world^.objectPosition pId
-		--let playerGid = world'^.wObjectAnim pId.animTileGid
+
+		Just pId = fmap _objId (world^.findObject "Neira")
+		Just playerPos = world^.objectPosition pId
+		playerGid = world^?getAnimations. L.at pId._Just.animTileGid
 		--let boulderPos = world'^.wBoulderPos "Boulder1"
 
-		(Just p2Id) = fmap _objId (world^.findObject "TheGhost")
-		player2Pos = world^.objectPosition p2Id
+		Just p2Id = fmap _objId (world^.findObject "TheGhost")
+		Just player2Pos = world^.objectPosition p2Id
+		player2Gid = world^?getAnimations. L.at p2Id._Just.animTileGid
 
-		--layerObj :: Traversal' RenderContext Layer
-		--layerObj = mapLayers.traverse._ObjectLayer
-		--layerObj1 :: Traversal' RenderContext [Layer]
-		object name = mapLayers.traverse._ObjectLayer.layerObjects.traverse.objectsByName name
+layerObj :: Traversal' TiledMap Layer
+layerObj = mapLayers.traverse._ObjectLayer
+--layerObj1 :: Traversal' RenderContext [Layer]
+tiledObject name = mapLayers.traverse._ObjectLayer.layerObjects.traverse.objectsByName name
 
-
+type Renderable = World.Object
 
 newWorldFromTiled :: TiledMap -> IO (World, WorldManager) -- io due to debug wire
 newWorldFromTiled tiledMap = do
@@ -130,41 +193,6 @@ newWorldFromTiled tiledMap = do
 
 			returnA -< ()
 
---applyDelta :: World -> WorldDelta -> World
---applyDelta w wd = w --collisions
-	--where
-	--	newWalls = w { _wWalls = foldr (\d -> Map.insert (wallId d) d) (_wWalls w) (_wdWallsAdd wd) }
-	--	newObjects = newWalls & wObjects .~ foldr (\o -> Map.insert (o^.objId) o) (w^.wObjects) (wd^.wdObjectsAdd)
-	--	newPlayers = newObjects { _wPlayers = foldr (\p -> Map.insert (playerId p) p) (_wPlayers newObjects) (_wdPlayerAdd wd) }
-	--	newBoulders = newPlayers & wBoulders %~ (\boulderMap-> foldr (\b -> Map.insert (boulderId b) b) boulderMap (wd^.wdBouldersAdd))
-	--	positions = newBoulders { _wPositions = foldr (\(k, v) m -> Map.alter (alterPos v) k m) (_wPositions newBoulders) (Map.toList . deltaPos . _wdPositionsDelta $ wd) }
-		
-	--	physics = positions & wPhysics %~ (\physicsMap -> foldr (\(k, v) -> Map.alter (alterPhysics v) k) physicsMap (Map.toList . containerData $ wd^.wdPhysicsDelta))
-	--	--positions2 = positions & wPositions = foldr (\objectPhysics ->
-	--		--Map.alter (alterPos ))
-	--	collidables = physics { _wCollisionManager = execState (do
-	--			mapM_ cmAddStatic [newCollidable oId (newBoundary (objectPos oId) (w^.wTileBoundary._1)) | oId <- map wallId (_wdWallsAdd wd)]
-	--			mapM_ cmAddFloating [newCollidable oId (newBoundary (objectPos oId) (w^.wTileBoundary._1)) | oId <- map playerId (_wdPlayerAdd wd)]
-	--		) (_wCollisionManager physics) }
-	--	floatingCollidables = collidables { _wCollisionManager = execState (
-	--			mapM_ ((\oId -> cmUpdateFloating oId (objectPos oId)) . fst) (Map.toList (deltaPos $ wd^.wdPositionsDelta))
-	--		) (_wCollisionManager collidables) }
-
-	--	anims = floatingCollidables & wAnimations .~ Map.union (wd^.wdAnimations) (w^.wAnimations) -- left-biased
-	--	cb = anims & wCollisionCallbacks .~ Map.union (wd^.wdCollisionCallbacks) (anims^.wCollisionCallbacks)
-
-	--	collisionEvents = cb & wCollisionEvents .~ foldr (\(k, v) m -> Map.alter (colAdd [v]) k m) Map.empty (wd^.wdCollisionEvents) 
-
-
-	--	-- overwrite old ones
-	--	collisions = collisionEvents { _wCurrentCollisions = containerData $ wd^.wdCollisions }
-
-	--	objectPos oId = (positions ^. wPositions) Map.! oId
-
-	--	alterPhysics op Nothing = Just op
-	--	alterPhysics (ObjectPhysics a1 v1) (Just (ObjectPhysics a2 v2)) = Just $ ObjectPhysics a1 (v1 `mappend` v2)
-	--	--doorControllers = positions { wDoorControllers = foldr (\dc -> Map.insert (doorControllerId dc) dc) (wDoorControllers positions) (wdDoorControllers wd) }
-
 moveArrow = proc oId -> do
 	_ <- move (0, 100) . for 2 -< oId
 	returnA -< ()
@@ -172,7 +200,9 @@ moveArrow = proc oId -> do
 spawnArrow = spawn . thenDo (inhibit WireFinished)
 	where
 		spawn = proc input -> do	
-			oId <- spawnObjectAt "Arrow" (50, 50) -< input
+			Event oId <- spawnObjectMakeName -< input
+			_ <- move (50, 50) -< oId
+			_ <- animate arrowAnim -< oId
 			_ <- newObjectWireR moveArrow -< oId
 			returnA -< ()
 
@@ -188,6 +218,10 @@ playerMovement = untilV movingDirectionE
 		move = proc pId -> do
 			(dx, dy) <- movingDirectionR -< pId
 			_ <- moveR -< (pId, (-dx*200, dy*200))
+			let anim = if pId == 1 
+				then defaultCharacterAnim1 (dx, dy)
+				else defaultCharacterAnim2 (dx, dy)
+			_ <- animateR -< (anim, pId)
 			returnA -< ()
 
 playerWire :: ObjectWire ObjectId ()
@@ -201,37 +235,9 @@ testwire = proc input -> do
 	_ <- stepObjectWires -< input
 	_ <- once . newObjectWire 1 playerWire -< input
 	_ <- once . newObjectWire 2 playerWire -< input
-	--_ <- deaccelObjects -< input
-	--_ <- moveObjects -< input
 
-	--playerId <- player "Neira" -< input
-	--player2Id <- player "TheGhost" -< input
-	--dinoId <- player "Dino" -< input
-	--beeId <- player "Bee" -< input
-	--boulderId <- boulder "Boulder1" -< input
-
-	--_ <- movement -< playerId
-	--_ <- movement -< player2Id
-
-	--_ <- animate dinoAnim -< dinoId
-	--Just (x, y) <- liftW $ asks (\w -> w^.wPlayerPos "Neira") -< input
-	--Just (x', y') <- liftW $ asks (\w -> w^.wPlayerPos "Dino") -< input
-	--_ <- moveObjectR -< (dinoId, (userSpeed / 1.5 * norm (x - x'), userSpeed / 1.5 * norm (y - y')))
-
-	--_ <- liftW $ deltaSetCollisionCb (\oId w -> w) 1 -< input
-
-	--_ <- void (for 1) W.--> animate beeAnim -< beeId
-
-	--_ <- colLoop -< playerId
-
-	--_ <- spawnArrow -< playerId
-	--_ <- playerWire -< 1
 	returnA -< ()
-	where
-		--movement = W.until . (fmap (\e ->  ((), e))) movingDirectionR 
-		--	W.--> playerMovement 
-		--	W.--> inhibit () . playerResetAnimation
-		--	W.--> movement
+
 
 worldLoop w' session' world' state' = do
 	(dt, session) <- stepSession session'

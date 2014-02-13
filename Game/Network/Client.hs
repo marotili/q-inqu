@@ -75,8 +75,9 @@ consumeClientWorld ::
 	-> WorldManager 
 	-> WorldWire () b 
 	-> TVar RenderContext
+	-> [Renderable]
 	-> Consumer (ByteOffset, ([(Int, A.Action)], Rational)) IO r
-consumeClientWorld world manager w renderContextVar = do
+consumeClientWorld world manager w renderContextVar renderablesIn = do
 	-- run wires
 	(_, (actions, dt)) <- await
 
@@ -90,71 +91,27 @@ consumeClientWorld world manager w renderContextVar = do
 	let world' = applyDelta world delta
 	lift $ print ("Num wires", length $ Map.toList $ world'^.wCommon.wcWires)
 
-	--updateTiled
+	renderContext <- lift $ atomically $ do
+		readTVar renderContextVar
 
-	--let (Just pId) = fmap _objId (world'^.findObject "Neira")
-	--let playerPos = world'^.objectPosition pId
-	----let playerGid = world'^.wObjectAnim pId.animTileGid
-	----let boulderPos = world'^.wBoulderPos "Boulder1"
+	let tm = renderContext^.rcWorldRenderContext.wrcMap.tiledMap
+	let newTm = updateTiled world' delta tm
 
-	--let (Just p2Id) = fmap _objId (world'^.findObject "TheGhost")
-	--let player2Pos = world'^.objectPosition p2Id
-	--let player2Gid = case world'^.wObjectAnim p2Id.animTileGid of
-	--	73 -> 137
-	--	74 -> 138
-	--	75 -> 139
-	--	76 -> 140
-	--	x -> x
+	(_, newTm2, newRenderables) <- lift $ runRWST (do
+			newRenderObjects
+		) (world', delta, renderablesIn) newTm
 
-	--let (Just dinoId) = world'^.wPlayerId "Dino"
-	--let (Just beeId) = world'^.wPlayerId "Bee"
-	--let dinoPos = world'^.wPlayerPos "Dino"
-	--let beePos = world'^.wPlayerPos "Bee"
-	--let dinoGid = world'^.wObjectAnim dinoId.animTileGid
-	--let beeGid = world'^.wObjectAnim beeId.animTileGid
+	(_, newTm3, _) <- lift $ runRWST (do
+			update
+		) (world', delta, renderablesIn ++ newRenderables) newTm2
 
-	--let newObjects = delta^.wdObjectsAdd
-	--let objectGids = [world'^.wObjectAnim (o^.objId).animTileGid | o <- newObjects]
-	--let objectPoss = [world'^.wObjectPos' (o^.objId) | o <- newObjects]
-
-	----lift $ print playerPos
-	----lift $ print $ world'^.wAnimations
-	----lift $ print $ delta^.wdAnimations
+	let newRenderContext = renderContext & tMap .~ newTm3
 
 	lift $ atomically $ do
-		renderContext <- readTVar renderContextVar
-		let tm = renderContext^.rcWorldRenderContext.wrcMap.tiledMap
-		let newTm = updateTiled world' delta tm
-		let newRenderContext = renderContext & tMap .~ newTm
-		--let newTM = execState (do
-				--mapM_ (\(obj, objGid, Just (x, y)) -> layerObj.layerObjects <>= 
-				--		[T.Object { _objectName=Just $ obj^.objName
-				--			   , _objectGid=Just (fromIntegral objGid)
-				--			   , _objectX = fromIntegral . round $ x
-				--			   , _objectY = fromIntegral . round $ y
-				--			   , _objectWidth = Nothing
-				--			   , _objectHeight = Nothing
-				--			   }]
-				--	) $ zip3 newObjects objectGids objectPoss
-			--	case playerPos of
-			--		Just (px, py) -> do
-			--			object "Player1".objectPos tm .= (fromJust playerPos)
-			--			object "Player2".objectPos tm .= (fromJust player2Pos)
-			--			--tMap.object "Dino".objectPos tm .= (fromJust dinoPos)
-			--			--tMap.object "Bee".objectPos tm .= (fromJust beePos)
-			--			----tMap.object "Player1".objectX .= round px
-			--			----tMap.object "Player1".objectY .= round py
-			--			--tMap.object "Player1".objectGid .= Just (fromIntegral playerGid)
-			--			--tMap.object "Player2".objectGid .= Just (fromIntegral player2Gid)
-			--			--tMap.object "Dino".objectGid .= Just (fromIntegral dinoGid)
-			--			--tMap.object "Bee".objectGid .= Just (fromIntegral beeGid)
-			--		Nothing -> return ()
-			--) tm
 		writeTVar renderContextVar newRenderContext
 
-
 	-- repeat
-	consumeClientWorld world' manager' w' renderContextVar
+	consumeClientWorld world' manager' w' renderContextVar (newRenderables ++ renderablesIn)
 
 	where
 		tMap :: Traversal' RenderContext TiledMap
