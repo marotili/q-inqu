@@ -40,6 +40,7 @@ library
         Game.World.Delta
         Game.World.Common
         Game.World.Wires
+        Game.World.Lens
 
         Game.Network.Common
         Game.Network.Client

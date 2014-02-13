@@ -25,41 +25,18 @@ layout(std140) uniform LayerData {
 
 struct TileSet {
 	int firstgid;
-	int pad0;
-	int pad1;
-	int pad2;
 	int imageWidth;
-	int pad3;
-	int pad4;
-	int pad5;
 	int imageHeight;
-	int pad6;
-	int pad7;
-	int pad8;
 	int spacing;
-	int pad9;
-	int pad10;
-	int pad11;
 	int margin;
-	int pad12;
-	int pad13;
-	int pad14;
 	int tileWidth;
-	int pad15;
-	int pad16;
-	int pad17;
 	int tileHeight;
-	int pad18;
-	int pad19;
-	int pad20;
 	int tilesetImage;
-	int pad21;
-	int pad22;
-	int pad23;
-	// int padding[8];
+	ivec4 padding0;
+	ivec4 padding1;
 };
 
-layout(shared) uniform TileSets {
+layout(std140) uniform TileSets {
 	TileSet tileSets[10];
 };
 

@@ -8,6 +8,8 @@ import Game.Collision
 import qualified Data.Map as Map
 import Control.Lens
 import Game.Input.Actions
+import Control.Monad.State
+import Data.Monoid
 
 type ObjectProp a = Map.Map ObjectId a
 type Position = (Float, Float)
@@ -20,8 +22,11 @@ data WorldCommon = WorldCommon
 	, _wcCollisions :: ObjectProp [ObjectId]
 	, _wcWires :: ObjectProp [ObjectWire]
 	}
+
 instance Show WorldCommon where
-	show _ = "WorldCommon"
+	show wc = "WorldCommon{\n" ++
+		"wcPositions = " ++ show (_wcPositions wc) ++ "\n" ++
+		"}\n"
 
 --type WorldContext = RWS World WorldDelta WorldManager
 type DebugWorldContext = RWST World WorldDelta WorldManager IO
@@ -80,3 +85,24 @@ makeLenses ''WorldCommonDelta
 makeLenses ''WorldCommon
 makeLenses ''World
 makeLenses ''WorldDelta
+
+alterPos val Nothing = Just val
+alterPos (x, y) (Just (x', y')) = Just $ (x+x', y+y')
+
+mergeCommonDelta :: WorldCommon -> State WorldCommon ()
+mergeCommonDelta wc2 = do
+	wcPositions %= \positions ->
+		foldr (\(k, v) -> Map.alter (alterPos v) k) positions $
+			Map.toList (wc2^.wcPositions)
+
+instance Monoid WorldCommonDelta where
+    mempty = WorldCommonDelta wcEmpty
+    mappend (WorldCommonDelta wc1) (WorldCommonDelta wc2) = 
+        WorldCommonDelta (execState (mergeCommonDelta wc2) wc1)
+
+-- * World delta
+instance Monoid WorldDelta where
+    mempty = WorldDelta mempty Map.empty
+    mappend (WorldDelta wc1 obj1) (WorldDelta wc2 obj2) = 
+        WorldDelta (wc1 `mappend` wc2) (obj1 `Map.union` obj2)
+

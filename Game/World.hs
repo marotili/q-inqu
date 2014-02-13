@@ -14,7 +14,7 @@ module Game.World
 
 import Debug.Trace
 import Control.Concurrent
-
+import Game.World.Lens
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Control.Monad.RWS
@@ -58,7 +58,10 @@ newWorldFromTiled tiledMap = do
 			stepWire initWire (Timed 0 ()) (Right ())
 		) world emptyWM
 
+	--print worldDelta
+
 	let world' = applyDelta world worldDelta
+	--print world'
 	return (world', worldManager)
 
 	where
@@ -100,8 +103,8 @@ newWorldFromTiled tiledMap = do
 
 			returnA -< ()
 
-applyDelta :: World -> WorldDelta -> World
-applyDelta w wd = w --collisions
+--applyDelta :: World -> WorldDelta -> World
+--applyDelta w wd = w --collisions
 	--where
 	--	newWalls = w { _wWalls = foldr (\d -> Map.insert (wallId d) d) (_wWalls w) (_wdWallsAdd wd) }
 	--	newObjects = newWalls & wObjects .~ foldr (\o -> Map.insert (o^.objId) o) (w^.wObjects) (wd^.wdObjectsAdd)
@@ -135,6 +138,10 @@ applyDelta w wd = w --collisions
 	--	alterPhysics (ObjectPhysics a1 v1) (Just (ObjectPhysics a2 v2)) = Just $ ObjectPhysics a1 (v1 `mappend` v2)
 	--	--doorControllers = positions { wDoorControllers = foldr (\dc -> Map.insert (doorControllerId dc) dc) (wDoorControllers positions) (wdDoorControllers wd) }
 
+playerWire = proc pId -> do
+	(dx, dy) <- movingDirectionR -< pId
+	_ <- moveR -< (pId, (dx*200, dy*200))
+	returnA -< ()
 
 testwire :: WorldWire a ()
 testwire = proc input -> do
@@ -162,7 +169,7 @@ testwire = proc input -> do
 	--_ <- colLoop -< playerId
 
 	--_ <- spawnArrow -< playerId
-
+	_ <- playerWire -< 1
 	returnA -< ()
 	where
 		--movement = W.until . (fmap (\e ->  ((), e))) movingDirectionR 

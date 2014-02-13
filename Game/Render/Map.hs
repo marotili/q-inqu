@@ -188,26 +188,23 @@ numObjects Layer { _layerData } = length $ Map.toList _layerData
 tileSetData :: Map -> V.Vector Int32
 tileSetData Map { _tiledMap } = V.fromList . map fromIntegral $ 
 		concatMap (\(tileset, i) -> map (\f -> f tileset) (getters i)) (zip (_tiledMap^.mapTilesets) [0..])
+		++ padding
 	where
+		padding = concat [[0, 0, 0, 0,
+							 0, 0, 0, 0,
+							 0, 0, 0, 0,
+							 0, 0, 0, 0] | _ <- [0..10 - length (_tiledMap^.mapTilesets)- 1]]
 		getters :: Int -> [Data.Tiled.Tileset -> Int]
 		getters i = 
 			[ fromIntegral . _tsInitialGid
-			, const 0, const 0, const 0
 			, _iWidth . head . _tsImages
-			, const 0, const 0, const 0
 			, _iHeight . head . _tsImages
-			, const 0, const 0, const 0
 			, _tsSpacing
-			, const 0, const 0, const 0
 			, _tsMargin
-			, const 0, const 0, const 0
 			, _tsTileWidth
-			, const 0, const 0, const 0
 			, _tsTileHeight
-			, const 0, const 0, const 0
 			, const i
-			, const 0, const 0, const 0
-			]
+			] ++ fmap const [0, 0, 0, 0, 0, 0, 0, 0]
 
 updateWorldRenderContext :: WorldRenderContext -> IO ()
 updateWorldRenderContext wrc =

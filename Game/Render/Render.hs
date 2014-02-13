@@ -91,7 +91,7 @@ emptyInfo = UniformInfo "" 0 0 0 0
 
 makeLenses ''UniformInfo
 
-uniformInfo :: Program -> IO ()
+uniformInfo :: Program -> IO [UniformInfo]
 uniformInfo p = do
     numActiveUniforms <- alloca $ \buf -> do
          glGetProgramiv (programID p) gl_ACTIVE_UNIFORMS buf
@@ -151,3 +151,5 @@ uniformInfo p = do
     mapM_ free ptrs
     free bufPtr
     free indicesPtr
+
+    return uniformData''

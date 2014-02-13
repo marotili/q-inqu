@@ -91,7 +91,7 @@ produceWorld :: World -> WorldManager -> WorldWire () b -> WorldSession ->
 produceWorld world manager w session = do
 	--(t, action) <- P.await
 	actions <- collect []
-	lift $ print actions
+	--lift $ print actions
 	--let playerId = fromJust $ world^.wPlayerId "Neira"
 	let manager2 = execState (do
 		mapM_ (\(pId, action) -> do
@@ -108,10 +108,10 @@ produceWorld world manager w session = do
 		) manager
 	--let manager2 = manager & wmPlayerActions %~	Map.insert playerId (A.newInputAction action)
 	-- run wires
-	lift $ print "run main loop"
-	lift $ print manager2
+	--lift $ print "run main loop"
+	--lift $ print manager2
 	((w', session'), (manager', delta), dt) <- lift $ stepWorld w session world manager2
-	lift $ print "update clients"
+	--lift $ print "update clients"
 	-- update our world state
 	let world' = applyDelta world delta
 	--lift $ print world'
@@ -120,7 +120,7 @@ produceWorld world manager w session = do
 	--lift $ print world'
 
 	-- Send to user
-	lift $ print actions
+	--lift $ print actions
 	P.yield (actions, realToFrac dt)
 
 	-- wait
@@ -188,7 +188,7 @@ main = withSocketsDo $ do
 forward :: Pipe (PB.ByteOffset, (Float, Int, A.Action)) (Float, Int, A.Action) IO ()
 forward = do
 	(off, d@(dt, pId, actions)) <- P.await
-	lift $ print (off, d)
+	--lift $ print (off, d)
 	CM.unless (off < 0) $ do
 		P.yield d
 		forward
@@ -197,7 +197,7 @@ forward = do
 	-- -> (Socket, SockAddr) 
 	-- -> IO ()
 connCb (numClient, sendEvents, input1, input2) (sock, addr) = do
-	print "Server info: player joined"
+	--print "Server info: player joined"
 	cl <- atomically $ do
 		n <- readTVar numClient
 		if n == 2 then
@@ -212,9 +212,9 @@ connCb (numClient, sendEvents, input1, input2) (sock, addr) = do
 	CM.unless (cl == -1) $ do
 		let toClient = toSocket sock
 		let toClientFirst = toSocket sock
-		print "Send player id"
+		--print "Send player id"
 		runEffect $ PB.encode cl >-> toClientFirst
-		print "Sent player id"
+		--print "Sent player id"
 
 		let fromClient = fromSocket sock 4096
 		let
@@ -237,7 +237,7 @@ connCb (numClient, sendEvents, input1, input2) (sock, addr) = do
 			runEffect $ testX >-> forward >-> toOutput sendEvents
 			performGC
 
-		print "Wait for quit"
+		--print "Wait for quit"
 
 		mapM_ wait [a2]
 
@@ -248,4 +248,4 @@ connCb (numClient, sendEvents, input1, input2) (sock, addr) = do
 
 		return ()
 
-	print ("Server info: player left", cl)
+	--print ("Server info: player left", cl)

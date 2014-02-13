@@ -45,6 +45,7 @@ import Game.World.Delta
 import Game.World.Objects
 import qualified Control.Monad.State as State
 import Game.World.Types
+import Game.World.Lens
 import Game.World.Common
 type ProdDecoder a = (Monad m)	 
 	=> Producer B.ByteString m r
@@ -93,15 +94,15 @@ consumeClientWorld world manager w renderContextVar = do
 			) actions
 		) manager
 
-	lift $ print manager2
 
 	(w', (manager', delta)) <- lift $ clientStepWorld w world manager2 dt
+	lift $ print delta
 
 	 --update our world state
 	let world' = applyDelta world delta
 
-	--let (Just pId) = world'^.wPlayerId "Neira"
-	--let playerPos = world'^.wPlayerPos "Neira"
+	let (Just pId) = fmap _objId (world'^.findObject "Neira")
+	let playerPos = world'^.objectPosition pId
 	--let playerGid = world'^.wObjectAnim pId.animTileGid
 	--let boulderPos = world'^.wBoulderPos "Boulder1"
 
@@ -129,38 +130,34 @@ consumeClientWorld world manager w renderContextVar = do
 	----lift $ print $ world'^.wAnimations
 	----lift $ print $ delta^.wdAnimations
 
-	--lift $ atomically $ do
-	--	renderContext <- readTVar renderContextVar
-	--	let tm = renderContext^.rcWorldRenderContext.wrcMap.tiledMap
-	--	let newRenderContext = execState (do
-	--			mapM_ (\(obj, objGid, Just (x, y)) -> layerObj.layerObjects <>= 
-	--					[T.Object { _objectName=Just $ obj^.objName
-	--						   , _objectGid=Just (fromIntegral objGid)
-	--						   , _objectX = fromIntegral . round $ x
-	--						   , _objectY = fromIntegral . round $ y
-	--						   , _objectWidth = Nothing
-	--						   , _objectHeight = Nothing
-	--						   }]
-	--				) $ zip3 newObjects objectGids objectPoss
-	--			case playerPos of
-	--				Just (px, py) -> do
-	--					tMap.object "Player1".objectPos tm .= (fromJust playerPos)
-	--					tMap.object "Player2".objectPos tm .= (fromJust player2Pos)
-	--					tMap.object "Dino".objectPos tm .= (fromJust dinoPos)
-	--					tMap.object "Bee".objectPos tm .= (fromJust beePos)
-	--					--tMap.object "Player1".objectX .= round px
-	--					--tMap.object "Player1".objectY .= round py
-	--					tMap.object "Player1".objectGid .= Just (fromIntegral playerGid)
-	--					tMap.object "Player2".objectGid .= Just (fromIntegral player2Gid)
-	--					tMap.object "Dino".objectGid .= Just (fromIntegral dinoGid)
-	--					tMap.object "Bee".objectGid .= Just (fromIntegral beeGid)
-	--				Nothing -> return ()
-	--			case boulderPos of
-	--				Just (px, py) ->
-	--					tMap.object "Boulder1".objectPos tm .= (px, py)
-	--				Nothing -> return ()
-	--		) renderContext
-	--	writeTVar renderContextVar newRenderContext
+	lift $ atomically $ do
+		renderContext <- readTVar renderContextVar
+		let tm = renderContext^.rcWorldRenderContext.wrcMap.tiledMap
+		let newRenderContext = execState (do
+				--mapM_ (\(obj, objGid, Just (x, y)) -> layerObj.layerObjects <>= 
+				--		[T.Object { _objectName=Just $ obj^.objName
+				--			   , _objectGid=Just (fromIntegral objGid)
+				--			   , _objectX = fromIntegral . round $ x
+				--			   , _objectY = fromIntegral . round $ y
+				--			   , _objectWidth = Nothing
+				--			   , _objectHeight = Nothing
+				--			   }]
+				--	) $ zip3 newObjects objectGids objectPoss
+				case playerPos of
+					Just (px, py) -> do
+						tMap.object "Player1".objectPos tm .= (fromJust playerPos)
+						--tMap.object "Player2".objectPos tm .= (fromJust player2Pos)
+						--tMap.object "Dino".objectPos tm .= (fromJust dinoPos)
+						--tMap.object "Bee".objectPos tm .= (fromJust beePos)
+						----tMap.object "Player1".objectX .= round px
+						----tMap.object "Player1".objectY .= round py
+						--tMap.object "Player1".objectGid .= Just (fromIntegral playerGid)
+						--tMap.object "Player2".objectGid .= Just (fromIntegral player2Gid)
+						--tMap.object "Dino".objectGid .= Just (fromIntegral dinoGid)
+						--tMap.object "Bee".objectGid .= Just (fromIntegral beeGid)
+					Nothing -> return ()
+			) renderContext
+		writeTVar renderContextVar newRenderContext
 
 
 	-- repeat

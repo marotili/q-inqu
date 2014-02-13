@@ -1,9 +1,9 @@
-{-# LANGUAGE FlexibleContexts, Rank2Types #-}
+{-# LANGUAGE FlexibleContexts, Arrows, Rank2Types #-}
 module Game.World.Wires where
 
 import qualified Data.Map as Map
 import Game.World.Objects
-import qualified Game.World.Delta as World
+import qualified Game.World.Lens as World
 import Data.Monoid
 import Control.Monad.Writer
 import Control.Monad.RWS
@@ -18,6 +18,7 @@ import Control.Wire
 import qualified Control.Wire as W
 import qualified Control.Wire.Unsafe.Event as W
 import Game.World.Common
+import Game.World.Lens
 import Data.Maybe
 import qualified Game.Input.Actions as A
 import Prelude hiding ((.))
@@ -100,23 +101,44 @@ spawnObject name = mkGenN $ \_ -> do
 	return (Right (W.Event oId), never)
 
 spawnObjectAt :: String -> (Float, Float) -> WorldWire a ()
-spawnObjectAt name pos = 
-	inhibit () . setPos pos . asSoonAs . spawnObject name
+spawnObjectAt name pos = proc input -> do
+	W.Event oId <- spawnObject name -< input
+	_ <- setPos pos -< oId
+	returnA -< ()
 
-movingDirection :: WorldWire PlayerId (W.Event (Float, Float))
-movingDirection = mkGenN $ \playerId -> do
+--asLongAs = mkGenN $ \a -> do
+	--case a of
+		--Event x -> return (Right x, asLongAs)
+
+movingDirectionR :: WorldWire PlayerId (Float, Float)
+movingDirectionR = mkGenN $ \playerId -> do
 	wm <- get
 	if Map.member playerId (wm^.wmPlayerActions)
 		then do
 			let playerActions = asks _wmPlayerActions wm Map.! playerId
 			let direction = A.movingDirection playerActions
 			case direction of
-				(0, 0) -> do
-					return (Right W.NoEvent, movingDirection)
-				_ -> do
-					return (Right (W.Event direction), movingDirection)
+				(0, 0) -> 
+					return (Left (), movingDirectionR)
+				_ -> 
+					return (Right direction, movingDirectionR)
 		else
-			return (Right W.NoEvent, movingDirection)
+			return (Left (), movingDirectionR)
+
+movingDirectionE :: WorldWire PlayerId (W.Event (Float, Float))
+movingDirectionE = mkGenN $ \playerId -> do
+	wm <- get
+	if Map.member playerId (wm^.wmPlayerActions)
+		then do
+			let playerActions = asks _wmPlayerActions wm Map.! playerId
+			let direction = A.movingDirection playerActions
+			case direction of
+				(0, 0) ->
+					return (Right W.NoEvent, movingDirectionE)
+				_ ->
+					return (Right (W.Event direction), movingDirectionE)
+		else
+			return (Right W.NoEvent, movingDirectionE)
 
 animate :: Animation -> WorldWire ObjectId ()
 animate anim = mkGen $ \ds oId -> do
