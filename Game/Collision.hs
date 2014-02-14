@@ -1,178 +1,232 @@
-{-# LANGUAGE TemplateHaskell, NamedFieldPuns #-}
-module Game.Collision 
-	(
-	  CollisionManager
-	, newBoundary
-	, newCollidable
-	, cmNew, cmAddStatic, cmAddFloating
-	, cmObjectPos, cmQuery
-	, cmCanCollide, cmUpdateFloating
-	, cmCollisions
-	) where
+{-# LANGUAGE TemplateHaskell #-}
+module Game.Collision where
 
-import GHC.Float
+-- * Note: we query using the maximum boundary diameter of all objects
+-- *  so adding one big object may slow down the query
+
+import qualified Data.Octree as O
 import Debug.Trace
-import Data.SpacePart.QuadTree
-import Data.SpacePart.AABB
-
-import Game.World.Objects (ObjectId)
-
-import Control.Monad.State
+import Data.Octree (Vector3(..), Octree)
+import Data.Maybe
+import GHC.Float
 import Control.Monad
-
+import Control.Monad.State
 import Control.Lens
-
-import qualified Data.Set as Set
+import Game.World.Objects
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
-
---type ObjectId = Int
-emptyBoundary = Boundary (0, 0) 0
-newBoundary :: (Float, Float) -> Float -> Boundary
-newBoundary (dx, dy) ds = Boundary (float2Double dx, float2Double dy) ds'
-	where
-		ds' = float2Double ds
-
-data CollidableObject = CollidableObject
-	{ objectId :: ObjectId
-	, _objectBoundary :: Boundary
+-- Axis aligned box (2D for now, z ignored)
+data Boundary = Boundary
+	{ _boundaryOrigin :: Vector3
+	, _boundarySize :: Vector3
 	} deriving (Show)
-makeLenses ''CollidableObject
+newBoundary = Boundary (Vector3 0 0 0) (Vector3 0 0 0)
 
-newCollidable :: ObjectId -> Boundary -> CollidableObject
-newCollidable = CollidableObject
+-- list of points that are connected by lines
+data RealBoundary = RealBoundary
+	{ _rbLines :: [Vector3]
+	} deriving (Show)
+newRealBoundary = RealBoundary []
 
-instance Eq CollidableObject where
-	(==) co1 co2 = objectId co1 == objectId co2
+data OctreeObject = OctreeObject
+	{ _ooObjectId :: ObjectId
+	, _ooBoundary :: Boundary
+	, _ooRealBoundary :: RealBoundary
+	} deriving (Show)
+newOctreeObject = OctreeObject 0 newBoundary newRealBoundary
 
-instance Ord CollidableObject where
-	compare co1 co2 = compare (objectId co1) (objectId co2)
+data GameOctree = GameOctree
+	{ _goMaxDiameter :: Double
+	, _goStaticObjects :: Map.Map ObjectId OctreeObject
+	, _goUpdatableObjects :: Map.Map ObjectId OctreeObject
+	, _goStaticOctree :: Octree OctreeObject
+	, _goCachedOctree :: Octree OctreeObject
+	, _goNeedsUpdate :: Bool
+	}-- deriving (Show)
 
-data CollisionManager = CollisionManager
-	{ _cmStaticObjects :: Map.Map ObjectId CollidableObject
-	, _cmFloatingObjects :: Map.Map ObjectId CollidableObject
-	, _cmStaticQuadTree :: QuadTree CollidableObject -- without floating
-	, _cmCachedQuadTree :: QuadTree CollidableObject -- with floating
-	, _cmNeedsUpdate :: Bool
+makeLenses ''Boundary
+makeLenses ''RealBoundary
+makeLenses ''OctreeObject
+makeLenses ''GameOctree
+
+newOctree :: GameOctree
+newOctree = GameOctree
+	{ _goMaxDiameter = 0
+	, _goStaticObjects = Map.empty
+	, _goUpdatableObjects = Map.empty
+	, _goStaticOctree = O.fromList []
+	, _goCachedOctree = O.fromList []
+	, _goNeedsUpdate = False
 	}
-makeLenses ''CollisionManager
 
-instance Show CollisionManager where
-	show cm = show (cm^.cmFloatingObjects)
+instance Show GameOctree where
+	show go = "Octree\n" ++
+		"Max diameter: " ++ show (go^.goMaxDiameter) ++ "\n" ++
+		"Num static: " ++ show (length $ Map.toList $ go^.goStaticObjects) ++ "\n" ++
+		"Num updateable: " ++ show (length $ Map.toList $ go^.goUpdatableObjects) ++ "\n"
 
-instance Eq CollisionManager where
-	(==) cm1 cm2 = (cm1^.cmStaticObjects == cm2^.cmStaticObjects) &&
-		(cm1^.cmFloatingObjects == cm2^.cmFloatingObjects)
-
-cmNew :: CollisionManager
-cmNew = CollisionManager 
-	{ _cmStaticObjects = Map.empty
-	, _cmFloatingObjects = Map.empty
-	, _cmStaticQuadTree = empty
-	, _cmCachedQuadTree = empty
-	, _cmNeedsUpdate = False
-	}
-
-cmAddStatic :: CollidableObject -> State CollisionManager ()
-cmAddStatic object = do
-	cmStaticObjects %= Map.insert (objectId object) object
-	cmStaticQuadTree %= insert object
-
-cmAddFloating :: CollidableObject -> State CollisionManager ()
-cmAddFloating object = do
-	cmFloatingObjects %= Map.insert (objectId object) object
-	cmNeedsUpdate .= True
-
-cmRemoveFloating :: ObjectId -> State CollisionManager ()
-cmRemoveFloating objectId = do
-	--let tmpObject = CollidableObject objectId emptyBoundary
-	cmFloatingObjects %= Map.delete objectId
-	cmNeedsUpdate .= True
-
-cmUpdateQT :: State CollisionManager ()
-cmUpdateQT = return ()
-	--cm <- get
-	--let update = cm^.cmNeedsUpdate
-	--let floatObjects = cm^.cmFloatingObjects
-	--let staticQT = cm^.cmStaticQuadTree
-	--traceShow "stateless" $
-	--	when update $ do
-	--		cmCachedQuadTree .= staticQT
-	--		traceShow "insert statics" $
-	--			cmCachedQuadTree %= \qt -> 
-	--				foldr (insert.snd) qt (Map.toList floatObjects)
-	--		traceShow "insert floats" $
-	--			cmNeedsUpdate .= False
-	--traceShow "updated" (return ())
-
-cmQuery :: Boundary -> State CollisionManager [ObjectId]
-cmQuery b = do
-	cmUpdateQT
-	cm <- get
-
-	let qt = cm^.cmCachedQuadTree
-	let results = queryNoQt b cm
-	return $ Set.toList . Set.fromList $ results
-
-queryNoQt :: Boundary -> CollisionManager -> [ObjectId]
-queryNoQt b cm = collisions
+-- | Update octree with static data
+octreeAddStatics :: [(ObjectId, (Float, Float), (Float, Float))] -> State GameOctree ()
+octreeAddStatics [] = return ()
+octreeAddStatics objects = do
+	goMaxDiameter %= max (fromJust (octreeObjects^.maxBoundaryDiameter))
+	mapM_ octreeAddStatic octreeObjects
+	goStaticOctree %= \static -> foldr O.insert static (octreeObjects^.folded.octreeObjectPoints)
+	static <- use goStaticOctree
+	goCachedOctree .= static
+	goNeedsUpdate .= True
 	where
-		statics = map snd $ Map.toList (cm^.cmStaticObjects)
-		floating = map snd $ Map.toList (cm^.cmFloatingObjects)
+		octreeObjects = map (\(oId, origin, size) -> octreeObjectBox oId origin size) objects
 
-		collisions = foldr (\collidable colls -> if boundaries_intersect b collidable 
-				then (objectId collidable) : colls
-				else colls)
-			[] (statics ++ floating)
+		octreeAddStatic :: OctreeObject -> State GameOctree ()
+		octreeAddStatic object =
+			goStaticObjects %= Map.insert (object^.ooObjectId) object
 
-cmObjectBoundarySize oId = do
-	cm <- get
-	return $ if Map.member oId (cm ^. cmStaticObjects)
-		then double2Float (boundary cm cmStaticObjects)
-		else 
-			if Map.member oId (cm ^. cmFloatingObjects)
-				then double2Float (boundary cm cmFloatingObjects)
-				else 0
+octreeUpdate :: [(ObjectId, [(Float, Float)])] -> State GameOctree ()
+octreeUpdate [] = return ()
+octreeUpdate objects = do
+	goNeedsUpdate .= True
+	goUpdatableObjects %= \m -> foldr (\obj -> -- update or insert
+			Map.insert (obj^.ooObjectId) obj) 
+		m octreeObjects
+	goMaxDiameter %= max (octreeObjects^?!maxBoundaryDiameter._Just) -- eta reduce: max new current
 	where
-		boundary cm objectSource = boundary_size ((cm ^. objectSource) Map.! oId ^. objectBoundary)	
+		octreeObjects :: [OctreeObject]
+		octreeObjects = map (uncurry octreeObjectFromPoints) objects
 
-cmObjectPos :: ObjectId -> State CollisionManager (Float, Float)
-cmObjectPos oId = do
-	cm <- get
-	return $ if Map.member oId (cm ^. cmStaticObjects)
-		then conv (pos cm cmStaticObjects)
-		else 
-			if Map.member oId (cm ^. cmFloatingObjects)
-				then conv (pos cm cmFloatingObjects)
-				else (0, 0)
+octreeQueryObject :: ObjectId -> State GameOctree [ObjectId]
+octreeQueryObject oId = do 
+	needUpdate <- use goNeedsUpdate
+	Control.Monad.when needUpdate $ do
+		objs <- use goUpdatableObjects
+		let updateObjects = map snd $ Map.toList objs
+		staticOctree <- use goStaticOctree
+		goCachedOctree .= foldr O.insert staticOctree (updateObjects^.folded.octreeObjectPoints)
+		goNeedsUpdate .= False
 
+	Just queryObject <- use (goUpdatableObjects . at oId)
+	queryRange <- use goMaxDiameter
+	let points = queryObject^..octreeObjectPoints.traverse._1
+	octree <- use goCachedOctree 
+
+	-- we query using the boundary points, so the range is half the diameter
+	let collisionPoints = foldr (\obj l ->
+		O.withinRange octree (queryRange/2.0) obj ++ l) [] points
+
+	let 
+		otherObjects :: [OctreeObject]
+		otherObjects = filter (\o -> o^.ooObjectId /= oId) $ map snd collisionPoints
+
+		queryConvexHull :: [(Double, Double)]
+		queryConvexHull = map (\(Vector3 x y z) -> (x, y)) $ queryObject^.ooRealBoundary.rbLines
+
+		otherObjectHulls :: [[Vector3]]
+		otherObjectHulls = otherObjects^..traverse.ooRealBoundary.rbLines
+		otherObjectsConvexHull :: [[(Double, Double)]]
+		otherObjectsConvexHull = (map.map) (\(Vector3 x y z) -> (x, y)) otherObjectHulls
+
+		--queryObjectInOther :: Bool
+		--queryObjectInOther = any (\point -> any (pointInConvexHull point) otherObjectsConvexHull) queryConvexHull
+		--otherInQueryObject :: Bool
+		--otherInQueryObject = any (any (`pointInConvexHull` queryConvexHull)) otherObjectsConvexHull
+
+		-- any point of query object in hull
+		queryPointInHull hull = any (\point -> pointInConvexHull point hull) queryConvexHull
+		hullPointInQueryPoint hull = any (\point -> pointInConvexHull point queryConvexHull) hull
+
+		collisions = foldr (\(obj, hull) -> if queryPointInHull hull || hullPointInQueryPoint hull
+			then (++) [obj] else (++) []) [] $ zip otherObjects otherObjectsConvexHull
+
+	return $ Set.toList . Set.fromList $ map _ooObjectId collisions
+
+lines points = zip points (tail points ++ [head points])
+
+-- for now we assume the real boundary to be convex and clockwise
+pointInConvexHull :: (Double, Double) -> [(Double, Double)] -> Bool
+pointInConvexHull (px, py) convexHullLines = isInside
 	where
-		conv (dx, dy) = (double2Float dx, double2Float dy)
-		pos cm objectSource = boundary_corner ((cm ^. objectSource) Map.! oId ^. objectBoundary)	
+		lineSegments = zip convexHullLines (tail convexHullLines ++ [head convexHullLines])
+		normals = map (\((ax, ay), (bx, by)) -> (by - ay, -(bx - ax))) lineSegments
+		isInside = all (\((ox, oy), (x, y)) -> x*(px - ox) + y*(py - oy) > 0) $ zip convexHullLines normals
 
-cmUpdateFloating :: ObjectId -> (Float, Float) -> State CollisionManager ()
-cmUpdateFloating oId (x, y) = do
-	boundarySize <- cmObjectBoundarySize oId
-	cmRemoveFloating oId
-	cmAddFloating $ CollidableObject oId (newBoundary (x, y) boundarySize)
 
-cmCollisions :: ObjectId -> State CollisionManager [ObjectId]
-cmCollisions oId = do
-	cm <- get
-	let floatingObjects = cm^.cmFloatingObjects
-	let boundary = filter (\obj -> oId == objectId obj) (map snd (Map.toList floatingObjects))
-	if null boundary
-		then return []
-		else do
-			let b = head boundary ^. objectBoundary
-			collisions <- cmQuery b
-			return $ filter (/= oId) collisions
+test = evalState (do
+		octreeAddStatics 
+			[ (0, (0, 0), (1, 1))
+			, (1, (1, 0), (1, 1))
+			, (2, (2, 0), (1, 1))
+			, (3, (3, 0), (1, 1))
+			]
+		octreeUpdate 
+			[ (4, [(0, 1.5), (1, 1.5)])
+			, (5, [(0.05, 0.95), (1, 1.5)]) -- does work
+			, (6, [(0, 0.95), (1, 1.5)]) -- does not work
+			]
 
-cmCanCollide :: ObjectId -> CollisionManager -> Bool
-cmCanCollide oId cm = Map.member oId (cm^.cmStaticObjects) || 
-		Map.member oId (cm^.cmFloatingObjects)
+		octreeQueryObject 6
+	) newOctree
+	
+_boundaryDiameter :: Boundary -> Double
+_boundaryDiameter b = O.dist (b^.boundaryOrigin) (b^.boundaryOrigin + b^.boundarySize)
+boundaryDiameter :: Getter Boundary Double
+boundaryDiameter = to _boundaryDiameter
 
-instance HasBoundary CollidableObject where
-	boundary_edges (CollidableObject { _objectBoundary }) = boundary_edges _objectBoundary
-	boundary_extents (CollidableObject { _objectBoundary }) = boundary_extents _objectBoundary
-	boundary_square (CollidableObject { _objectBoundary }) = boundary_square _objectBoundary
+octreeObjectPoints :: Getter OctreeObject [(Vector3, OctreeObject)]
+octreeObjectPoints = to points
+	where
+		points octreeObject = zip
+			[ Vector3 ox oy 0
+			, Vector3 ox (oy + dy) 0
+			, Vector3 (ox + dx) (oy + dy) 0
+			, Vector3 (ox + dx) oy 0
+			] $ repeat octreeObject
+			where
+				Vector3 ox oy oz = octreeObject^.ooBoundary.boundaryOrigin
+				Vector3 dx dy dz = octreeObject^.ooBoundary.boundarySize
+
+-- creates a boundary that is axis aligned (the real boundary too)
+-- used for tiles etc.
+octreeObjectBox :: ObjectId -> (Float, Float) -> (Float, Float) -> OctreeObject
+octreeObjectBox oId (ox', oy') (dx', dy') = newOctreeObject
+		& ooObjectId .~ oId
+		& ooBoundary .~ boundary
+		& ooRealBoundary .~ realBoundary
+	where
+		[ox, oy, dx, dy] = map float2Double [ox', oy', dx', dy']
+		boundary = newBoundary 
+			& boundaryOrigin .~ Vector3 ox oy 0
+			& boundarySize .~ Vector3 dx dy 0
+
+		realBoundary = newRealBoundary & rbLines .~ lines
+
+		lines = 
+			[ Vector3 ox oy 0
+			, Vector3 ox (oy + dy) 0
+			, Vector3 (ox + dx) (oy + dy) 0
+			, Vector3 (ox + dx) oy 0
+			]
+
+-- calculates an axis aligned boundary for the object
+-- used for objects that can rotate
+octreeObjectFromPoints :: ObjectId -> [(Float, Float)] -> OctreeObject
+octreeObjectFromPoints oId points = newOctreeObject
+		& ooObjectId .~ oId
+		& ooBoundary .~ boundary
+		& ooRealBoundary .~ realBoundary
+	where
+		xs = map (float2Double . fst) points
+		ys = map (float2Double . snd) points
+		(minX, maxX) = (minimum xs, maximum xs)
+		(minY, maxY) = (minimum ys, maximum ys)
+		boundary = newBoundary
+			& boundaryOrigin .~ Vector3 minX minY 0
+			& boundarySize .~ Vector3 (maxX - minX) (maxY - minY) 0
+
+		-- Note: xs and ys were converted to doubles (we can't use points)
+		realBoundary = newRealBoundary & rbLines
+			.~ map (\(x, y) -> Vector3 x y 0) (zip xs ys)
+
+maxBoundaryDiameter :: Getter [OctreeObject] (Maybe Double)
+maxBoundaryDiameter = to $ 
+	maximumOf (traversed.ooBoundary.boundaryDiameter) -- octreeObjects

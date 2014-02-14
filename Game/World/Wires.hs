@@ -47,6 +47,16 @@ stepObjectWires = mkGen $ \ds a -> do
 					WireFinished ->
 						return ()
 
+wLiftSet :: (ObjectId -> a -> WorldContext b) -> a -> WorldWire ObjectId (Event ())
+wLiftSet f a = mkGenN $ \oId -> do
+	f oId a
+	return (Right (W.Event ()), never)
+
+wLiftSetVoid :: (ObjectId -> WorldContext b) -> WorldWire ObjectId (Event ())
+wLiftSetVoid f = mkGenN $ \oId -> do
+	f oId
+	return (Right (W.Event ()), never)
+
 wLiftF :: (a -> WorldContext b) -> WorldWire a b
 wLiftF f = mkGenN $ \a -> do
 	b <- f a
@@ -74,19 +84,43 @@ wLiftM f = mkGenN $ \a -> do
 --		Just o -> (Right o, objectRI)
 --		Nothing -> (Left (), objectRI)
 
+-- TODO: We should move the test into the state monad
+-- e.g.: object moves -> no collision and has new position in next update
+-- 		 	another object moves -> no collision but may overlap in the next update
+-- 			the collision manager should always know about the future positions of the objects
+collides oId (dx, dy) = do
+	cm <- view wCollisionManager
+	--Just oldPos <- view $ wCommon.wcPositions.at oId
+	boundary <- view $ objectBoundary oId
+	let newObjBoundary = map (\(x, y) -> (x + dx, y + dy)) boundary
+	let collisions = evalState (do
+		octreeUpdate [(oId, newObjBoundary)]
+		octreeQueryObject oId
+		) cm
+	return collisions
+
 _move ds oId (vx, vy) = do
+	canCollide <- view $ isCollidable oId
 	let dt = realToFrac (dtime ds)
 	let (dx, dy) = (dt * vx, dt * vy)
-	World.moveObject oId (dx, dy)
+	if canCollide  
+		then do
+			collisions <- collides oId (dx, dy)
+			lift $ print ("Can collide!", collisions)
+			Control.Monad.when (null collisions) $ do
+				World.moveObject oId (dx, dy)
+		else do
+			World.moveObject oId (dx, dy)
 
 move :: (Float, Float) -> ObjectWire ObjectId ()
 move speed = mkGen $ \ds oId -> do
 	_move ds oId speed
 	return (Right (), move speed)
 
-setPos pos = mkGenN $ \oId -> do
-	World.moveObject oId pos
-	return (Right (W.Event ()), never)
+setPos pos = wLiftSet World.moveObject pos 
+--mkGenN $ \oId -> do
+--	World.moveObject oId pos
+--	return (Right (W.Event ()), never)
 
 moveR :: ObjectWire (ObjectId, (Float, Float)) ()
 moveR = mkGen $ \ds (oId, speed) -> do

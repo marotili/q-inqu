@@ -4,7 +4,7 @@ module Game.World.Common where
 import Game.World.Objects
 import Control.Monad.RWS
 import qualified Control.Wire as W
-import Game.Collision
+import qualified Game.Collision as C
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Control.Lens
@@ -14,22 +14,11 @@ import Data.Monoid
 import qualified Control.Monad as CM
 
 type ObjectProp a = Map.Map ObjectId a
+type ObjectType = Set.Set ObjectId
 type Position = (Float, Float)
 type Physics = Int
 
-data WorldCommon = WorldCommon
-	{ _wcPositions :: ObjectProp Position
-	, _wcPhysics :: ObjectProp Physics
-	, _wcAnimations :: ObjectProp Animation
-	, _wcCollisions :: ObjectProp [ObjectId]
-	, _wcWires :: ObjectProp [ObjectWire ObjectId ()]
-	}
-
-instance Show WorldCommon where
-	show wc = "WorldCommon{\n" ++
-		"\twcPositions = " ++ show (_wcPositions wc) ++ "\n" ++
-		"\twcAnimations = " ++ show (_wcAnimations wc) ++ "\n" ++
-		"}\n"
+type Boundary = [(Float, Float)]
 
 --type WorldContext = RWS World WorldDelta WorldManager
 type DebugWorldContext = RWST World WorldDelta WorldManager IO
@@ -51,6 +40,30 @@ type WorldWireS s a b = DebugWireS s a b
 type WorldWire a b = WorldWireS WireControl a b
 type WorldSession = W.Session IO (W.Timed W.NominalDiffTime ())
 
+data Realm = Realm
+	{ _realmName :: String
+	}
+
+data WorldCommon = WorldCommon
+	{ _wcPositions :: ObjectProp Position
+	, _wcPhysics :: ObjectProp Physics
+	, _wcAnimations :: ObjectProp Animation
+	, _wcCollisionEvents :: ObjectProp [ObjectId]
+	, _wcWires :: ObjectProp [ObjectWire ObjectId ()]
+	, _wcBoundaries :: ObjectProp Boundary
+
+	, _wcStaticCollidable :: ObjectType
+
+	, _wcRealm :: ObjectProp Realm
+	}
+
+instance Show WorldCommon where
+	show wc = "WorldCommon{\n" ++
+		"\twcPositions = " ++ show (_wcPositions wc) ++ "\n" ++
+		"\twcAnimations = " ++ show (_wcAnimations wc) ++ "\n" ++
+		"}\n"
+
+
 data WorldDelta = WorldDelta
 	{ _wdCommon :: WorldCommonDelta
 	, _wdObjects :: ObjectProp (Maybe Object) -- add or delete objects
@@ -59,7 +72,7 @@ data WorldDelta = WorldDelta
 data World = World
     { _wCommon :: WorldCommon
     , _wObjects :: ObjectProp Object
-    , _wCollisionManager :: CollisionManager
+    , _wCollisionManager :: C.GameOctree
     , _wTileBoundary :: (Float, Float)
     } deriving (Show)
 
@@ -72,14 +85,17 @@ wcEmpty = WorldCommon
  	{ _wcPositions = Map.empty
  	, _wcPhysics = Map.empty
  	, _wcAnimations = Map.empty
- 	, _wcCollisions = Map.empty
+ 	, _wcCollisionEvents = Map.empty
  	, _wcWires = Map.empty
+ 	, _wcBoundaries = Map.empty
+ 	, _wcStaticCollidable = Set.empty
+ 	, _wcRealm = Map.empty
  	}
 
 emptyW = World
 	{ _wCommon = wcEmpty
 	, _wObjects = Map.empty
-	, _wCollisionManager = cmNew
+	, _wCollisionManager = C.newOctree
 	, _wTileBoundary = (0, 0)
 	}
 
@@ -109,8 +125,9 @@ mergeCommonDelta wc2 = do
 			Map.toList (wc2^.wcPositions)
 
 	wcWires %= Map.unionWith (++) (wc2^.wcWires)
-
-	wcAnimations %= \oldAnim -> Map.union (wc2^.wcAnimations) oldAnim -- left biased
+	wcAnimations %= Map.union (wc2^.wcAnimations) -- left biased
+	wcBoundaries %= Map.union (wc2^.wcBoundaries)
+	wcStaticCollidable %= Set.union (wc2^.wcStaticCollidable)
 
 instance Monoid WorldCommonDelta where
     mempty = WorldCommonDelta wcEmpty

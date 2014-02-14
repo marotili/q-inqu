@@ -2,7 +2,9 @@
 module Game.World.Delta where
 
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Control.Lens
+import Debug.Trace
 import Game.World.Objects
 import Data.Monoid
 import Control.Monad.Writer
@@ -30,6 +32,38 @@ applyCommonDelta wd = do
 
 	-- we drop all wires from the last state
 	wCommon.wcWires .= wd^.wdCommon.delta.wcWires
+
+	-- take latest boundaries
+	wCommon.wcBoundaries %= \old -> Map.union (wd^.wdCommon.delta.wcBoundaries) old
+
+	wCommon.wcStaticCollidable %= \old -> Set.union (wd^.wdCommon.delta.wcStaticCollidable) old
+
+	world <- get
+	let newStaticCollidables = Set.toList $ wd^.wdCommon.delta.wcStaticCollidable
+	let newStatic = map (\oId -> 
+			let (pos, size) = world^.tileBoundary oId in (oId, pos, size)
+		) newStaticCollidables
+
+	unless (null newStatic) $
+		wCollisionManager %= traceShow newStatic (execState (octreeAddStatics newStatic))
+
+	world2 <- get
+	-- pos and boundary for collision
+	let 
+		objectsWithPos = Set.fromList $ world2^..wCommon.wcPositions.itraversed.asIndex
+		objectsWithBoundary = Set.fromList $ world2^..wCommon.wcBoundaries.itraversed.asIndex	
+
+		objPosAndBoundary = Set.intersection objectsWithPos objectsWithBoundary
+
+		objNewBoundaries = Set.fromList $ (wd^..wdCommon.delta.wcBoundaries.itraversed.asIndex)
+		objNewPos = Set.fromList $ (wd^..wdCommon.delta.wcPositions.itraversed.asIndex)
+
+		objUpdate = Set.toList $ Set.intersection objPosAndBoundary $ objNewBoundaries `Set.union` objNewPos 
+
+		objBoundaries = zip objUpdate [world2^.objectBoundary oId | oId <- objUpdate]
+
+	unless (null objBoundaries) $
+		wCollisionManager %= traceShow objBoundaries (execState (octreeUpdate objBoundaries))
 
 alterObjects delta@Nothing _ = Nothing -- delte object
 alterObjects (Just v) _ = Just v -- add / update object

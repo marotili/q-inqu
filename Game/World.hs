@@ -109,10 +109,16 @@ update = do
 				tiledObject (obj^.objName).objectGid .= Just (fromIntegral gid))
 		) renderables
 
-updateTiled :: World -> WorldDelta -> TiledMap -> TiledMap
-updateTiled world delta tiled = newTiled
+updateTiled :: Renderer ()
+updateTiled = do
+	(world, delta, _) <- ask
+	let Just pId = fmap _objId (world^.findObject "Neira")
+	let Just playerPos = world^.objectPosition pId
+	--lift $ print $ playerPos
+	tiled <- get
+	put (newTiled world delta tiled)
 	where
-		newTiled = execState (do
+		newTiled world delta tiled = execState (do
 				tiledObject "Player1".objectPos tiled .= playerPos
 				tiledObject "Player2".objectPos tiled .= player2Pos
 				whenMaybeDo playerGid (\gid -> 
@@ -121,16 +127,15 @@ updateTiled world delta tiled = newTiled
 				whenMaybeDo player2Gid (\gid -> 
 					tiledObject "Player2".objectGid .= Just (fromIntegral gid))
 			) tiled
+			where
+				Just pId = fmap _objId (world^.findObject "Neira")
+				Just playerPos = world^.objectPosition pId
+				playerGid = world^?getAnimations. L.at pId._Just.animTileGid
+				--let boulderPos = world'^.wBoulderPos "Boulder1"
 
-
-		Just pId = fmap _objId (world^.findObject "Neira")
-		Just playerPos = world^.objectPosition pId
-		playerGid = world^?getAnimations. L.at pId._Just.animTileGid
-		--let boulderPos = world'^.wBoulderPos "Boulder1"
-
-		Just p2Id = fmap _objId (world^.findObject "TheGhost")
-		Just player2Pos = world^.objectPosition p2Id
-		player2Gid = world^?getAnimations. L.at p2Id._Just.animTileGid
+				Just p2Id = fmap _objId (world^.findObject "TheGhost")
+				Just player2Pos = world^.objectPosition p2Id
+				player2Gid = world^?getAnimations. L.at p2Id._Just.animTileGid
 
 layerObj :: Traversal' TiledMap Layer
 layerObj = mapLayers.traverse._ObjectLayer
@@ -166,8 +171,9 @@ newWorldFromTiled tiledMap = do
 		--genWalls :: [(Float, Float)] -> WorldWire a b
 		genWalls [] = returnA
 		genWalls (wallPos:walls) = proc input -> do
-			spawnObjectAt "Wall" wallPos -< input
+			wId <- spawnObjectAt "Wall" wallPos -< input
 			genWalls walls -< input
+			wLiftSetVoid setStaticCollidable -< wId
 			returnA -< input
 
 		genBoulders [] = returnA
@@ -177,10 +183,14 @@ newWorldFromTiled tiledMap = do
 			returnA -< input
 
 		initWire = proc input -> do
-			_ <- spawnObjectAt "Neira" (player1Obj^.objectPos tiledMap) -< input
-			_ <- spawnObjectAt "TheGhost" (player2Obj^.objectPos tiledMap) -< input
-			_ <- spawnObjectAt "Dino" (dinoObj^.objectPos tiledMap) -< input
-			_ <- spawnObjectAt "Bee" (beeObj^.objectPos tiledMap) -< input
+			p1Id <- spawnObjectAt "Neira" (player1Obj^.objectPos tiledMap) -< input
+			p2Id <- spawnObjectAt "TheGhost" (player2Obj^.objectPos tiledMap) -< input
+			dId <- spawnObjectAt "Dino" (dinoObj^.objectPos tiledMap) -< input
+			bId <- spawnObjectAt "Bee" (beeObj^.objectPos tiledMap) -< input
+			_ <- wLiftSet setBoundary playerBoundary -< p1Id
+			_ <- wLiftSet setBoundary playerBoundary -< p2Id
+			_ <- wLiftSet setBoundary playerBoundary -< dId
+			_ <- wLiftSet setBoundary playerBoundary -< bId
 
 			-- Initialize: need maybe check in client to remove this TODO
 			--_ <- animate (defaultCharacterAnim (0, 0)) -< 1

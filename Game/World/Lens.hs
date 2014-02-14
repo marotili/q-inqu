@@ -2,13 +2,14 @@
 module Game.World.Lens where
 
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Control.Lens
 import Game.World.Objects
 import Control.Monad.Writer
 import Control.Monad.RWS
 import Linear
 --import Game.World.Types
-import Game.Collision
+import qualified Game.Collision as C
 import Control.Monad.State
 import Control.Monad
 import qualified Control.Wire as W
@@ -33,6 +34,7 @@ data Component a da = Component
 
 type Component' a = Component a a
 
+
 compObject :: Component (ObjectProp Object) (ObjectProp (Maybe Object))
 compObject = Component
     { _compGet = wObjects
@@ -55,6 +57,12 @@ compAnimations :: Component' (ObjectProp Animation)
 compAnimations = Component
     { _compGet = wCommon.wcAnimations
     , _compSet = wdCommon.delta.wcAnimations
+    }
+
+compBoundaries :: Component' (ObjectProp Boundary)
+compBoundaries = Component
+    { _compGet = wCommon.wcBoundaries
+    , _compSet = wdCommon.delta.wcBoundaries
     }
 
 getWires :: Get (ObjectProp [ObjectWire ObjectId ()])
@@ -121,6 +129,41 @@ findObject name = to (\w ->
         ) (w^.wObjects)
     )
 
+-- | boundary + position
+tileBoundary :: ObjectId -> Get ((Float, Float), (Float, Float))
+tileBoundary oId = to boundary
+    where 
+        boundary w = (pos w, w^.wTileBoundary)
+        pos w = fromJust $ w^.getPositions . at oId
+
+-- | boundary + position
+objectBoundary :: ObjectId -> Get Boundary
+objectBoundary oId = to boundary
+    where
+        boundary w = let (px, py) = pos w in  -- collision boundary = object boundary + position
+            map (\(x, y) ->  (px + x, py + y)) $ fromJust $ w^.getBoundaries . at oId
+        pos w = fromJust $ w^.getPositions . at oId
+
+setBoundary :: (MonadWriter WorldDelta m) => ObjectId -> Boundary -> m ()
+setBoundary oId b = writeProp setBoundaries oId b
+
+setBoundaries :: Set (ObjectProp Boundary)
+setBoundaries = _compSet compBoundaries
+getBoundaries :: Get (ObjectProp Boundary)
+getBoundaries = _compGet compBoundaries
+
+setStaticCollidable :: (MonadWriter WorldDelta m) => ObjectId -> m ()
+setStaticCollidable oId = scribe (wdCommon.delta.wcStaticCollidable) (Set.insert oId Set.empty)
+
+isCollidable :: ObjectId -> Get Bool
+isCollidable oId = to collidable
+    where
+        collidable w = Set.member oId $ objPosAndBoundary w
+        objectsWithPos w = Set.fromList $ w^..wCommon.wcPositions.itraversed.asIndex
+        objectsWithBoundary w = Set.fromList $ w^..wCommon.wcBoundaries.itraversed.asIndex  
+
+        objPosAndBoundary w = Set.intersection (objectsWithPos w) (objectsWithBoundary w)
+        
 --object :: ObjectId -> WorldWire a (Maybe Object)
 --objectI :: ObjectId -> WorldWire a (Maybe Object)newtype One = One { unOne :: Maybe ObjectId }
 

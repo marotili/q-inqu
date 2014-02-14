@@ -83,6 +83,16 @@ instance Eq Animation where
 arrowAnim = a1
 	where
 		a1 = Animation 200 113 4 a1 0
+
+-- clockwise
+playerBoundary :: [(Float, Float)]
+playerBoundary =
+    [ (0, 60)
+    , (0, 90)
+    , (50, 90)
+    , (50, 60)
+    ]
+
 defaultCharacterAnim1 :: (Float, Float) -> Animation
 defaultCharacterAnim1 (dx, dy) 
 	| dy > 0.5 = a1 

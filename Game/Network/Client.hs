@@ -85,21 +85,22 @@ consumeClientWorld world manager w renderContextVar renderablesIn = do
 
 
 	(w', (manager', delta)) <- lift $ clientStepWorld w world manager2 dt
-	--lift $ print delta
 
 	 --update our world state
 	let world' = applyDelta world delta
 	lift $ print ("Num wires", length $ Map.toList $ world'^.wCommon.wcWires)
+	--lift $ print $ world'^.wCollisionManager
 
 	renderContext <- lift $ atomically $ do
 		readTVar renderContextVar
 
 	let tm = renderContext^.rcWorldRenderContext.wrcMap.tiledMap
-	let newTm = updateTiled world' delta tm
+	--let newTm = updateTiled world' delta tm
 
 	(_, newTm2, newRenderables) <- lift $ runRWST (do
+			updateTiled
 			newRenderObjects
-		) (world', delta, renderablesIn) newTm
+		) (world', delta, renderablesIn) tm
 
 	(_, newTm3, _) <- lift $ runRWST (do
 			update
