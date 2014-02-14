@@ -28,6 +28,15 @@ data Action =
 	| ActionUpdateGameState
 	deriving (Show, Eq, Ord)
 
+instants = 
+	[ ActionActivate DirNorth
+	, ActionSpawnArrow
+	, ActionStopMove
+	, ActionUpdateGameState
+	]
+
+
+
 newMoveAction :: Float -> Float -> Action
 newMoveAction x y = ActionMove x' y'
 	where

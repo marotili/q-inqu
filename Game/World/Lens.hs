@@ -65,6 +65,23 @@ compBoundaries = Component
     , _compSet = wdCommon.delta.wcBoundaries
     }
 
+compOrientation :: Component' (ObjectProp Orientation)
+compOrientation = Component
+    { _compGet = wCommon.wcOrientation
+    , _compSet = wdCommon.delta.wcOrientation
+    }
+
+type IngoredObjects = Set.Set ObjectId
+type ObjectIdTo a = ObjectProp a
+type ListOfChanges = Map.Map ObjectId (Maybe ObjectId)
+type CollisionFilter = Component
+
+compCollisionFilter :: CollisionFilter (ObjectIdTo IngoredObjects) (ObjectIdTo ListOfChanges)
+compCollisionFilter = Component
+    { _compGet = wCollisionFilter
+    , _compSet = wdCollisionFilter
+    }
+
 getWires :: Get (ObjectProp [ObjectWire ObjectId ()])
 getWires = _compGet compWires
 setWires :: Set (ObjectProp [ObjectWire ObjectId ()])
@@ -163,22 +180,17 @@ isCollidable oId = to collidable
         objectsWithBoundary w = Set.fromList $ w^..wCommon.wcBoundaries.itraversed.asIndex  
 
         objPosAndBoundary w = Set.intersection (objectsWithPos w) (objectsWithBoundary w)
-        
---object :: ObjectId -> WorldWire a (Maybe Object)
---objectI :: ObjectId -> WorldWire a (Maybe Object)newtype One = One { unOne :: Maybe ObjectId }
 
+setOrientations :: Set (ObjectProp Orientation)
+setOrientations = _compSet compOrientation
+getOrientations :: Get (ObjectProp Orientation)
+getOrientations = _compGet compOrientation
+setOrientation oId dPos = writeProp setOrientations oId dPos
 
+getCollisionFilters :: Get (ObjectProp (Set.Set ObjectId))
+getCollisionFilters = _compGet compCollisionFilter
+setCollisionFilters :: Set (ObjectProp (Map.Map ObjectId (Maybe ObjectId)))
+setCollisionFilters = _compSet compCollisionFilter
 
-
---test :: Getter World [(ObjectId, String)]
---test = to (\w -> itoList (w^.wName))
-
--- Get id by name
--- get name by id
-
---objectIdByName :: String -> Getter World (Maybe ObjectId)
---objectIdByName name = to (\w -> 
---        unOne $ ifoldMap (\oId name' -> 
---            if name' == name then (One (Just oId)) else One Nothing
---        ) (w^.wName)
---    )
+setIgnoreCollision oId otherId = writeProp setCollisionFilters oId (Map.fromList [(otherId, Just otherId)])
+unsetIgnoreCollision oId otherId = writeProp setCollisionFilters oId (Map.fromList [(otherId, Nothing)])

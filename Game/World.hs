@@ -121,13 +121,29 @@ updateTiled = do
 		newTiled world delta tiled = execState (do
 				tiledObject "Player1".objectPos tiled .= playerPos
 				tiledObject "Player2".objectPos tiled .= player2Pos
+				tiledObject "Dino".objectPos tiled .= dinoPos
+				tiledObject "Bee".objectPos tiled .= beePos
 				whenMaybeDo playerGid (\gid -> 
 					tiledObject "Player1".objectGid .= Just (fromIntegral gid))
 
 				whenMaybeDo player2Gid (\gid -> 
 					tiledObject "Player2".objectGid .= Just (fromIntegral gid))
+
+				whenMaybeDo dinoGid (\gid -> 
+					tiledObject "Dino".objectGid .= Just (fromIntegral gid))
+
+				whenMaybeDo beeGid (\gid -> 
+					tiledObject "Bee".objectGid .= Just (fromIntegral gid))
 			) tiled
 			where
+				Just dinoId = fmap _objId (world^.findObject "Dino")
+				Just dinoPos = world^.objectPosition dinoId
+				dinoGid = world^?getAnimations. L.at dinoId._Just.animTileGid
+
+				Just beeId = fmap _objId (world^.findObject "Bee")
+				Just beePos = world^.objectPosition beeId
+				beeGid = world^?getAnimations. L.at beeId._Just.animTileGid
+
 				Just pId = fmap _objId (world^.findObject "Neira")
 				Just playerPos = world^.objectPosition pId
 				playerGid = world^?getAnimations. L.at pId._Just.animTileGid
@@ -173,7 +189,7 @@ newWorldFromTiled tiledMap = do
 		genWalls (wallPos:walls) = proc input -> do
 			wId <- spawnObjectAt "Wall" wallPos -< input
 			genWalls walls -< input
-			wLiftSetVoid setStaticCollidable -< wId
+			wLiftSetOnceVoid setStaticCollidable -< wId
 			returnA -< input
 
 		genBoulders [] = returnA
@@ -187,10 +203,10 @@ newWorldFromTiled tiledMap = do
 			p2Id <- spawnObjectAt "TheGhost" (player2Obj^.objectPos tiledMap) -< input
 			dId <- spawnObjectAt "Dino" (dinoObj^.objectPos tiledMap) -< input
 			bId <- spawnObjectAt "Bee" (beeObj^.objectPos tiledMap) -< input
-			_ <- wLiftSet setBoundary playerBoundary -< p1Id
-			_ <- wLiftSet setBoundary playerBoundary -< p2Id
-			_ <- wLiftSet setBoundary playerBoundary -< dId
-			_ <- wLiftSet setBoundary playerBoundary -< bId
+			_ <- wLiftSetOnce setBoundary playerBoundary -< p1Id
+			_ <- wLiftSetOnce setBoundary playerBoundary -< p2Id
+			_ <- wLiftSetOnce setBoundary playerBoundary -< dId
+			_ <- wLiftSetOnce setBoundary playerBoundary -< bId
 
 			-- Initialize: need maybe check in client to remove this TODO
 			--_ <- animate (defaultCharacterAnim (0, 0)) -< 1
@@ -203,17 +219,24 @@ newWorldFromTiled tiledMap = do
 
 			returnA -< ()
 
-moveArrow = proc oId -> do
-	_ <- move (0, 100) . for 2 -< oId
+moveArrow direction = proc oId -> do
+	_ <- move direction . for 2 -< oId
 	returnA -< ()
 
 spawnArrow = spawn . thenDo (inhibit WireFinished)
 	where
-		spawn = proc input -> do	
-			Event oId <- spawnObjectMakeName -< input
-			_ <- move (50, 50) -< oId
-			_ <- animate arrowAnim -< oId
-			_ <- newObjectWireR moveArrow -< oId
+		spawn = proc playerId -> do	
+			Event oId <- spawnObjectMakeName -< playerId
+			Just playerPos <- wLiftF (\pId -> view $ getPositions . L.at pId) -< playerId
+			Just playerDir <- wLiftF (\pId -> view $ getOrientations . L.at pId) -< playerId
+			_ <- setPosOnceR -< (oId, playerPos)
+			_ <- animateR -< (oId, arrowAnimation playerDir)
+			_ <- wLiftSetOnceR setBoundary -< (oId, arrowBoundary playerDir)
+			_ <- wLiftSetOnceR setIgnoreCollision -< (oId, playerId)
+			_ <- wLiftSetOnceR setIgnoreCollision -< (playerId, oId)
+			let (dx, dy) = deltaFromOrientation playerDir
+			let wire = moveArrow (dx*400, dy*400)
+			_ <- newObjectWireR -< (oId, wire)
 			returnA -< ()
 
 playerSpawnArrow = untilV spawnArrowEvent
@@ -226,12 +249,17 @@ playerMovement = untilV movingDirectionE
 	W.--> playerMovement
 	where
 		move = proc pId -> do
+			-- TODO fix the wrong directions (dx, -dx etc)
 			(dx, dy) <- movingDirectionR -< pId
+			_ <- wLiftF (lift . print) -< ("Direction:", dx, dy)
 			_ <- moveR -< (pId, (-dx*200, dy*200))
-			let anim = if pId == 1 
-				then defaultCharacterAnim1 (dx, dy)
-				else defaultCharacterAnim2 (dx, dy)
-			_ <- animateR -< (anim, pId)
+			let orientation = traceShow (-dx, dy) $ orientationFromDelta (-dx, dy)
+			_ <- wLiftF (lift . print) -< ("Orientation, ", orientation)
+			let anim = traceShow orientation $ objectAnimation pId orientation
+			_ <- wLiftF (lift . print) -< anim
+			_ <- wLiftUpdateR setOrientation -< traceShow orientation (pId, orientation)
+			--_ <- wLiftF (lift . print) -< val
+			_ <- animateR -< (pId, anim)
 			returnA -< ()
 
 playerWire :: ObjectWire ObjectId ()
@@ -240,11 +268,23 @@ playerWire = proc pId -> do
 	_ <- playerMovement -< pId
 	returnA -< ()
 
+dinoWire :: ObjectWire ObjectId ()
+dinoWire = proc pId -> do
+	_ <- animate (objectAnimation 3 North) -< pId
+	returnA -< ()
+
+beeWire :: ObjectWire ObjectId ()
+beeWire = proc pId -> do
+	_ <- animate (objectAnimation 4 North) -< pId
+	returnA -< ()
+
 testwire :: WorldWire a ()
 testwire = proc input -> do
 	_ <- stepObjectWires -< input
 	_ <- once . newObjectWire 1 playerWire -< input
 	_ <- once . newObjectWire 2 playerWire -< input
+	_ <- once . newObjectWire 3 dinoWire -< input
+	_ <- once . newObjectWire 4 beeWire -< input
 
 	returnA -< ()
 

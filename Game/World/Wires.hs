@@ -47,13 +47,23 @@ stepObjectWires = mkGen $ \ds a -> do
 					WireFinished ->
 						return ()
 
-wLiftSet :: (ObjectId -> a -> WorldContext b) -> a -> WorldWire ObjectId (Event ())
-wLiftSet f a = mkGenN $ \oId -> do
+wLiftUpdateR :: (ObjectId -> a -> WorldContext b) -> WorldWire (ObjectId, a) ()
+wLiftUpdateR f = mkGenN $ \(oId, a) -> do
+	f oId a
+	return (Right (), wLiftUpdateR f)
+
+wLiftSetOnceR :: (ObjectId -> a -> WorldContext b) -> WorldWire (ObjectId, a) (Event ())
+wLiftSetOnceR f = mkGenN $ \(oId, a) -> do
 	f oId a
 	return (Right (W.Event ()), never)
 
-wLiftSetVoid :: (ObjectId -> WorldContext b) -> WorldWire ObjectId (Event ())
-wLiftSetVoid f = mkGenN $ \oId -> do
+wLiftSetOnce :: (ObjectId -> a -> WorldContext b) -> a -> WorldWire ObjectId (Event ())
+wLiftSetOnce f a = mkGenN $ \oId -> do
+	f oId a
+	return (Right (W.Event ()), never)
+
+wLiftSetOnceVoid :: (ObjectId -> WorldContext b) -> WorldWire ObjectId (Event ())
+wLiftSetOnceVoid f = mkGenN $ \oId -> do
 	f oId
 	return (Right (W.Event ()), never)
 
@@ -101,13 +111,18 @@ collides oId (dx, dy) = do
 
 _move ds oId (vx, vy) = do
 	canCollide <- view $ isCollidable oId
+	mignore <- view $ getCollisionFilters . L.at oId
 	let dt = realToFrac (dtime ds)
 	let (dx, dy) = (dt * vx, dt * vy)
 	if canCollide  
 		then do
 			collisions <- collides oId (dx, dy)
-			lift $ print ("Can collide!", collisions)
-			Control.Monad.when (null collisions) $ do
+			let realCollisions = case mignore of
+				Just ignore ->	filter (\col -> not (Set.member col ignore)) collisions
+				Nothing -> collisions
+			lift $ print (oId, mignore, collisions, realCollisions)
+			lift $ print ("Can collide!", realCollisions)
+			Control.Monad.when (null realCollisions) $ do
 				World.moveObject oId (dx, dy)
 		else do
 			World.moveObject oId (dx, dy)
@@ -117,7 +132,8 @@ move speed = mkGen $ \ds oId -> do
 	_move ds oId speed
 	return (Right (), move speed)
 
-setPos pos = wLiftSet World.moveObject pos 
+setPosOnce pos = wLiftSetOnce World.moveObject pos 
+setPosOnceR = wLiftSetOnceR World.moveObject
 --mkGenN $ \oId -> do
 --	World.moveObject oId pos
 --	return (Right (W.Event ()), never)
@@ -137,12 +153,12 @@ newObject = do
 newObjectWire :: ObjectId -> ObjectWire ObjectId () -> WorldWire a (Event ())
 newObjectWire oId w = doOnce $ wLift (addWire oId w)
 
-newObjectWireR :: ObjectWire PlayerId () -> WorldWire ObjectId (Event ())
-newObjectWireR w = newObjectWireR' w newObjectWire 
+newObjectWireR :: WorldWire (ObjectId, ObjectWire PlayerId ()) (Event ())
+newObjectWireR = newObjectWireR' newObjectWire 
 	where
-		newObjectWireR' w newObjectW = mkGen $ \ds oId -> do
+		newObjectWireR' newObjectW = mkGen $ \ds (oId, w) -> do
 			(mx, w') <- stepWire (newObjectW oId w) ds (Right ())
-			return (mx, newObjectWireR' w (\_ _ -> w'))
+			return (mx, newObjectWireR' (\_ _ -> w'))
 
 spawnObject :: String -> WorldWire a (Event ObjectId)
 spawnObject name = mkGenN $ \_ -> do
@@ -159,7 +175,7 @@ spawnObjectMakeName = mkGenN $ \_ -> do
 spawnObjectAt :: String -> (Float, Float) -> WorldWire a ObjectId
 spawnObjectAt name pos = proc input -> do
 	W.Event oId <- spawnObject name -< input
-	_ <- setPos pos -< oId
+	_ <- setPosOnce pos -< oId
 	returnA -< oId
 
 doOnce :: WorldWire a b -> WorldWire a (Event b)
@@ -240,8 +256,8 @@ animate anim = mkGen $ \ds oId -> do
 			World.setAnimation oId current
 			return (Right (), animate current)
 
-animateR :: ObjectWire (Animation, ObjectId) ()
-animateR = mkGen $ \ds (animation, oId) -> do
+animateR :: ObjectWire (ObjectId, Animation) ()
+animateR = mkGen $ \ds (oId, animation) -> do
 	mObjAnim <- view (World.getAnimations P.. L.at oId)
 	case mObjAnim of
 		Nothing -> do

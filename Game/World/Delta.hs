@@ -33,6 +33,8 @@ applyCommonDelta wd = do
 	-- we drop all wires from the last state
 	wCommon.wcWires .= wd^.wdCommon.delta.wcWires
 
+	wCommon.wcOrientation %= \old -> Map.union (wd^.wdCommon.delta.wcOrientation) old
+
 	-- take latest boundaries
 	wCommon.wcBoundaries %= \old -> Map.union (wd^.wdCommon.delta.wcBoundaries) old
 
@@ -73,8 +75,23 @@ applyObjectDelta wd = do
 		foldr (\(k, v) -> Map.alter (alterObjects v) k) objects $
 			Map.toList (wd^.wdObjects)
 
+--alterColFilter Nothing _ -> Nothing
+--alterColFilter 
+
+applyCollisionFilterDelta wd = do
+	wCollisionFilter %= \filterMap -> foldr (\(oId, objMap) oldIds ->
+		Map.insert oId (
+			foldr (\(objId, mObjId) objSet -> case mObjId of
+				Just _ -> Set.insert objId objSet
+				Nothing -> Set.delete objId objSet
+			) (if Map.member oId oldIds then oldIds Map.! oId else Set.empty) $ 
+				Map.toList objMap
+			) oldIds
+		) filterMap $ Map.toList (wd^.wdCollisionFilter)
+
 applyDelta :: World -> WorldDelta -> World
 applyDelta w wd = execState (do
 		applyObjectDelta wd
+		applyCollisionFilterDelta wd
 		applyCommonDelta wd
 	) w

@@ -89,7 +89,7 @@ consumeClientWorld world manager w renderContextVar renderablesIn = do
 	 --update our world state
 	let world' = applyDelta world delta
 	lift $ print ("Num wires", length $ Map.toList $ world'^.wCommon.wcWires)
-	--lift $ print $ world'^.wCollisionManager
+	lift $ print (world'^.wCommon.wcOrientation)
 
 	renderContext <- lift $ atomically $ do
 		readTVar renderContextVar
