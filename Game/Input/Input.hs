@@ -1,4 +1,5 @@
 {-# LANGUAGE Arrows #-}
+{-# OPTIONS -Wall #-}
 
 module Game.Input.Input 
 	(
@@ -24,11 +25,9 @@ import qualified Control.Wire as W
 import Control.Wire.Unsafe.Event
 
 import qualified Data.Set as Set
-import qualified Data.Map as Map
 
 import Control.Monad.State
 import Control.Monad.RWS
-import Control.Monad
 
 import qualified Graphics.UI.GLFW as GLFW
 
@@ -97,8 +96,8 @@ inputState cond = mkGenN $ \a -> do
 keyDownEvent :: GLFW.Key -> InputWire a (Event a)
 keyDownEvent key = inputEvent (liftM (Set.member key . inputKeys) ask)
 
-keyUpEvent :: GLFW.Key -> InputWire a (Event a)
-keyUpEvent key = inputEvent (liftM (not . Set.member key . inputKeys) ask)
+--keyUpEvent :: GLFW.Key -> InputWire a (Event a)
+--keyUpEvent key = inputEvent (liftM (not . Set.member key . inputKeys) ask)
 
 keyDown :: GLFW.Key -> InputWire a a
 keyDown key = inputState (liftM (Set.member key . inputKeys) ask)
@@ -132,27 +131,35 @@ directionY = pure (V2 0 (-1)) . keyDown GLFW.Key'W . keyUp GLFW.Key'S <|>
 
 --movement = (stopMoveAction . W.when (\(V2 x y) -> x == 0 && y == 0) <|> moveAction) . liftA2 (+) directionX directionY
 movement :: InputWire a ()
-movement = fmap (\_ -> ()) (W.when (\(V2 dx dy) -> abs dx < 0.005 && abs dy < 0.005)) . liftA2 (+) directionX directionY
+movement = fmap (const ()) (W.when (\(V2 dx dy) -> abs dx < 0.005 && abs dy < 0.005)) . liftA2 (+) directionX directionY
     W.--> moveAction . liftA2 (+) directionX directionY
     W.--> stopMoveAction W.--> movement
 
+untilV :: (Monoid e, Monad m) => W.Wire s e m a (Event b) -> W.Wire s e m a ()
 untilV source = W.until . fmap(\e -> ((), e)) source
 
-actionActivate :: InputWire a ()
-actionActivate = untilV (keyDownEvent GLFW.Key'X) W.-->
-	untilV (keyUpEvent GLFW.Key'X ). asSoonAs . keyDownEvent GLFW.Key'X
-	W.--> for 0.5 . asSoonAs . activateAction W.--> actionActivate
+--actionActivate :: InputWire a ()
+--actionActivate = untilV (keyDownEvent GLFW.Key'X) W.-->
+--	untilV (keyUpEvent GLFW.Key'X ). asSoonAs . keyDownEvent GLFW.Key'X
+--	W.--> for 0.5 . asSoonAs . activateAction W.--> actionActivate
 
 --actionPickup = asSoonAs . keyDownEvent GLFW.Key'C
+spawn :: InputWire a ()
 spawn = untilV (keyDownEvent GLFW.Key'X)
-	W.--> for 0.05 . asSoonAs . spawnAction . once . keyDownEvent GLFW.Key'X 
+	W.--> for 0.01 . asSoonAs . spawnAction . once . keyDownEvent GLFW.Key'X 
+	W.--> waitOneUpdate
 	W.--> spawn
+
+waitOneUpdate :: InputWire a ()
+waitOneUpdate = mkGenN $ \_ -> do
+	return (Right (), inhibit ())
 
 userInput :: InputWire a ((), ())
 userInput = proc input -> do
-	m <- movement -< input
+	--m <- movement -< input
 	a <- spawn -< input
-	returnA -< (m, a)
+	_ <- for 1 . moveAction W.--> for 100 . stopMoveAction-< V2 1 0
+	returnA -< ((), a)
 
 stopMoveAction :: InputWire a ()
 stopMoveAction = mkGenN $ \_ -> do
@@ -168,11 +175,12 @@ moveAction = mkGenN $ \(V2 x y) ->
             writer ((), newInputAction (newMoveAction x y))
             return (Right (), moveAction)
 
-activateAction :: InputWire a (Event ())
-activateAction = mkGenN $ \_ -> do
-	writer ((), newInputAction (ActionActivate DirNorth))
-	return (Right (Event ()), never)
+--activateAction :: InputWire a (Event ())
+--activateAction = mkGenN $ \_ -> do
+--	writer ((), newInputAction (ActionActivate DirNorth))
+--	return (Right (Event ()), never)
 
-spawnAction = mkGenN $ \a -> do
+spawnAction :: InputWire a (Event ())
+spawnAction = mkGenN $ \_ -> do
 	writer ((), newInputAction ActionSpawnArrow)
 	return (Right (Event ()), never)

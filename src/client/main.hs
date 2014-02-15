@@ -105,7 +105,7 @@ actionProducer ac playerId = do
         mapM_ (\a -> P.yield (time, playerId, a)) (Set.toList actions)
           --Nothing -> return ()
             --lift . threadDelay $ 100000
-      Nothing -> lift $ threadDelay 10000
+      Nothing -> lift $ threadDelay 100000
 
     actionProducer ac playerId
 
@@ -306,8 +306,10 @@ run i session w = do
     let input = asks stateInput state -- maybe not threadsafe
     (actions@(InputActions as), session', w') <- liftIO $ stepInput w session input
     ac <- asks envActionChan
-    lift $ print "Wait action chan"
-    unless (null (Set.toList as)) $ liftIO . atomically . writeTQueue ac $ (userTime, actions)
+    let evaluatedActions = id $! (userTime, actions)
+    let stm = id $! writeTQueue ac evaluatedActions
+    lift $ print ("Wait action chan", userTime, actions)
+    unless (null (Set.toList as)) $ liftIO . atomically $ stm
     lift $ print "End handle input"
 
     -- update camera

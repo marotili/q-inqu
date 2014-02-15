@@ -134,6 +134,6 @@ executable client
         pretty >= 1.1 && < 1.2,
         Octree >= 0.5 && < 0.6
 
-  ghc-options: -rtsopts -threaded
+  ghc-options: -rtsopts -threaded -Wall
   main-is: main.hs
 

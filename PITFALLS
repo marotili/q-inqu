@@ -1,0 +1,7 @@
+-- Netwire / Game loop
+* Example
+spawn = untilV (keyDownEvent GLFW.Key'X)
+	W.--> for 0.1 . asSoonAs . spawnAction . once . keyDownEvent GLFW.Key'X 
+	W.--> spawn
+
+if the time delta is higher than 0.1 and the key is down this will loop forever
