@@ -3,9 +3,6 @@ module Game.World.Gen.Types where
 
 import qualified Data.Map as Map
 import System.Random
-import Data.Maybe
-import Debug.Trace
-import Test.QuickCheck
 
 import Control.Monad.RWS
 import Control.Monad.State
@@ -33,6 +30,7 @@ data Map = Map
     { _mapStages :: Map.Map StageIndex Stage
     } deriving (Show)
 
+newMap :: Map
 newMap = Map
     { _mapStages = Map.empty
     }
@@ -50,6 +48,7 @@ data Stage = Stage
     , _stageDifficulty :: Difficulty
     } deriving (Show)
 
+newStage :: Stage
 newStage = Stage
     { _stageRooms = Map.empty
     , _stageDifficulty = DifficultyTutorial
@@ -62,6 +61,7 @@ data Room = Room
     , _roomDoors :: Map.Map DoorIndex Door
     } deriving (Show)
 
+newRoom :: Room
 newRoom = Room 
     { _roomType = DefaultRoom
     , _roomSize = RoomSize 0 0
@@ -101,15 +101,15 @@ makeLenses ''Stage
 
 instance Monoid Map where
     mempty = newMap
-    mappend m1 m2 = m2
+    mappend _ m2 = m2
 
 instance Monoid Stage where
     mempty = newStage
-    mappend s1 s2 = s2
+    mappend _ s2 = s2
 
 instance Monoid Room where
     mempty = newRoom
-    mappend r1 r2 = r2
+    mappend _ r2 = r2
 
 -- Generation data types
 data GenState = GenState
@@ -119,32 +119,31 @@ makeLenses ''GenState
 type GenContext = State GenState
 
 --runGenContext :: 
-runGenContext m g = evalRWS (
-        m
-    ) () $ GenState g
+runGenContext :: GenMap () -> StdGen -> ((), Map)
+runGenContext m g = evalRWS m () (GenState g)
 
 type GenMap = RWS () Map GenState
 type GenStage = RWS Map Stage GenState
 type GenRoom = RWS (Map, Stage) Room GenState
 
 genRoom :: GenRoom ()
-genRoom = do
+genRoom =
     return ()
 
 genStage :: GenStage ()
 genStage = do
     genState <- get
-    map <- ask
+    gameMap <- ask
     let stage = newStage
-    let (_, state, room) = runRWS (genRoom) (map, stage) genState
-    put state
+    let (_, newState, room) = runRWS genRoom (gameMap, stage) genState
+    put newState
     scribe (stageRooms . at 1) (Just room)
 
 genMap :: GenMap ()
 genMap = do
     genState <- get
-    let map = newMap
-    let (_, state, stage) = runRWS (genStage) map genState
+    let gameMap = newMap
+    let (_, _, _) = runRWS genStage gameMap genState
     return ()
 
 

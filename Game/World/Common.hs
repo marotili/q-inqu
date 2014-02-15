@@ -1,8 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Game.World.Common where
 
+import Data.Maybe
 import Game.World.Objects
-import Debug.Trace
 import Control.Monad.RWS
 import qualified Control.Wire as W
 import qualified Game.Collision as C
@@ -10,8 +10,8 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Control.Lens
 import Game.Input.Actions
+import qualified Game.Input.Actions as A
 import Control.Monad.State
-import Data.Monoid
 import qualified Control.Monad as CM
 
 type ObjectProp a = Map.Map ObjectId a
@@ -91,6 +91,7 @@ data WorldManager = WorldManager
 	, _wmPlayerActions :: Map.Map PlayerId InputActions
 	} deriving (Show, Eq)
 
+wcEmpty :: WorldCommon
 wcEmpty = WorldCommon
  	{ _wcPositions = Map.empty
  	, _wcPhysics = Map.empty
@@ -103,6 +104,7 @@ wcEmpty = WorldCommon
  	, _wcOrientation = Map.empty
  	}
 
+emptyW :: World
 emptyW = World
 	{ _wCommon = wcEmpty
 	, _wObjects = Map.empty
@@ -111,13 +113,14 @@ emptyW = World
 	, _wTileBoundary = (0, 0)
 	}
 
+emptyWM :: WorldManager
 emptyWM = WorldManager
 	{ _wmNextObjectId = 1
 	, _wmPlayerActions = Map.empty
 	}
 
 newtype WorldCommonDelta = WorldCommonDelta
-	{ _delta :: WorldCommon
+	{ _wcDelta :: WorldCommon
 	} deriving (Show)
 
 
@@ -127,8 +130,9 @@ makeLenses ''WorldCommon
 makeLenses ''World
 makeLenses ''WorldDelta
 
+alterPos :: (Float, Float) -> Maybe (Float, Float) -> Maybe (Float, Float)
 alterPos val Nothing = Just val
-alterPos (x, y) (Just (x', y')) = Just $ (x+x', y+y')
+alterPos (x, y) (Just (x', y')) = Just (x+x', y+y')
 
 mergeCommonDelta :: WorldCommon -> State WorldCommon ()
 mergeCommonDelta wc2 = do
@@ -147,17 +151,19 @@ instance Monoid WorldCommonDelta where
     mappend (WorldCommonDelta wc1) (WorldCommonDelta wc2) = 
         WorldCommonDelta (execState (mergeCommonDelta wc2) wc1)
 
+type ObjectChangeSet = Map.Map ObjectId (Maybe ObjectId)
+alterCollisionFilter :: ObjectChangeSet -> Maybe ObjectChangeSet -> Maybe ObjectChangeSet
 alterCollisionFilter v Nothing = Just v
 
 -- we can't delete and add a filter in one update
-alterCollisionFilter oIds (Just oldIds) = Just (foldr (\(oId, mOId) oldIds ->
+alterCollisionFilter oIds (Just oldIds) = Just (foldr (\(oId, mOId) oldIdMap ->
 		case mOId of
-			Just oId' -> if Map.member oId oldIds && oldIds Map.! oId == Nothing
+			Just _ -> if Map.member oId oldIdMap && isNothing (oldIdMap Map.! oId)
 				then error "Can't delete and add in one update"
-				else Map.insert oId (Just oId) oldIds
-			Nothing -> if Map.member oId oldIds && oldIds Map.! oId == Just oId
+				else Map.insert oId (Just oId) oldIdMap
+			Nothing -> if Map.member oId oldIdMap && oldIdMap Map.! oId == Just oId
 				then error "Can't delete and add in one update"
-				else Map.insert oId (Just oId) oldIds
+				else Map.insert oId (Just oId) oldIdMap
 	) oldIds $ Map.toList oIds)
 
 mergeDelta :: WorldDelta -> State WorldDelta ()
@@ -178,13 +184,14 @@ instance Monoid WorldDelta where
         --	& wdCollisionFilter .~ (wd1^.wdCollisionFilter) `mappend` (wd2^.wdCollisionFilter)
 
 
+worldManagerUpdate :: WorldManager -> [(Int, A.Action)] -> WorldManager
 worldManagerUpdate manager actions = manager2
 	where
-		manager0 = execState (do
-			mapM_ (\pId -> do
-				manager <- get
-				let (InputActions playerActions) = if Map.member pId (manager^.wmPlayerActions)
-					then (manager^.wmPlayerActions) Map.! pId
+		manager0 = execState (
+			mapM_ ((\pId -> do
+				currentManager <- get
+				let (InputActions playerActions) = if Map.member pId (currentManager^.wmPlayerActions)
+					then (currentManager^.wmPlayerActions) Map.! pId
 					else mempty
 
 				wmPlayerActions %= \pa -> foldr (\action -> 
@@ -192,14 +199,15 @@ worldManagerUpdate manager actions = manager2
 							then Map.delete pId
 							else id
 						) pa $ Set.toList playerActions 
-				) (map fst $ Map.toList $ manager^.wmPlayerActions)
+				)
+				. fst) (Map.toList $ manager^.wmPlayerActions)
 			) manager
-		manager2 = execState (do
-			mapM_ (\(pId, action) -> do
+		manager2 = execState (
+			mapM_ (\(pId, action) ->
 					CM.unless (pId <= 0) $ do
-						manager <- get
-						let playerActions = if Map.member pId (manager^.wmPlayerActions)
-							then (manager^.wmPlayerActions) Map.! pId
+						currentManager <- get
+						let playerActions = if Map.member pId (currentManager^.wmPlayerActions)
+							then (currentManager^.wmPlayerActions) Map.! pId
 							else mempty
 
 						wmPlayerActions %= Map.insert pId (

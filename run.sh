@@ -1,4 +1,5 @@
 dist/build/server/server &
 pid=$!
-dist/build/client/client +RTS -N2 -sstderr -p
+sleep 1
+dist/build/client/client
 kill -9 $pid

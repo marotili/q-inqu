@@ -2,36 +2,24 @@ module Main (main) where
 
 --------------------------------------------------------------------------------
 
-import GHC.Float
 import System.Environment
 
-import Control.Concurrent.STM    (TQueue, TVar, newTVarIO, readTVar, atomically, newTQueueIO, tryReadTQueue, writeTQueue, readTQueue)
-import Control.Monad             (unless, when, void)
+import Control.Concurrent.STM    (TQueue, TVar, newTVarIO, readTVar, newTQueueIO, readTQueue, tryReadTQueue, writeTQueue)
 import Control.Monad.Reader
-import Control.Monad.RWS.Strict  (RWST, ask, asks, evalRWST, get, liftIO, modify, put)
-import Control.Monad.Trans.Maybe (MaybeT(..), runMaybeT)
+import Control.Monad.RWS.Strict  (RWST, evalRWST, get, modify)
 import Data.List                 (intercalate)
-import Data.Maybe                (catMaybes)
 import qualified Control.Wire as W
 --import Control.Monoid
-import qualified FRP.Netwire as NW
 import qualified Data.Set as Set
 
 import qualified Graphics.UI.GLFW          as GLFW
-import Game.World.Import.Tiled
 import Game.Input.Input
 import Game.Input.Actions
 import Text.PrettyPrint
---import Game.Render
---import Game.Cell
 import qualified Game.Render as Render
 import Game.Render.Map
 import qualified Game.Render.Map as RMap
 import Game.Render.Camera
---import Game.Unit
---import Game.Graph (step, genTestGraph, Graph, test)
-import qualified Graphics.Rendering.OpenGL as GL
-import Linear
 
 import qualified Control.Monad.State as S
 
@@ -46,7 +34,6 @@ import Pipes as P
 import Pipes.Network.TCP
 import Pipes.Concurrent
 import Control.Concurrent.Async
-import Pipes.Binary
 import Game.World
 import qualified Pipes.Binary as PB
 import Game.Render.Error
@@ -93,19 +80,11 @@ data Event =
 
 --------------------------------------------------------------------------------
 
---actionProducer :: Producer InputActions 
+actionProducer :: TQueue (Float, InputActions) -> Int -> Producer (Float, Int, Action) IO ()
 actionProducer ac playerId = do
-    lift $ print "Read action chan"
-    mtimeactions <- liftIO $ atomically $ tryReadTQueue ac
-    case mtimeactions of
-      Just timeactions -> do
-        --case mtimeactions of
-        let (time, InputActions actions) = timeactions
-        lift $ print "Send actions"
-        mapM_ (\a -> P.yield (time, playerId, a)) (Set.toList actions)
-          --Nothing -> return ()
-            --lift . threadDelay $ 100000
-      Nothing -> lift $ threadDelay 100000
+    timeactions <- liftIO $ atomically $ readTQueue ac
+    let (time, InputActions actions) = timeactions
+    mapM_ (\a -> P.yield (time, playerId, a)) (Set.toList actions)
 
     actionProducer ac playerId
 
@@ -122,7 +101,7 @@ main = withSocketsDo $ do
     args <- getArgs
     let ip = case args of [] -> "127.0.0.1"; _ -> head args
 
-    connect ip "5002" $ \(sock, addr) -> do
+    connect ip "5002" $ \(sock, _) -> do
       let fromServer = fromSocket sock 4096
       let toServer = toSocket sock
       actionsChan <- newTQueueIO :: IO (TQueue (Float, InputActions))
@@ -135,7 +114,7 @@ main = withSocketsDo $ do
 
       eventsChan <- newTQueueIO :: IO (TQueue Event)
 
-      withWindow width height "GLFW-b-demo" $ \win -> do
+      withWindow width height "Q-inqu" $ \win -> do
           GLFW.setErrorCallback               $ Just $ errorCallback           eventsChan
           GLFW.setWindowPosCallback       win $ Just $ windowPosCallback       eventsChan
           GLFW.setWindowSizeCallback      win $ Just $ windowSizeCallback      eventsChan
@@ -159,28 +138,20 @@ main = withSocketsDo $ do
           (fbWidth, fbHeight) <- GLFW.getFramebufferSize win
 
           -- generate map from tiled
-          tiledMap <- loadMapFile "data/sewers.tmx"
-          --let m = mapNew $ mapConfigFromTiled tiledMap
-          let rm = newRenderMap tiledMap
+          tMap <- loadMapFile "data/sewers.tmx"
+          let rm = newRenderMap tMap
 
           rc <- Render.newRenderContext rm
           -- default render context
           renderContext <- newTVarIO rc
 
-          async $ do
-            runEffect $ for (actionProducer actionsChan playerId) PB.encode >-> toServer
+          _ <- async $ do
+            _ <- runEffect $ for (actionProducer actionsChan playerId) PB.encode >-> toServer
             performGC
 
-          --let f e = do
-          --      case e of
-          --        Left de -> lift $ print $ fst de
-          --        _ -> return ()
-
-          --let repeatDecode = for (decodeSteps fromServer >>= f) (\x -> lift (print $ "In: " ++ show x))
-
-          forkIO $ do
-            (world, manager) <- newWorldFromTiled tiledMap
-            runEffect $ decodeSteps fromServer >-> consumeClientWorld world manager testwire renderContext []
+          _ <- forkIO $ do
+            (world, manager) <- newWorldFromTiled tMap
+            _ <- runEffect $ decodeSteps fromServer >-> consumeClientWorld world manager testwire renderContext []
             performGC
 
           let 
@@ -270,12 +241,12 @@ charCallback            tc win c          = atomically $ writeTQueue tc $ EventC
 
 runDemo :: Env -> State -> IO ()
 runDemo env state =
-    void $ evalRWST (adjustWindow >> run 0 W.clockSession_ userInput) env state 
+    void $ evalRWST (adjustWindow >> run (0 :: Int) W.clockSession_ userInput) env state 
 
-run :: (Num a, Show a, Show b) 
+run :: Show b
   => Int 
   -> W.Session IO (W.Timed W.NominalDiffTime ()) 
-  -> InputWire a b 
+  -> InputWire Int b 
   -> Demo ()
 run i session w = do
     lift $ print "Run begin"
@@ -302,24 +273,15 @@ run i session w = do
     let userTime = case userTime2 of Just time -> realToFrac time; Nothing -> 0
 
     -- user input
-    lift $ print "Start handle input"
     let input = asks stateInput state -- maybe not threadsafe
     (actions@(InputActions as), session', w') <- liftIO $ stepInput w session input
     ac <- asks envActionChan
-    let evaluatedActions = id $! (userTime, actions)
-    let stm = id $! writeTQueue ac evaluatedActions
-    lift $ print ("Wait action chan", userTime, actions)
+    let evaluatedActions = (userTime, actions)
+    let stm = writeTQueue ac evaluatedActions
     unless (null (Set.toList as)) $ liftIO . atomically $ stm
-    lift $ print "End handle input"
 
     -- update camera
-    let c = asks stateCam state
-    let V2 cx cy = screenToOpenGLCoords c 0 0
-
-    lift $ print "Finalizing"
     q <- liftIO $ GLFW.windowShouldClose win
-    --liftIO performGC
-    --when (i `mod` 20 == 0) $ liftIO performGC
 
     -- time
     Just end <- liftIO GLFW.getTime
@@ -356,24 +318,24 @@ processEvent ev =
             }
           adjustWindow
 
-      (EventMouseButton _ mb mbs mk) ->
+      (EventMouseButton _ mb mbs _) ->
           modify (if mbs == GLFW.MouseButtonState'Pressed
               then \s -> s { stateInput = stateInput s >> inputMouseButtonDown mb }
               else \s -> s { stateInput = stateInput s >> inputMouseButtonUp mb }
             )
 
-      (EventCursorPos _ x y) -> do
-          let x' = round x :: Int
-              y' = round y :: Int
-          state <- get
+      (EventCursorPos _ x y) ->
+          --let x' = round x :: Int
+              --y' = round y :: Int
+          --state <- get
 
-          let c = asks stateCam state
-          let V2 cx cy = screenToOpenGLCoords c (double2Float x) (double2Float y)
-          let V4 wx wy _ _ = cameraInverse c (V4 cx cy 0 1 :: V4 Float)
+          --let c = asks stateCam state
+          --let V2 cx cy = screenToOpenGLCoords c (double2Float x) (double2Float y)
+          --let V4 _ _ _ _ = cameraInverse c (V4 cx cy 0 1 :: V4 Float)
 
           modify $ \s -> s { stateInput = stateInput s >> inputUpdateMousePos (x, y) }
 
-      (EventKey win k scancode ks mk) -> do
+      (EventKey win k _ ks _) -> do
           when (ks == GLFW.KeyState'Pressed) $ do
               -- Q, Esc: exit
               when (k == GLFW.Key'Escape) $
@@ -468,12 +430,12 @@ printInformation win = do
     --    location = int x <> text "," <> int y
     --    size = int w <> text "x" <> int h <> text "mm"
 
-    renderVideoMode (GLFW.VideoMode w h r g b rr) =
-        brackets $ res <+> rgb <+> hz
-      where
-        res = int w <> text "x" <> int h
-        rgb = int r <> text "x" <> int g <> text "x" <> int b
-        hz = int rr <> text "Hz"
+    --renderVideoMode (GLFW.VideoMode w h r g b rr) =
+    --    brackets $ res <+> rgb <+> hz
+    --  where
+    --    res = int w <> text "x" <> int h
+    --    rgb = int r <> text "x" <> int g <> text "x" <> int b
+    --    hz = int rr <> text "Hz"
 
     --renderJoystickNames pairs =
     --    vcat $ map (\(js, name) -> text (show js) <+> text (show name)) pairs

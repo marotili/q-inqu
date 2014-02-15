@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, TemplateHaskell, Rank2Types, NoMonomorphismRestriction #-}
+{-# LANGUAGE FlexibleContexts, Rank2Types, NoMonomorphismRestriction #-}
 module Game.World.Lens where
 
 import qualified Data.Map as Map
@@ -6,15 +6,10 @@ import qualified Data.Set as Set
 import Control.Lens
 import Game.World.Objects
 import Control.Monad.Writer
-import Control.Monad.RWS
-import Linear
 --import Game.World.Types
-import qualified Game.Collision as C
-import Control.Monad.State
-import Control.Monad
-import qualified Control.Wire as W
 import Data.Maybe
 import Game.World.Common
+import Control.Arrow
 
 --objectExists :: ObjectId -> World -> Bool
 --objectExists oId w = Map.member oId (w^.wObjects)
@@ -44,39 +39,40 @@ compObject = Component
 compPosition :: Component' (ObjectProp Position)
 compPosition = Component 
     { _compGet = wCommon.wcPositions
-    , _compSet = wdCommon.delta.wcPositions
+    , _compSet = wdCommon.wcDelta.wcPositions
     }    
 
 compWires :: Component' (ObjectProp [ObjectWire ObjectId ()])
 compWires = Component
     { _compGet = wCommon.wcWires
-    , _compSet = wdCommon.delta.wcWires
+    , _compSet = wdCommon.wcDelta.wcWires
     }
 
 compAnimations :: Component' (ObjectProp Animation)
 compAnimations = Component
     { _compGet = wCommon.wcAnimations
-    , _compSet = wdCommon.delta.wcAnimations
+    , _compSet = wdCommon.wcDelta.wcAnimations
     }
 
 compBoundaries :: Component' (ObjectProp Boundary)
 compBoundaries = Component
     { _compGet = wCommon.wcBoundaries
-    , _compSet = wdCommon.delta.wcBoundaries
+    , _compSet = wdCommon.wcDelta.wcBoundaries
     }
 
 compOrientation :: Component' (ObjectProp Orientation)
 compOrientation = Component
     { _compGet = wCommon.wcOrientation
-    , _compSet = wdCommon.delta.wcOrientation
+    , _compSet = wdCommon.wcDelta.wcOrientation
     }
 
 type IngoredObjects = Set.Set ObjectId
 type ObjectIdTo a = ObjectProp a
 type ListOfChanges = Map.Map ObjectId (Maybe ObjectId)
 type CollisionFilter = Component
+--type ObjectChangeSet = Map.Map ObjectId (Maybe ObjectId)
 
-compCollisionFilter :: CollisionFilter (ObjectIdTo IngoredObjects) (ObjectIdTo ListOfChanges)
+compCollisionFilter :: CollisionFilter (ObjectIdTo IngoredObjects) (ObjectIdTo ObjectChangeSet)
 compCollisionFilter = Component
     { _compGet = wCollisionFilter
     , _compSet = wdCollisionFilter
@@ -92,8 +88,9 @@ writeProp :: (MonadWriter WorldDelta m)
     -> ObjectId 
     -> a 
     -> m ()
-writeProp set oId a = scribe (set . at oId) (Just a)
+writeProp mapSetter oId a = scribe (mapSetter . at oId) (Just a)
 
+addWire :: (MonadWriter WorldDelta m) => ObjectId -> ObjectWire ObjectId () -> m ()
 addWire oId w = writeProp setWires oId [w]
 
 setAnimations :: Set (ObjectProp Animation)
@@ -102,7 +99,7 @@ getAnimations :: Get (ObjectProp Animation)
 getAnimations = _compGet compAnimations
 
 setAnimation :: (MonadWriter WorldDelta m) => ObjectId -> Animation -> m ()
-setAnimation oId anim = writeProp setAnimations oId anim
+setAnimation = writeProp setAnimations
 
 setPositions :: Setter' WorldDelta (ObjectProp Position)
 setPositions = _compSet compPosition
@@ -112,7 +109,8 @@ getPositions = _compGet compPosition
 objectPosition :: ObjectId -> Getter World (Maybe Position)
 objectPosition oId = getPositions . at oId
 
-moveObject oId dPos = writeProp setPositions oId dPos
+moveObject :: (MonadWriter WorldDelta m) => ObjectId -> (Float, Float) -> m ()
+moveObject = writeProp setPositions
 
 setObjects :: Setter' WorldDelta (ObjectProp (Maybe Object))
 setObjects = _compSet compObject
@@ -127,10 +125,10 @@ deleteObject oId = writeProp setObjects oId Nothing
 newObjects :: Getter WorldDelta [Object]
 newObjects = to getNew
     where
-        getNew wd = newObjects (wd^.wdObjects)
+        getNew wd = getNewObjects (wd^.wdObjects)
         -- new objects are inserted into the map with Just
-        newObjects objectMap = map fromJust . 
-            filter (\mobj -> case mobj of Just obj -> True; _ -> False) $
+        getNewObjects objectMap = map fromJust . 
+            filter (\mobj -> case mobj of Just _ -> True; _ -> False) $
             map snd $ Map.toList objectMap
 
 newtype One a = One { unOne :: Maybe a }
@@ -138,11 +136,12 @@ instance Monoid (One a) where
     mempty = One Nothing
     mappend (One Nothing) (One x) = One x
     mappend (One x) (One Nothing) = One x
+    mappend _ _ = error "One cannot be used twice"
 
 findObject :: String -> Getter World (Maybe Object)
 findObject name = to (\w -> 
-        unOne $ ifoldMap (\oId obj -> 
-            if (obj^.objName) == name then (One (Just obj)) else One Nothing
+        unOne $ ifoldMap (\_ obj -> One $
+            if (obj^.objName) == name then Just obj else Nothing
         ) (w^.wObjects)
     )
 
@@ -158,11 +157,11 @@ objectBoundary :: ObjectId -> Get Boundary
 objectBoundary oId = to boundary
     where
         boundary w = let (px, py) = pos w in  -- collision boundary = object boundary + position
-            map (\(x, y) ->  (px + x, py + y)) $ fromJust $ w^.getBoundaries . at oId
+            map ((+) px *** (+) py) $ fromJust $ w^.getBoundaries . at oId
         pos w = fromJust $ w^.getPositions . at oId
 
 setBoundary :: (MonadWriter WorldDelta m) => ObjectId -> Boundary -> m ()
-setBoundary oId b = writeProp setBoundaries oId b
+setBoundary = writeProp setBoundaries
 
 setBoundaries :: Set (ObjectProp Boundary)
 setBoundaries = _compSet compBoundaries
@@ -170,7 +169,7 @@ getBoundaries :: Get (ObjectProp Boundary)
 getBoundaries = _compGet compBoundaries
 
 setStaticCollidable :: (MonadWriter WorldDelta m) => ObjectId -> m ()
-setStaticCollidable oId = scribe (wdCommon.delta.wcStaticCollidable) (Set.insert oId Set.empty)
+setStaticCollidable oId = scribe (wdCommon.wcDelta.wcStaticCollidable) (Set.insert oId Set.empty)
 
 isCollidable :: ObjectId -> Get Bool
 isCollidable oId = to collidable
@@ -185,12 +184,16 @@ setOrientations :: Set (ObjectProp Orientation)
 setOrientations = _compSet compOrientation
 getOrientations :: Get (ObjectProp Orientation)
 getOrientations = _compGet compOrientation
-setOrientation oId dPos = writeProp setOrientations oId dPos
+
+setOrientation :: (MonadWriter WorldDelta m) => ObjectId -> Orientation -> m ()
+setOrientation = writeProp setOrientations
 
 getCollisionFilters :: Get (ObjectProp (Set.Set ObjectId))
 getCollisionFilters = _compGet compCollisionFilter
 setCollisionFilters :: Set (ObjectProp (Map.Map ObjectId (Maybe ObjectId)))
 setCollisionFilters = _compSet compCollisionFilter
 
+setIgnoreCollision :: (MonadWriter WorldDelta m) => ObjectId -> ObjectId -> m ()
 setIgnoreCollision oId otherId = writeProp setCollisionFilters oId (Map.fromList [(otherId, Just otherId)])
+unsetIgnoreCollision :: (MonadWriter WorldDelta m) => ObjectId -> ObjectId -> m ()
 unsetIgnoreCollision oId otherId = writeProp setCollisionFilters oId (Map.fromList [(otherId, Nothing)])

@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, TemplateHaskell, Arrows, NamedFieldPuns, Rank2Types #-}
+{-# LANGUAGE FlexibleContexts, Arrows, NamedFieldPuns, Rank2Types #-}
 module Game.World 
 	(
 	-- * World
@@ -16,20 +16,11 @@ module Game.World
 	, Renderable
 	) where
 
-import Debug.Trace
-import Control.Concurrent
 import Game.World.Lens
-import qualified Data.Map as Map
-import qualified Data.Set as Set
 import Control.Monad.RWS
-import Control.Monad.Identity
-import Control.Monad.Writer
 import Control.Monad.State
-import Control.Monad
 import Data.Maybe
 import Game.Input.Input
-
-import qualified Data.Binary as B
 
 import Control.Wire
 import qualified Control.Wire as W
@@ -40,22 +31,16 @@ import Prelude hiding ((.), until)
 import Control.Lens
 import qualified Control.Lens as L
 import Game.World.Objects
-import Game.Collision
 
 import qualified Data.Tiled as T
 import Data.Tiled
 import Game.World.Import.Tiled
 
-import Game.Input.Actions as A
-
-import Game.World.Types
 
 import Game.World.Delta
 import Game.World.Wires
 import Game.World.Common
 import qualified Game.World.Objects as World
-
-import Debug.Trace
 
 whenMaybeDo :: (Monad m) => Maybe a -> (a -> m ()) -> m ()
 whenMaybeDo m f = 
@@ -82,21 +67,25 @@ newRenderObjects = do
 		buildObject objGid obj mpos = ifPosObj
 			where
 				ifPosObj = case mpos of
-					Just pos -> case objGid of 
+					Just _ -> case objGid of 
 						Just gid -> object gid
-						Nothing -> object 1
+						Nothing -> object (1 :: Int)
 					Nothing -> []
-				object objGid = [T.Object { _objectName= Just $ obj^.objName
-							   , _objectGid= Just (fromIntegral objGid)
-							   , _objectX = fromIntegral . round $ fst . fromJust $ mpos
-							   , _objectY = fromIntegral . round $ snd . fromJust $ mpos
+				object objectGid' = [T.Object { _objectName= Just $ obj^.objName
+							   , _objectGid= Just (fromIntegral objectGid')
+							   , _objectX = round $ fst . fromJust $ mpos
+							   , _objectY = round $ snd . fromJust $ mpos
 							   , _objectWidth = Nothing
 							   , _objectHeight = Nothing
+							   , _objectType = Nothing
+							   , _objectProperties = []
+							   , _objectPolygon = Nothing
+							   , _objectPolyline = Nothing
 							   }]
 
 update :: Renderer ()
 update = do
-	(world, delta, renderables) <- ask
+	(world, _, renderables) <- ask
 	mapM_ (\obj -> do
 			let oId = obj^.objId 
 			--let Just oId = fmap _objId (world^.findObject (obj^.))
@@ -112,12 +101,10 @@ update = do
 updateTiled :: Renderer ()
 updateTiled = do
 	(world, delta, _) <- ask
-	let Just pId = fmap _objId (world^.findObject "Neira")
-	let Just playerPos = world^.objectPosition pId
 	tiled <- get
 	put (newTiled world delta tiled)
 	where
-		newTiled world delta tiled = execState (do
+		newTiled world _ tiled = execState (do
 				tiledObject "Player1".objectPos tiled .= playerPos
 				tiledObject "Player2".objectPos tiled .= player2Pos
 				tiledObject "Dino".objectPos tiled .= dinoPos
@@ -155,6 +142,8 @@ updateTiled = do
 layerObj :: Traversal' TiledMap Layer
 layerObj = mapLayers.traverse._ObjectLayer
 --layerObj1 :: Traversal' RenderContext [Layer]
+tiledObject :: String
+	-> Traversal' TiledMap Data.Tiled.Object
 tiledObject name = mapLayers.traverse._ObjectLayer.layerObjects.traverse.objectsByName name
 
 type Renderable = World.Object
@@ -179,7 +168,7 @@ newWorldFromTiled tiledMap = do
 		Just beeObj = queryObject tiledMap "Bee"
 
 		wallPositions = mapWallPositions tiledMap
-		boulders = mapBoulders tiledMap
+		--boulders = mapBoulders tiledMap
 
 		--genWalls :: [(Float, Float)] -> WorldWire a b
 		genWalls [] = returnA
@@ -189,11 +178,11 @@ newWorldFromTiled tiledMap = do
 			wLiftSetOnceVoid setStaticCollidable -< wId
 			returnA -< input
 
-		genBoulders [] = returnA
-		genBoulders (boulder:boulders) = proc input -> do
-			spawnObjectAt "Boulder" (boulder^.objectPos tiledMap) -< input
-			genBoulders boulders -< input
-			returnA -< input
+		--genBoulders [] = returnA
+		--genBoulders (boulder:boulders) = proc input -> do
+		--	spawnObjectAt "Boulder" (boulder^.objectPos tiledMap) -< input
+		--	genBoulders boulders -< input
+		--	returnA -< input
 
 		initWire = proc input -> do
 			p1Id <- spawnObjectAt "Neira" (player1Obj^.objectPos tiledMap) -< input
@@ -212,14 +201,16 @@ newWorldFromTiled tiledMap = do
 			--_ <- animate (defaultCharacterAnim (0, 0)) -< 4
 
 			_ <- genWalls wallPositions -< input
-			_ <- genBoulders boulders -< input
+			--_ <- genBoulders boulders -< input
 
 			returnA -< ()
 
+moveArrow :: (Float, Float) -> ObjectWire ObjectId ()
 moveArrow direction = proc oId -> do
 	_ <- move direction . for 1 -< oId
 	returnA -< ()
 
+spawnArrow :: ObjectWire PlayerId ()
 spawnArrow = spawn . thenDo (inhibit WireFinished)
 	where
 		spawn = proc playerId -> do	
@@ -229,42 +220,50 @@ spawnArrow = spawn . thenDo (inhibit WireFinished)
 
 			returnA -< ()
 
-step1 = proc playerId -> do
-	Event oId <- spawnObjectMakeName -< playerId
-	Just playerPos <- wLiftF (\pId -> view $ getPositions . L.at pId) -< playerId
-	Just playerDir <- wLiftF (\pId -> view $ getOrientations . L.at pId) -< playerId
-	returnA -< (oId, playerPos, playerDir)
+		step1 = proc playerId -> do
+			Event oId <- spawnObjectMakeName -< playerId
+			Just playerPos <- wLiftF (\pId -> view $ getPositions . L.at pId) -< playerId
+			Just playerDir <- wLiftF (\pId -> view $ getOrientations . L.at pId) -< playerId
+			returnA -< (oId, playerPos, playerDir)
 
-spawnWire = proc (oId, playerDir) -> do
-	let (dx, dy) = deltaFromOrientation playerDir
-	let wire = moveArrow (dx*400, dy*400)
-	_ <- newObjectWireR -< (oId, wire)
-	returnA -< ()
+		spawnWire = proc (oId, playerDir) -> do
+			let (dx, dy) = deltaFromOrientation playerDir
+			let wire = moveArrow (dx*400, dy*400)
+			_ <- newObjectWireR -< (oId, wire)
+			returnA -< ()
 
-setup = proc (oId, playerPos, playerDir, playerId) -> do
-	_ <- setPosOnceR -< (oId, playerPos)
-	_ <- animateR -< (oId, arrowAnimation playerDir)
-	_ <- wLiftSetOnceR setBoundary -< (oId, arrowBoundary playerDir)
-	_ <- wLiftSetOnceR setIgnoreCollision -< (oId, playerId)
-	_ <- wLiftSetOnceR setIgnoreCollision -< (playerId, oId)
-	returnA -< ()
+		setup = proc (oId, playerPos, playerDir, playerId) -> do
+			_ <- setPosOnceR -< (oId, playerPos)
+			_ <- animateR -< (oId, arrowAnimation playerDir)
+			_ <- wLiftSetOnceR setBoundary -< (oId, arrowBoundary playerDir)
+			_ <- wLiftSetOnceR setIgnoreCollision -< (oId, playerId)
+			_ <- wLiftSetOnceR setIgnoreCollision -< (playerId, oId)
+			returnA -< ()
 
+playerSpawnArrow :: ObjectWire PlayerId ()
 playerSpawnArrow = untilV spawnArrowEvent
 	W.--> spawnArrow 
 	W.--> void while . spawnArrowEvent
 	W.--> playerSpawnArrow
 
+playerMovement :: ObjectWire PlayerId ()
 playerMovement = untilV movingDirectionE 
-	W.--> move
+	W.--> movePlayer
 	W.--> playerMovement
 	where
-		move = proc pId -> do
-			-- TODO fix the wrong directions (dx, -dx etc)
+		movePlayer = proc pId -> do
+			-- Direction of player
 			(dx, dy) <- movingDirectionR -< pId
+
+			-- move the player
 			_ <- moveR -< (pId, (-dx*200, dy*200))
+
+			-- set new orientation
 			let orientation = orientationFromDelta (-dx, dy)
 			let anim = objectAnimation pId orientation
 			_ <- wLiftUpdateR setOrientation -< (pId, orientation)
+
+			-- animate the player
 			_ <- animateR -< (pId, anim)
 			returnA -< ()
 
@@ -295,13 +294,13 @@ testwire = proc input -> do
 	returnA -< ()
 
 
-worldLoop w' session' world' state' = do
-	(dt, session) <- stepSession session'
-	((out, w), worldManager, worldDelta) <- runRWST (
-		stepWire w' dt (Right ())
-		) world' state'
+--worldLoop w'a session' world' state' = do
+--	(dt, session) <- stepSession session'
+--	((out, w), worldManager, worldDelta) <- runRWST (
+--		stepWire w' dt (Right ())
+--		) world' state'
 
-	let quit = case out of
-		Right _ -> False
-		Left _ -> True
-	return (quit, (w, session), (worldManager, worldDelta))
+--	let quit = case out of
+--		Right _ -> False
+--		Left _ -> True
+--	return (quit, (w, session), (worldManager, worldDelta))

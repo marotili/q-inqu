@@ -28,12 +28,12 @@ data Action =
 	| ActionUpdateGameState
 	deriving (Show, Eq, Ord)
 
-instants = 
-	[ ActionActivate DirNorth
-	, ActionSpawnArrow
-	, ActionStopMove
-	, ActionUpdateGameState
-	]
+--instants = 
+--	[ ActionActivate DirNorth
+--	, ActionSpawnArrow
+--	, ActionStopMove
+--	, ActionUpdateGameState
+--	]
 
 
 
@@ -53,6 +53,7 @@ isMoving :: InputActions -> Bool
 isMoving (InputActions actions) = 
 	any (\a -> case a of ActionMove _ _ -> True; _ -> False) (Set.toList actions)
 
+movingDirection :: InputActions -> (Float, Float)
 movingDirection is@(InputActions actions) = if isMoving is 
 	then foldr (\a (dx, dy) -> case a of ActionMove x y -> (x + dx, y + dy); _ -> (dx, dy)) (0, 0) (Set.toList actions)
 	else (0, 0)
@@ -72,18 +73,18 @@ instance Monoid InputActions where
 		) left (Set.toList as2)
 		where
 			(x', y') = movingDirection (InputActions as1)
-			removeMovement as1 = foldr (\a as -> case a of
+			removeMovement as1' = foldr (\a as -> case a of
 				ActionMove _ _ -> as
 				_ -> Set.insert a as
-				) Set.empty (Set.toList as1)
+				) Set.empty (Set.toList as1')
 
-			normMove x y x' y' = ActionMove a b
+			normMove x1 y1 x2 y2 = ActionMove a b
 				where
-					V2 a b = normalize (V2 (x + x') (y + y'))
+					V2 a b = normalize (V2 (x1 + x2) (y1 + y2))
 
 			left = if isMoving (InputActions as2) || ActionStopMove `elem` Set.toList as2 then removeMovement as1 else as1
 
-			removeStops as = foldr (\a as -> case a of ActionStopMove -> as; _ -> Set.insert a as) Set.empty (Set.toList as)
+			removeStops as = foldr (\a as' -> case a of ActionStopMove -> as'; _ -> Set.insert a as') Set.empty (Set.toList as)
 
 instance Binary Direction where
 	put DirNorth = put (0 :: Word8)
@@ -98,6 +99,7 @@ instance Binary Direction where
 			1 -> return DirEast
 			2 -> return DirSouth
 			3 -> return DirWest
+			_ -> error "Invalid value while decoding Direction"
 
 instance Binary Action where
 	put ActionNothing = put (0 :: Word8)
@@ -133,3 +135,4 @@ instance Binary Action where
 				return ActionSpawnArrow
 			6 -> 
 				return ActionUpdateGameState
+			_ -> error "Invalid value while decoding Action"

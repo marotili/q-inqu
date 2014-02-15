@@ -4,32 +4,20 @@ module Main where
 
 import Game.World
 
-import Pipes.Lift
-
-
-import qualified Data.Map as Map
-import qualified Data.Set as Set
 import Control.Monad.RWS
 --import Control.Monad.Identity
 --import Control.Monad.Reader
 --import Control.Monad.Writer
-import Control.Monad.State
-import qualified Control.Monad.State as State
 import Control.Monad as CM
 
 --import qualified Data.Binary as B
 
 import Control.Wire
-import qualified Control.Wire as W
-import Control.Wire.Unsafe.Event
 import qualified Prelude as P
 import Prelude hiding ((.), until)
 
 import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Char8 as C
-
-import Control.Lens
 
 import Network hiding (accept, sClose)
 import Network.Socket
@@ -39,22 +27,15 @@ import Control.Concurrent.Async
 import qualified Data.Monoid as Monoid
 
 import Control.Concurrent.STM
-import Control.Concurrent.STM.TVar
 import Pipes as P
 import Pipes.Network.TCP
 import Pipes.Concurrent
 import qualified Pipes.Binary as PB
 
-import Game.World.Import.Tiled
 import Game.World.Common
 import Data.Tiled
 
 import qualified Game.Input.Actions as A
-import Data.Maybe
-import Data.Binary
-
-oneSecond = 1000000
-millisecond = oneSecond `div` 1000
 
 type ProdDecoder a = (Monad m)	 
 	=> Producer B.ByteString m r
@@ -70,7 +51,7 @@ stepWorld w' session' world' state' = do
 	(dt, session) <- stepSession session'
 
 	-- run wires
-	((out, w), worldManager, worldDelta) <- runRWST (
+	((_, w), worldManager, worldDelta) <- runRWST (
 		stepWire w' dt (Right ())
 		) world' state'
 
@@ -79,8 +60,9 @@ stepWorld w' session' world' state' = do
 type FromClientData = (Float, Int, A.Action)
 type ClientData = ([(Int, A.Action)], Rational)
 
+collect :: [(Int, A.Action)] -> Pipe FromClientData ClientData IO [(Int, A.Action)]
 collect actions = do
-	(t, pId, action) <- P.await
+	(_, pId, action) <- P.await
 	if action == A.ActionUpdateGameState then
 		return (actions ++ [(pId, action)])
 	else
@@ -145,11 +127,13 @@ game recvEvents output = do
 			>-> toOutput output
 	performGC
 
+eventUpdate :: Producer (Float, Int, A.Action) IO ()
 eventUpdate = do
 	P.yield (0, -1, A.ActionUpdateGameState)
-	lift $ threadDelay (oneSecond `div` 60)
+	lift $ threadDelay (1000000 `div` 60)
 	eventUpdate
  
+main :: IO ()
 main = withSocketsDo $ do
 	(output1, input1) <- spawn Unbounded
 	(output2, input2) <- spawn Unbounded
@@ -164,7 +148,7 @@ main = withSocketsDo $ do
 	--let sendEvents = sens
 	let output = output1 Monoid.<> output2
 
-	async $ do
+	_ <- async $ do
 		runEffect $ eventUpdate >-> toOutput sendEvents1
 		performGC
 
@@ -179,7 +163,7 @@ main = withSocketsDo $ do
 
 forward :: Pipe (PB.ByteOffset, (Float, Int, A.Action)) (Float, Int, A.Action) IO ()
 forward = do
-	(off, d@(dt, pId, actions)) <- P.await
+	(off, d) <- P.await
 	--lift $ print (off, d)
 	CM.unless (off < 0) $ do
 		P.yield d
@@ -187,17 +171,16 @@ forward = do
 
 --connCb :: (Output (Float, A.Action), Input C.ByteString, Input C.ByteString)
 	-- -> (Socket, SockAddr) 
-	-- -> IO ()
-connCb (numClient, sendEvents, input1, input2) (sock, addr) = do
+	 -- > IO ()
+connCb :: (TVar Int, Output (Float, Int, A.Action), Input C.ByteString, Input C.ByteString)
+	-> (Socket, SockAddr) -> IO ()
+connCb (numClient, sendEvents, input1, input2) (sock, _) = do
 	--print "Server info: player joined"
 	cl <- atomically $ do
 		n <- readTVar numClient
 		if n == 2 then
 			return (-1)
 		else do
-			if n + 1 == 2 then return () else return ()
-				-- send game start
-
 			writeTVar numClient (n+1)
 			return n
 
@@ -222,7 +205,7 @@ connCb (numClient, sendEvents, input1, input2) (sock, addr) = do
 				)
 
 		--runEffect $ (P.yield "Test" >-> cons)
-		a1 <- async $ do
+		_ <- async $ do
 			runEffect $ fromInput (if cl == 0 then input1 else input2) >-> toClient
 			performGC
 		a2 <- async $ do
@@ -233,7 +216,7 @@ connCb (numClient, sendEvents, input1, input2) (sock, addr) = do
 
 		mapM_ wait [a2]
 
-		cl <- atomically $ do
+		_ <- atomically $ do
 			n <- readTVar numClient
 			writeTVar numClient (n-1)
 			return n

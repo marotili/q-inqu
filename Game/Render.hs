@@ -9,23 +9,14 @@ module Game.Render
 	, rcWorldRenderContext
 	) where
 
-import System.Log.Logger
 import Graphics.Rendering.OpenGL
 import qualified Graphics.Rendering.OpenGL as GL
 import qualified Graphics.UI.GLFW as GLFW
 
-import qualified Data.Vector.Storable as V
-import Foreign.Storable
-import Foreign.Ptr
-import Data.Int
-
 import Game.Render.Map
 import Game.Render.Render
 import Game.Render.Camera
-import Codec.Picture.Png
-import Codec.Picture
 
-import System.Exit
 import Control.Lens
 
 import Game.Render.Error
@@ -38,13 +29,14 @@ data RenderContext = RenderContext
 	}
 makeLenses ''RenderContext
 
+newRenderContext :: Map -> IO RenderContext
 newRenderContext renderMap = do
 	GL.blendFunc $= (GL.SrcAlpha, GL.OneMinusSrcAlpha)
 	GL.blend $= GL.Enabled
 	logGL "newRenderContext: blend setup failed"
 
 	program <- setupShaders
-	uniformInfo program
+	_ <- uniformInfo program
 	wrc <- newWorldRenderContext renderMap
 	bindWorldRenderContext wrc program
 
@@ -53,6 +45,7 @@ newRenderContext renderMap = do
 		, _rcWorldRenderContext = wrc
 		}
 
+clearWindow :: GLFW.Window -> IO ()
 clearWindow window = do
 	GL.clearColor $= GL.Color4 1 1 1 1
 	logGL "clearWindow: clearColor"
@@ -62,17 +55,18 @@ clearWindow window = do
 	GL.viewport $= (GL.Position 0 0, GL.Size (fromIntegral width) (fromIntegral height))
 	logGL "clearWindow: viewport"
 
+render :: GLFW.Window -> RenderContext -> Camera -> IO ()
 render window rc cam = do
 	-- update camera in every frame for now
-	(width, height) <- GLFW.getFramebufferSize window
+	--(width, height) <- GLFW.getFramebufferSize window
 	clearWindow window
 
 	GL.currentProgram $= Just (rc^.rcMainProgram)
 	logGL "render: set current program"
 
 	let tm = rc^.rcWorldRenderContext.wrcMap.tiledMap
-	let [playerPos@(x, y)] = tm^..object "Player1".objectPos tm
-	let newCam = cameraUpdatePosition cam (-x) (y)
+	let [(x, y)] = tm^..object "Player1".objectPos tm
+	let newCam = cameraUpdatePosition cam (-x) y
 	programSetViewProjection (rc^.rcMainProgram) newCam
 
 	updateWorldRenderContext (rc^.rcWorldRenderContext)

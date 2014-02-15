@@ -9,6 +9,9 @@ module Game.Input.Input
 	, inputMouseButtonDown, inputMouseButtonUp
 	, inputUpdateMousePos
 
+	, keyDown, keyUp
+	, keyDownEvent, keyUpEvent
+
 	-- * Wires
 	, InputWire
 	, stepInput, userInput
@@ -96,8 +99,8 @@ inputState cond = mkGenN $ \a -> do
 keyDownEvent :: GLFW.Key -> InputWire a (Event a)
 keyDownEvent key = inputEvent (liftM (Set.member key . inputKeys) ask)
 
---keyUpEvent :: GLFW.Key -> InputWire a (Event a)
---keyUpEvent key = inputEvent (liftM (not . Set.member key . inputKeys) ask)
+keyUpEvent :: GLFW.Key -> InputWire a (Event a)
+keyUpEvent key = inputEvent (liftM (not . Set.member key . inputKeys) ask)
 
 keyDown :: GLFW.Key -> InputWire a a
 keyDown key = inputState (liftM (Set.member key . inputKeys) ask)
@@ -105,11 +108,11 @@ keyDown key = inputState (liftM (Set.member key . inputKeys) ask)
 keyUp :: GLFW.Key -> InputWire a a
 keyUp key = inputState (liftM (not . Set.member key . inputKeys) ask)
 
-stepInput :: (Num a, Show b) 
-	=> InputWire a b 
+stepInput ::  
+	   InputWire Int b 
 	-> InputSession 
 	-> State UserInput () 
-	-> IO (InputActions, InputSession, InputWire a b)
+	-> IO (InputActions, InputSession, InputWire Int b)
 stepInput w' session' input = do
 	(dt, session) <- stepSession session'
 	let ((_, w), _, actions) = runRWS (
@@ -131,7 +134,7 @@ directionY = pure (V2 0 (-1)) . keyDown GLFW.Key'W . keyUp GLFW.Key'S <|>
 
 --movement = (stopMoveAction . W.when (\(V2 x y) -> x == 0 && y == 0) <|> moveAction) . liftA2 (+) directionX directionY
 movement :: InputWire a ()
-movement = fmap (const ()) (W.when (\(V2 dx dy) -> abs dx < 0.005 && abs dy < 0.005)) . liftA2 (+) directionX directionY
+movement = void (W.when (\(V2 dx dy) -> abs dx < 0.005 && abs dy < 0.005)) . liftA2 (+) directionX directionY
     W.--> moveAction . liftA2 (+) directionX directionY
     W.--> stopMoveAction W.--> movement
 
@@ -147,19 +150,18 @@ untilV source = W.until . fmap(\e -> ((), e)) source
 spawn :: InputWire a ()
 spawn = untilV (keyDownEvent GLFW.Key'X)
 	W.--> for 0.01 . asSoonAs . spawnAction . once . keyDownEvent GLFW.Key'X 
-	W.--> waitOneUpdate
+	W.--> waitOneUpdate -- We need a state update at this point
 	W.--> spawn
 
 waitOneUpdate :: InputWire a ()
-waitOneUpdate = mkGenN $ \_ -> do
+waitOneUpdate = mkGenN $ \_ ->
 	return (Right (), inhibit ())
 
 userInput :: InputWire a ((), ())
 userInput = proc input -> do
-	--m <- movement -< input
-	a <- spawn -< input
-	_ <- for 1 . moveAction W.--> for 100 . stopMoveAction-< V2 1 0
-	returnA -< ((), a)
+	_ <- movement -< input
+	_ <- spawn -< input
+	returnA -< ((), ())
 
 stopMoveAction :: InputWire a ()
 stopMoveAction = mkGenN $ \_ -> do

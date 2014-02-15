@@ -1,7 +1,5 @@
-{-# LANGUAGE NamedFieldPuns, TemplateHaskell #-}
-module Game.World.Gen 
-    (
-    ) where
+{-# LANGUAGE NamedFieldPuns #-}
+module Game.World.Gen where
 
 import Control.Lens
 import Game.World.Gen.Types
@@ -11,9 +9,9 @@ corridorVectors :: Corridor -> [(Int, Int)]
 corridorVectors corridor = vectors
     where
         points = corridor^.corPoints
-        lines = zip points (tail points)
+        corridorLines = zip points (tail points)
         vectors = map (\((x1, y1), (x2, y2)) -> 
-            (x2 - x1, y2 - y1)) lines
+            (x2 - x1, y2 - y1)) corridorLines
 
 validateCorridor :: Corridor -> Bool
 validateCorridor corridor = valid
@@ -24,10 +22,7 @@ validateCorridor corridor = valid
 
 -- | uses manhattan metric
 corridorLength :: Corridor -> Int
-corridorLength corridor = length
-    where
-        vectors = corridorVectors corridor
-        length = sum . map (uncurry (+)) $ vectors
+corridorLength corridor = sum . map (uncurry (+)) $ corridorVectors corridor
 
 roomDoorsAreOnOppositeSides :: Room -> DoorIndex -> DoorIndex -> Bool
 roomDoorsAreOnOppositeSides room dIdx1 dIdx2 = ret
@@ -52,7 +47,8 @@ newRandomEmptyRoom = do
         & roomSize .~ rndRoomSize
         & roomType .~ rndRoomType
 
-runTest = initTest >>= print . runGenContext genMap 
+--runTest :: IO ()
+--runTest = initTest >>= print . runGenContext genMap 
 --roomTest =
     --initTest >>= print . runGenContext newRandomEmptyRoom
 

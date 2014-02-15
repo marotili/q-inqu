@@ -11,22 +11,16 @@ import qualified Graphics.Rendering.OpenGL as GL
 import Graphics.Rendering.OpenGL.GL.Shaders.Program
 import Graphics.Rendering.OpenGL.Raw
 import qualified Data.Vector.Storable as V
-import Data.Array.Storable
-import Foreign.Storable.Tuple
 import Foreign.Storable
 import Foreign.Ptr
 import Foreign.Marshal
-import qualified Graphics.UI.GLFW as GLFW
 import System.FilePath ((</>))
 import Game.Render.Error
 import Foreign.C
 
-import Data.Int
-
 import Control.Lens
 import qualified Data.ByteString as BS
 import Graphics.Rendering.OpenGL
-import Unsafe.Coerce (unsafeCoerce)
 
 -- |Load a shader program from a file.
 loadShader :: ShaderType -> FilePath -> IO Shader
@@ -36,8 +30,8 @@ loadShader st filePath = do
     BS.readFile filePath >>= (shaderSourceBS shader $=)
     compileShader shader
 
-    ok <- get (compileStatus shader)
-    infoLog <- get (shaderInfoLog shader)
+    _ <- get (compileStatus shader)
+    _ <- get (shaderInfoLog shader)
 
     return shader
 
@@ -54,6 +48,8 @@ linkShaderProgramWith shaders = do
 
     return p
 
+-- TODO: size of is hardcoded
+uploadFromVec :: (Storable a) => GL.BufferTarget -> GL.BufferObject -> V.Vector a -> IO ()
 uploadFromVec target buf vec = do
     GL.bindBuffer target $= Just buf
     logGL "uploadFromVec: bind buffer"
@@ -61,6 +57,7 @@ uploadFromVec target buf vec = do
     	GL.bufferData target $= (fromIntegral $ sizeOf(undefined::Float) * V.length vec, ptr, GL.DynamicDraw)
     logGL "uploadFromVec: buffer data"
 
+updateFromVec :: (Storable a) => GL.BufferTarget -> GL.BufferObject -> V.Vector a -> IO ()
 updateFromVec target buf vec = do
     GL.bindBuffer target $= Just buf
     logGL "updateFromVec: bind buffer"
@@ -87,6 +84,7 @@ data UniformInfo = UniformInfo
     , _uiOffset :: GLint
     } deriving (Show)
 
+emptyInfo :: UniformInfo
 emptyInfo = UniformInfo "" 0 0 0 0
 
 makeLenses ''UniformInfo
@@ -142,7 +140,7 @@ uniformInfo p = do
                           & uiSize .~ size
                           & uiBlockIndex .~ bIdx
                           & uiOffset .~ offset
-            ) $ zip4 (uniformData!!0) (uniformData!!1) (uniformData!!3) (uniformData!!4)
+            ) $ zip4 (head uniformData) (uniformData!!1) (uniformData!!3) (uniformData!!4)
     let uniformData'' = fmap (\(ud, name) -> ud & uiName .~ name) $ zip uniformData' names
 
     writeFile "uniform.log" ""

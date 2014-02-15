@@ -5,7 +5,6 @@ module Game.Collision where
 -- *  so adding one big object may slow down the query
 
 import qualified Data.Octree as O
-import Debug.Trace
 import Data.Octree (Vector3(..), Octree)
 import Data.Maybe
 import GHC.Float
@@ -21,12 +20,16 @@ data Boundary = Boundary
 	{ _boundaryOrigin :: Vector3
 	, _boundarySize :: Vector3
 	} deriving (Show)
+
+newBoundary :: Boundary
 newBoundary = Boundary (Vector3 0 0 0) (Vector3 0 0 0)
 
 -- list of points that are connected by lines
 data RealBoundary = RealBoundary
 	{ _rbLines :: [Vector3]
 	} deriving (Show)
+
+newRealBoundary :: RealBoundary
 newRealBoundary = RealBoundary []
 
 data OctreeObject = OctreeObject
@@ -34,6 +37,8 @@ data OctreeObject = OctreeObject
 	, _ooBoundary :: Boundary
 	, _ooRealBoundary :: RealBoundary
 	} deriving (Show)
+
+newOctreeObject :: OctreeObject
 newOctreeObject = OctreeObject 0 newBoundary newRealBoundary
 
 data GameOctree = GameOctree
@@ -119,12 +124,12 @@ octreeQueryObject oId = do
 		otherObjects = filter (\o -> o^.ooObjectId /= oId) $ map snd collisionPoints
 
 		queryConvexHull :: [(Double, Double)]
-		queryConvexHull = map (\(Vector3 x y z) -> (x, y)) $ queryObject^.ooRealBoundary.rbLines
+		queryConvexHull = map (\(Vector3 x y _) -> (x, y)) $ queryObject^.ooRealBoundary.rbLines
 
 		otherObjectHulls :: [[Vector3]]
 		otherObjectHulls = otherObjects^..traverse.ooRealBoundary.rbLines
 		otherObjectsConvexHull :: [[(Double, Double)]]
-		otherObjectsConvexHull = (map.map) (\(Vector3 x y z) -> (x, y)) otherObjectHulls
+		otherObjectsConvexHull = (map.map) (\(Vector3 x y _) -> (x, y)) otherObjectHulls
 
 		--queryObjectInOther :: Bool
 		--queryObjectInOther = any (\point -> any (pointInConvexHull point) otherObjectsConvexHull) queryConvexHull
@@ -140,7 +145,9 @@ octreeQueryObject oId = do
 
 	return $ Set.toList . Set.fromList $ map _ooObjectId collisions
 
-lines points = zip points (tail points ++ [head points])
+
+objectLines :: [(Float, Float)] -> [((Float, Float), (Float, Float))]
+objectLines points = zip points (tail points ++ [head points])
 
 -- for now we assume the real boundary to be convex and clockwise
 pointInConvexHull :: (Double, Double) -> [(Double, Double)] -> Bool
@@ -151,6 +158,7 @@ pointInConvexHull (px, py) convexHullLines = isInside
 		isInside = all (\((ox, oy), (x, y)) -> x*(px - ox) + y*(py - oy) > 0) $ zip convexHullLines normals
 
 
+test :: [ObjectId]
 test = evalState (do
 		octreeAddStatics 
 			[ (0, (0, 0), (1, 1))
@@ -182,8 +190,8 @@ octreeObjectPoints = to points
 			, Vector3 (ox + dx) oy 0
 			] $ repeat octreeObject
 			where
-				Vector3 ox oy oz = octreeObject^.ooBoundary.boundaryOrigin
-				Vector3 dx dy dz = octreeObject^.ooBoundary.boundarySize
+				Vector3 ox oy _ = octreeObject^.ooBoundary.boundaryOrigin
+				Vector3 dx dy _ = octreeObject^.ooBoundary.boundarySize
 
 -- creates a boundary that is axis aligned (the real boundary too)
 -- used for tiles etc.
@@ -198,9 +206,9 @@ octreeObjectBox oId (ox', oy') (dx', dy') = newOctreeObject
 			& boundaryOrigin .~ Vector3 ox oy 0
 			& boundarySize .~ Vector3 dx dy 0
 
-		realBoundary = newRealBoundary & rbLines .~ lines
+		realBoundary = newRealBoundary & rbLines .~ objectBound
 
-		lines = 
+		objectBound = 
 			[ Vector3 ox oy 0
 			, Vector3 ox (oy + dy) 0
 			, Vector3 (ox + dx) (oy + dy) 0

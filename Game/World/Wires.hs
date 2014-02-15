@@ -1,18 +1,14 @@
 {-# LANGUAGE FlexibleContexts, Arrows, Rank2Types, FlexibleInstances #-}
 module Game.World.Wires where
 
-import qualified Control.Monad.Parallel as Par
-
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Game.World.Objects
 import qualified Game.World.Lens as World
-import Data.Monoid
 import Control.Monad.Writer
 import Control.Monad.RWS
 import Control.Lens 
 import qualified Control.Lens as L
-import Linear
 --import Game.World.Types
 import Game.Collision
 import Control.Monad.State
@@ -26,26 +22,25 @@ import Data.Maybe
 import qualified Game.Input.Actions as A
 import Prelude hiding ((.))
 import qualified Prelude as P
-import qualified Game.Input.Actions as A
 
-instance Par.MonadParallel (RWST World WorldDelta WorldManager IO) where
+--instance Par.MonadParallel (RWST World WorldDelta WorldManager IO)
 	--bindM2 :: (a -> b -> m c) -> m a -> m b -> m c
 	--bindM2 f ma mb = let ma' = ma >>= return
  --                        mb' = mb >>= return
  --                    in ma' `par` (mb' `pseq` do {a <- ma'; b <- mb'; f a b})
 
-parMapM_ :: Par.MonadParallel m => (a -> m b) -> [a] -> m ()
-parMapM_ f list = Par.sequence_ (map f list)
+--parMapM_ :: Par.MonadParallel m => (a -> m b) -> [a] -> m ()
+--parMapM_ f list = Par.sequence_ (map f list)
 
 stepObjectWires  :: WorldWire a ()
-stepObjectWires = mkGen $ \ds a -> do
+stepObjectWires = mkGen $ \ds _ -> do
 	wires <- view World.getWires
 	mapM_ (uncurry (stepObjectWire ds)) $ Map.toList wires
 	return (Right (), stepObjectWires)
 
 	where
 		stepObjectWire ds oId =
-			parMapM_ (stepObjectW oId ds)
+			mapM_ (stepObjectW oId ds)
 
 		stepObjectW oId ds w = do
 			(mx, w') <- stepWire w ds (Right oId)
@@ -60,22 +55,22 @@ stepObjectWires = mkGen $ \ds a -> do
 
 wLiftUpdateR :: (ObjectId -> a -> WorldContext b) -> WorldWire (ObjectId, a) ()
 wLiftUpdateR f = mkGenN $ \(oId, a) -> do
-	f oId a
+	_ <- f oId a
 	return (Right (), wLiftUpdateR f)
 
 wLiftSetOnceR :: (ObjectId -> a -> WorldContext b) -> WorldWire (ObjectId, a) (Event ())
 wLiftSetOnceR f = mkGenN $ \(oId, a) -> do
-	f oId a
+	_ <- f oId a
 	return (Right (W.Event ()), never)
 
 wLiftSetOnce :: (ObjectId -> a -> WorldContext b) -> a -> WorldWire ObjectId (Event ())
 wLiftSetOnce f a = mkGenN $ \oId -> do
-	f oId a
+	_ <- f oId a
 	return (Right (W.Event ()), never)
 
 wLiftSetOnceVoid :: (ObjectId -> WorldContext b) -> WorldWire ObjectId (Event ())
 wLiftSetOnceVoid f = mkGenN $ \oId -> do
-	f oId
+	_ <- f oId
 	return (Right (W.Event ()), never)
 
 wLiftF :: (a -> WorldContext b) -> WorldWire a b
@@ -93,22 +88,11 @@ wLiftM f = mkGenN $ \a -> do
 		Just b -> return (Right b, wLiftM f)
 		Nothing -> return (Left WireRunning, wLiftM f)
 
---objectR :: WorldWire ObjectId (Maybe Object)
---objectR = mkGenN $ \oId -> do
---	obj <- view $ World.getObjects . L.at oId
---	return (Right obj, objectR)
-
---objectRI :: WorldWire ObjectId Object
---objectRI = mkGenN $ \oId -> do
---	obj <- view $ World.getObjects . L.at oId
---	return $ case obj of
---		Just o -> (Right o, objectRI)
---		Nothing -> (Left (), objectRI)
-
 -- TODO: We should move the test into the state monad
 -- e.g.: object moves -> no collision and has new position in next update
 -- 		 	another object moves -> no collision but may overlap in the next update
 -- 			the collision manager should always know about the future positions of the objects
+collides :: ObjectId -> (Float, Float) -> WorldContext [ObjectId]
 collides oId (dx, dy) = do
 	cm <- view wCollisionManager
 	--Just oldPos <- view $ wCommon.wcPositions.at oId
@@ -120,8 +104,9 @@ collides oId (dx, dy) = do
 		) cm
 	return collisions
 
+_move :: Timed NominalDiffTime () -> ObjectId -> (Float, Float) -> WorldContext ()
 _move ds oId (vx, vy) = do
-	canCollide <- return False --view $ isCollidable oId
+	canCollide <- view $ isCollidable oId
 	mignore <- view $ getCollisionFilters . L.at oId
 	let dt = realToFrac (dtime ds)
 	let (dx, dy) = (dt * vx, dt * vy)
@@ -131,9 +116,9 @@ _move ds oId (vx, vy) = do
 			let realCollisions = case mignore of
 				Just ignore ->	filter (\col -> not (Set.member col ignore)) collisions
 				Nothing -> collisions
-			Control.Monad.when (null realCollisions) $ do
+			Control.Monad.when (null realCollisions) $
 				World.moveObject oId (dx, dy)
-		else do
+		else
 			World.moveObject oId (dx, dy)
 
 move :: (Float, Float) -> ObjectWire ObjectId ()
@@ -141,7 +126,9 @@ move speed = mkGen $ \ds oId -> do
 	_move ds oId speed
 	return (Right (), move speed)
 
-setPosOnce pos = wLiftSetOnce World.moveObject pos 
+setPosOnce :: (Float, Float) -> WorldWire ObjectId (Event ())
+setPosOnce = wLiftSetOnce World.moveObject
+setPosOnceR :: WorldWire (ObjectId, (Float, Float)) (Event ())
 setPosOnceR = wLiftSetOnceR World.moveObject
 --mkGenN $ \oId -> do
 --	World.moveObject oId pos
@@ -189,13 +176,13 @@ spawnObjectAt name pos = proc input -> do
 
 doOnce :: WorldWire a b -> WorldWire a (Event b)
 doOnce w = mkGen $ \ds a -> do
-	(mx, w') <- stepWire w ds (Right a)
+	(mx, _) <- stepWire w ds (Right a)
 	return $ case mx of
 		Right b -> (Right (W.Event b), never)	
 		Left x -> (Left x, never)
 
 thenDo :: WorldWire a a -> WorldWire a a
-thenDo w = mkGen $ \ds a -> return (Right a, w)
+thenDo w = mkGenN $ \a -> return (Right a, w)
 
 while :: WorldWire (Event a) (Event a)
 while = W.when (\a ->
@@ -213,11 +200,11 @@ spawnArrowEvent = mkGenN $ \pId -> do
 	if Map.member pId actions
 		then do
 			let (A.InputActions playerActions) = actions Map.! pId
-			if Set.member A.ActionSpawnArrow playerActions
-				then do
-					return (Right $ W.Event (), spawnArrowEvent)
+			return $ if Set.member A.ActionSpawnArrow playerActions
+				then
+					(Right $ W.Event (), spawnArrowEvent)
 				else
-					return (Right W.NoEvent, spawnArrowEvent)
+					(Right W.NoEvent, spawnArrowEvent)
 		else
 			return (Right W.NoEvent, spawnArrowEvent)
 
@@ -270,15 +257,15 @@ animateR = mkGen $ \ds (oId, animation) -> do
 	mObjAnim <- view (World.getAnimations P.. L.at oId)
 	case mObjAnim of
 		Nothing -> do
-			(mx, w') <- stepWire (animate animation) ds (Right oId)
+			(mx, _) <- stepWire (animate animation) ds (Right oId)
 			return (mx, animateR)
 		Just oAnim ->
 			if oAnim == animation 
 				then do
 					-- w' is is animate plus the updated animation
 					-- we can drop it since on the next invocation we pass the new state using wObjectName
-					(mx, w') <- stepWire (animate oAnim) ds (Right oId)
+					(mx, _) <- stepWire (animate oAnim) ds (Right oId)
 					return (mx, animateR)
 				else do
-					(mx, w') <- stepWire (animate animation) ds (Right oId)
+					(mx, _) <- stepWire (animate animation) ds (Right oId)
 					return (mx, animateR)

@@ -17,10 +17,7 @@ module Game.World.Objects where
 	--) where
 
 import qualified Data.Set as Set
-import qualified Data.Binary as B
-
 import Linear
-import Data.Monoid
 import Debug.Trace
 import Control.Lens
 
@@ -45,27 +42,9 @@ data Door = Door
 	, doorOpen :: Bool
 	} deriving (Show, Eq)
 
--- No rotation for now
---data ObjectPhysics = ObjectPhysics
---	{ _objectAcceleration :: V2 Float
---	, _objectSpeed :: V2 Float
---	} deriving (Show, Eq)
---makeLenses ''ObjectPhysics
-
 tuple :: Iso' (V2 Float) (Float, Float)
 tuple = iso (\(V2 x y) -> (x, y)) (uncurry V2)
  
---newAccel :: ObjectPhysics
---newAccel (dx, dy) = ObjectPhysics (V2 dx dy) (V2 0 0)
-instance Monoid (V2 Float) where
-	mempty = V2 0 0
-	mappend (V2 x1 y1) (V2 x2 y2) = V2 (x1 + x2) (y1 + y2)
-
---instance Monoid ObjectPhysics where
---	mempty = ObjectPhysics (V2 0 0) (V2 0 0)
---	mappend (ObjectPhysics a1 v1) (ObjectPhysics a2 v2) = 
---		ObjectPhysics (a1 `mappend` a2) (v1 `mappend` v2)
-
 data Animation = Animation
     { _animId :: Int -- local id for now TODO
     , _animTileGid :: Int
@@ -80,10 +59,6 @@ instance Show Animation where
 
 instance Eq Animation where
 	a1 == a2 = (a1^.animId) == (a2^.animId)
-
-arrowAnim = a1
-	where
-		a1 = Animation 200 113 4 a1 0
 
 -- clockwise
 playerBoundary :: [(Float, Float)]
@@ -218,6 +193,7 @@ objectAnimation 4 _ = a1
 
 objectAnimation _ _ = let a1 = Animation 1 73 0.25 a1 0 in a1
 
+arrowAnimation :: Orientation -> Animation
 arrowAnimation West = let a1 = Animation 99 113 999 a1 0 in a1
 arrowAnimation NorthWest = let a1 = Animation 99 114 999 a1 0 in a1
 arrowAnimation North = let a1 = Animation 99 115 999 a1 0 in a1

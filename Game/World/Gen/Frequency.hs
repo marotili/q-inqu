@@ -1,13 +1,9 @@
 {-# LANGUAGE NamedFieldPuns #-}
 module Game.World.Gen.Frequency where
 
-import qualified Data.Map as Map
 import System.Random
 import Data.Maybe
-import Debug.Trace
-import Test.QuickCheck
 import Game.World.Gen.Types
-import Control.Monad.State
 import Control.Lens
 
 data FreqDist a b = FreqDist
@@ -37,11 +33,13 @@ _getDistribution g FreqDist { freqDist } = (result, g')
                 else (Nothing, s + b)
         findResult _ (Just res, _) = (Just res, 0)
 
+roomTypeFreqDist :: FreqDist RoomType Int
 roomTypeFreqDist = FreqDist 
     [ (DefaultRoom, 9 :: Int)
     , (BossRoom, 1)
     ]
 
+roomSizeFreqDist :: RoomType -> FreqDist RoomSize Int
 roomSizeFreqDist DefaultRoom = FreqDist
     [ (RoomSize 2 2, 1 :: Int)
     , (RoomSize 2 3, 1)
@@ -59,6 +57,7 @@ roomSizeFreqDist BossRoom = FreqDist
     [ (RoomSize 4 4, 1)
     ]
 
+initTest :: IO StdGen
 initTest =
     newStdGen
 

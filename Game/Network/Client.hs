@@ -8,45 +8,23 @@ module Game.Network.Client
 import Game.World
 
 import Control.Monad.RWS
-import Control.Monad.Identity
-import Control.Monad.Reader
-import Control.Monad.Writer
-import Control.Monad.State
-import Control.Monad as CM
 
 --import Control.Wire
 import qualified Control.Wire as W
 
 import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as BL
-
-import Data.Binary
- 
-import Network.Simple.TCP
-import Control.Concurrent
  
 import Pipes as P
-import Pipes.Network.TCP
 import Pipes.Concurrent
-import Control.Concurrent.Async
 import Pipes.Binary
-import Game.Input.Actions
 import qualified Game.Input.Actions as A
 import Game.Render
 import Game.Render.Map
-import Game.World.Import.Tiled
 import Data.Tiled
-import qualified Data.Tiled as T
-import Control.Concurrent.STM   (TQueue, TVar, readTVar, writeTVar, atomically, newTQueueIO, tryReadTQueue, writeTQueue, readTQueue)
+import Control.Concurrent.STM ( TVar, readTVar, writeTVar)
 import Control.Lens
-import Data.Maybe
 import qualified Data.Map as Map
-import Game.World.Delta
 import Game.World.Objects
-import qualified Control.Monad.State as State
-import Game.World.Types
-import Game.World.Lens
-import Game.World
 import Game.World.Common
 type ProdDecoder a = (Monad m)	 
 	=> Producer B.ByteString m r
@@ -64,7 +42,7 @@ clientStepWorld ::
 clientStepWorld w' world' state' dt' = do
 	let dt = W.Timed (fromRational dt') ()
 	-- run wires
-	((out, w), worldManager, worldDelta) <- runRWST (
+	((_, w), worldManager, worldDelta) <- runRWST (
 		W.stepWire w' dt (Right ())
 		) world' state'
 
@@ -90,7 +68,7 @@ consumeClientWorld world manager w renderContextVar renderablesIn = do
 	let world' = applyDelta world delta
 	lift $ print ("Num wires", Map.size $ world'^.wCommon.wcWires)
 
-	renderContext <- lift $ atomically $ do
+	renderContext <- lift $ atomically $
 		readTVar renderContextVar
 
 	let tm = renderContext^.rcWorldRenderContext.wrcMap.tiledMap
@@ -101,14 +79,13 @@ consumeClientWorld world manager w renderContextVar renderablesIn = do
 			newRenderObjects
 		) (world', delta, renderablesIn) tm
 
-	(_, newTm3, _) <- lift $ runRWST (do
-			update
-		) (world', delta, renderablesIn ++ newRenderables) newTm2
+	(_, newTm3, _) <- lift $ runRWST update
+		(world', delta, renderablesIn ++ newRenderables) newTm2
 
-	let newRenderContext = renderContext & tMap .~ newTm3
+	let updatedRenderContext = renderContext & tMap .~ newTm3
 
-	lift $ atomically $ do
-		writeTVar renderContextVar newRenderContext
+	lift $ atomically $
+		writeTVar renderContextVar updatedRenderContext
 
 	-- repeat
 	--lift $ performGC
@@ -117,8 +94,8 @@ consumeClientWorld world manager w renderContextVar renderablesIn = do
 	where
 		tMap :: Traversal' RenderContext TiledMap
 		tMap = rcWorldRenderContext.wrcMap.tiledMap
-		layerObj :: Traversal' RenderContext Layer
-		layerObj = tMap.mapLayers.traverse._ObjectLayer
+		--layerObj :: Traversal' RenderContext Layer
+		--layerObj = tMap.mapLayers.traverse._ObjectLayer
 		--layerObj1 :: Traversal' RenderContext [Layer]
-		object name = mapLayers.traverse._ObjectLayer.layerObjects.traverse.objectsByName name
+		--object name = mapLayers.traverse._ObjectLayer.layerObjects.traverse.objectsByName name
 

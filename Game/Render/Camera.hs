@@ -1,7 +1,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 module Game.Render.Camera
 	(
-	  Camera, Viewport
+	  Camera
 	, cameraUpdateProjection
 	, cameraUpdatePosition
 	, programSetViewProjection
@@ -10,26 +10,22 @@ module Game.Render.Camera
 	, cameraInverse
 	) where
 
-import qualified Graphics.Rendering.OpenGL as GL
 import qualified Graphics.Rendering.OpenGL.Raw as GLRaw
-import Graphics.Rendering.OpenGL (($=))
-import qualified Graphics.UI.GLFW as GLFW
+import qualified Graphics.Rendering.OpenGL as GL
 
 import Linear
 import Foreign.Ptr
 import qualified Data.Vector.Storable as V
-
-import Debug.Trace
 import Game.Render.Error
 
-data Rect = Rect
-	{ rectPos :: V2 Float
-	, rectSize :: V2 Float
-	}
+--data Rect = Rect
+--	{ rectPos :: V2 Float
+--	, rectSize :: V2 Float
+--	}
 
-data Viewport = Viewport
-	{ viewportRect :: Rect
-	}
+--data Viewport = Viewport
+--	{ viewportRect :: Rect
+--	}
 
 data Projection = OrthogonalProjection
 	{ projectionMatrix :: M44 Float
@@ -43,6 +39,7 @@ data Camera = Camera
 	, cameraOrientation :: Quaternion Float
 	}
 
+cameraUpdatePosition :: Camera -> Float -> Float -> Camera
 cameraUpdatePosition cam x y = cam { cameraPosition = V3 x y (-1) }
 
 screenToOpenGLCoords :: Camera -> Float -> Float -> V2 Float
@@ -57,10 +54,10 @@ cameraInverse cam vec = (invViewM !*! invProjM) !* vec
 		invProjM = invProjM'
 			where
 			(V4
-				(V4 m00 m10 m20 m30)
-				(V4 m01 m11 m21 m31)
-				(V4 m02 m12 m22 m32)
-				(V4 m03 m13 m23 m33)) = projectionMatrix . cameraProjection $ cam
+				(V4 m00 _ _ _)
+				(V4 _ m11 _ _)
+				(V4 _ _ m22 _)
+				(V4 {})) = projectionMatrix . cameraProjection $ cam
 
 			invProjM' = V4
 				(V4 (1/m00) 0 0 0)
@@ -71,16 +68,17 @@ cameraInverse cam vec = (invViewM !*! invProjM) !* vec
 		invViewM = invViewM'
 			where
 			(V4
-				(V4 m00 m10 m20 m30)
-				(V4 m01 m11 m21 m31)
-				(V4 m02 m12 m22 m32)
-				(V4 m03 m13 m23 m33)) = viewMatrix cam
+				(V4 _ _ _ m30)
+				(V4 _ _ _ m31)
+				(V4 _ _ _ m32)
+				(V4 {})) = viewMatrix cam
 			invViewM' = V4
 				(V4 1 0 0 (-m30))
 				(V4 0 1 0 (-m31))
 				(V4 0 0 1 (-m32))
 				(V4 0 0 0 1)
 
+newDefaultCamera :: Float -> Float -> Camera
 newDefaultCamera viewportWidth viewportHeight = Camera
 	{ cameraProjection = newOrthogonalProjectionMatrix viewportWidth viewportHeight
 	, cameraPosition = V3 0 0 (-1)
@@ -107,10 +105,10 @@ newOrthogonalProjectionMatrix width height = OrthogonalProjection
 	, projectionHeight = height
 	}
 	where
-		fov = 3.14/3.0
 		f = 100
 		n = 0
 
+programSetViewProjection :: GL.Program -> Camera -> IO ()
 programSetViewProjection program camera = do
 	let projMat = projectionMatrix . cameraProjection $ camera
 	let viewMat = viewMatrix camera	
