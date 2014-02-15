@@ -132,9 +132,9 @@ alterPos (x, y) (Just (x', y')) = Just $ (x+x', y+y')
 
 mergeCommonDelta :: WorldCommon -> State WorldCommon ()
 mergeCommonDelta wc2 = do
-	wcPositions %= \positions ->
-		foldr (\(k, v) -> Map.alter (alterPos v) k) positions $
-			Map.toList (wc2^.wcPositions)
+	wcPositions %= \positions -> Map.unionWith (\(x, y) (x2, y2) -> (x + x2, y + y2)) positions (wc2^.wcPositions)
+		--foldr (\(k, v) -> Map.alter (alterPos v) k) positions $
+			--Map.toList (wc2^.wcPositions)
 
 	wcWires %= Map.unionWith (++) (wc2^.wcWires)
 	wcAnimations %= Map.union (wc2^.wcAnimations) -- left biased

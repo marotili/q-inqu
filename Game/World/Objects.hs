@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances, NamedFieldPuns, TemplateHaskell#-}
+{-# LANGUAGE FlexibleInstances, NamedFieldPuns, TemplateHaskell #-}
 module Game.World.Objects where
 	--( 
 	--  ObjectId, ObjectIds, DoorId, DoorControllerId, SwitchId
@@ -21,6 +21,7 @@ import qualified Data.Binary as B
 
 import Linear
 import Data.Monoid
+import Debug.Trace
 import Control.Lens
 
 type ObjectIds = Set.Set ObjectId
@@ -133,7 +134,7 @@ orientationFromDelta (dx, dy)
     | dx >= 0 && dy >= 0 = SouthEast
     | dx <= 0 && dy <= 0 = NorthWest
     | dx <= 0 && dy >= 0 = SouthWest
-    | otherwise = error "orientationFromDelta"
+    | otherwise = traceShow "orientationFromDelta error" $ error "orientationFromDelta"
     
 
 objectAnimation :: ObjectId -> Orientation -> Animation

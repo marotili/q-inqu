@@ -95,12 +95,17 @@ data Event =
 
 --actionProducer :: Producer InputActions 
 actionProducer ac playerId = do
-    mtimeactions <- liftIO $ atomically $ readTQueue ac
-    --case mtimeactions of
-    let (time, InputActions actions) = mtimeactions
-    mapM_ (\a -> P.yield (time, playerId, a)) (Set.toList actions)
-      --Nothing -> return ()
-        --lift . threadDelay $ 100000
+    lift $ print "Read action chan"
+    mtimeactions <- liftIO $ atomically $ tryReadTQueue ac
+    case mtimeactions of
+      Just timeactions -> do
+        --case mtimeactions of
+        let (time, InputActions actions) = timeactions
+        lift $ print "Send actions"
+        mapM_ (\a -> P.yield (time, playerId, a)) (Set.toList actions)
+          --Nothing -> return ()
+            --lift . threadDelay $ 100000
+      Nothing -> lift $ threadDelay 10000
 
     actionProducer ac playerId
 
@@ -173,7 +178,7 @@ main = withSocketsDo $ do
 
           --let repeatDecode = for (decodeSteps fromServer >>= f) (\x -> lift (print $ "In: " ++ show x))
 
-          a1 <- async $ do
+          forkIO $ do
             (world, manager) <- newWorldFromTiled tiledMap
             runEffect $ decodeSteps fromServer >-> consumeClientWorld world manager testwire renderContext []
             performGC
@@ -273,14 +278,17 @@ run :: (Num a, Show a, Show b)
   -> InputWire a b 
   -> Demo ()
 run i session w = do
+    lift $ print "Run begin"
     win <- asks envWindow
 
     Just start <- liftIO GLFW.getTime
 
 
+    lift $ print "Render begin"
     -- render
     draw
 
+    lift $ print "Process events"
     liftIO $ do
         GLFW.swapBuffers win
         --GL.flush  -- not necessary, but someone recommended it
@@ -294,15 +302,19 @@ run i session w = do
     let userTime = case userTime2 of Just time -> realToFrac time; Nothing -> 0
 
     -- user input
+    lift $ print "Start handle input"
     let input = asks stateInput state -- maybe not threadsafe
     (actions@(InputActions as), session', w') <- liftIO $ stepInput w session input
     ac <- asks envActionChan
+    lift $ print "Wait action chan"
     unless (null (Set.toList as)) $ liftIO . atomically . writeTQueue ac $ (userTime, actions)
+    lift $ print "End handle input"
 
     -- update camera
     let c = asks stateCam state
     let V2 cx cy = screenToOpenGLCoords c 0 0
 
+    lift $ print "Finalizing"
     q <- liftIO $ GLFW.windowShouldClose win
     --liftIO performGC
     --when (i `mod` 20 == 0) $ liftIO performGC
@@ -386,7 +398,9 @@ draw = do
 
   let cam = asks stateCam state
 
+  lift $ print "Client: Render"
   liftIO $ Render.render win rc cam
+  lift $ print "Client: Render finished"
 
   return ()
 

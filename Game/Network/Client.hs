@@ -88,8 +88,7 @@ consumeClientWorld world manager w renderContextVar renderablesIn = do
 
 	 --update our world state
 	let world' = applyDelta world delta
-	lift $ print ("Num wires", length $ Map.toList $ world'^.wCommon.wcWires)
-	lift $ print (world'^.wCommon.wcOrientation)
+	lift $ print ("Num wires", Map.size $ world'^.wCommon.wcWires)
 
 	renderContext <- lift $ atomically $ do
 		readTVar renderContextVar
@@ -112,6 +111,7 @@ consumeClientWorld world manager w renderContextVar renderablesIn = do
 		writeTVar renderContextVar newRenderContext
 
 	-- repeat
+	--lift $ performGC
 	consumeClientWorld world' manager' w' renderContextVar (newRenderables ++ renderablesIn)
 
 	where

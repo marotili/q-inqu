@@ -111,10 +111,12 @@ produceWorld world manager w session = do
 	-- Send to user
 	--lift $ print actions
 	P.yield (actions, realToFrac dt)
+	lift $ print dt
 
 	-- wait
 	--lift $ threadDelay oneSecond
 
+	--lift $ performGC
 	-- repeat
 	produceWorld world' manager' w' session'
 
@@ -145,7 +147,7 @@ game recvEvents output = do
 
 eventUpdate = do
 	P.yield (0, -1, A.ActionUpdateGameState)
-	lift $ threadDelay (oneSecond `div` 30)
+	lift $ threadDelay (oneSecond `div` 60)
 	eventUpdate
  
 main = withSocketsDo $ do
@@ -169,7 +171,8 @@ main = withSocketsDo $ do
 	a1 <- async $ game recvEvents output
 
 	serve HostIPv4 "5002" (connCb (numClient, sendEvents1, input1, input2))
-	mapM_ wait [a1]
+
+	wait a1
 
 	return ()
 

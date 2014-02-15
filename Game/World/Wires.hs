@@ -1,5 +1,7 @@
-{-# LANGUAGE FlexibleContexts, Arrows, Rank2Types #-}
+{-# LANGUAGE FlexibleContexts, Arrows, Rank2Types, FlexibleInstances #-}
 module Game.World.Wires where
+
+import qualified Control.Monad.Parallel as Par
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -26,6 +28,15 @@ import Prelude hiding ((.))
 import qualified Prelude as P
 import qualified Game.Input.Actions as A
 
+instance Par.MonadParallel (RWST World WorldDelta WorldManager IO) where
+	--bindM2 :: (a -> b -> m c) -> m a -> m b -> m c
+	--bindM2 f ma mb = let ma' = ma >>= return
+ --                        mb' = mb >>= return
+ --                    in ma' `par` (mb' `pseq` do {a <- ma'; b <- mb'; f a b})
+
+parMapM_ :: Par.MonadParallel m => (a -> m b) -> [a] -> m ()
+parMapM_ f list = Par.sequence_ (map f list)
+
 stepObjectWires  :: WorldWire a ()
 stepObjectWires = mkGen $ \ds a -> do
 	wires <- view World.getWires
@@ -34,7 +45,7 @@ stepObjectWires = mkGen $ \ds a -> do
 
 	where
 		stepObjectWire ds oId =
-			mapM_ (stepObjectW oId ds)
+			parMapM_ (stepObjectW oId ds)
 
 		stepObjectW oId ds w = do
 			(mx, w') <- stepWire w ds (Right oId)
@@ -110,7 +121,7 @@ collides oId (dx, dy) = do
 	return collisions
 
 _move ds oId (vx, vy) = do
-	canCollide <- view $ isCollidable oId
+	canCollide <- return False --view $ isCollidable oId
 	mignore <- view $ getCollisionFilters . L.at oId
 	let dt = realToFrac (dtime ds)
 	let (dx, dy) = (dt * vx, dt * vy)
@@ -120,8 +131,6 @@ _move ds oId (vx, vy) = do
 			let realCollisions = case mignore of
 				Just ignore ->	filter (\col -> not (Set.member col ignore)) collisions
 				Nothing -> collisions
-			lift $ print (oId, mignore, collisions, realCollisions)
-			lift $ print ("Can collide!", realCollisions)
 			Control.Monad.when (null realCollisions) $ do
 				World.moveObject oId (dx, dy)
 		else do

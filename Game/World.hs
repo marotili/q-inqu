@@ -114,7 +114,6 @@ updateTiled = do
 	(world, delta, _) <- ask
 	let Just pId = fmap _objId (world^.findObject "Neira")
 	let Just playerPos = world^.objectPosition pId
-	--lift $ print $ playerPos
 	tiled <- get
 	put (newTiled world delta tiled)
 	where
@@ -169,8 +168,6 @@ newWorldFromTiled tiledMap = do
 			stepWire initWire (Timed 0 ()) (Right ())
 		) world emptyWM
 
-	--print worldDelta
-
 	let world' = applyDelta world worldDelta
 	--print world'
 	return (world', worldManager)
@@ -220,24 +217,37 @@ newWorldFromTiled tiledMap = do
 			returnA -< ()
 
 moveArrow direction = proc oId -> do
-	_ <- move direction . for 2 -< oId
+	_ <- move direction . for 1 -< oId
 	returnA -< ()
 
 spawnArrow = spawn . thenDo (inhibit WireFinished)
 	where
 		spawn = proc playerId -> do	
-			Event oId <- spawnObjectMakeName -< playerId
-			Just playerPos <- wLiftF (\pId -> view $ getPositions . L.at pId) -< playerId
-			Just playerDir <- wLiftF (\pId -> view $ getOrientations . L.at pId) -< playerId
-			_ <- setPosOnceR -< (oId, playerPos)
-			_ <- animateR -< (oId, arrowAnimation playerDir)
-			_ <- wLiftSetOnceR setBoundary -< (oId, arrowBoundary playerDir)
-			_ <- wLiftSetOnceR setIgnoreCollision -< (oId, playerId)
-			_ <- wLiftSetOnceR setIgnoreCollision -< (playerId, oId)
-			let (dx, dy) = deltaFromOrientation playerDir
-			let wire = moveArrow (dx*400, dy*400)
-			_ <- newObjectWireR -< (oId, wire)
+			(oId, playerPos, playerDir) <- step1 -< playerId
+			_ <- setup -< (oId, playerPos, playerDir, playerId)
+			_ <- spawnWire -< (oId, playerDir)
+
 			returnA -< ()
+
+step1 = proc playerId -> do
+	Event oId <- spawnObjectMakeName -< playerId
+	Just playerPos <- wLiftF (\pId -> view $ getPositions . L.at pId) -< playerId
+	Just playerDir <- wLiftF (\pId -> view $ getOrientations . L.at pId) -< playerId
+	returnA -< (oId, playerPos, playerDir)
+
+spawnWire = proc (oId, playerDir) -> do
+	let (dx, dy) = deltaFromOrientation playerDir
+	let wire = moveArrow (dx*400, dy*400)
+	_ <- newObjectWireR -< (oId, wire)
+	returnA -< ()
+
+setup = proc (oId, playerPos, playerDir, playerId) -> do
+	_ <- setPosOnceR -< (oId, playerPos)
+	_ <- animateR -< (oId, arrowAnimation playerDir)
+	_ <- wLiftSetOnceR setBoundary -< (oId, arrowBoundary playerDir)
+	_ <- wLiftSetOnceR setIgnoreCollision -< (oId, playerId)
+	_ <- wLiftSetOnceR setIgnoreCollision -< (playerId, oId)
+	returnA -< ()
 
 playerSpawnArrow = untilV spawnArrowEvent
 	W.--> spawnArrow 
@@ -251,14 +261,10 @@ playerMovement = untilV movingDirectionE
 		move = proc pId -> do
 			-- TODO fix the wrong directions (dx, -dx etc)
 			(dx, dy) <- movingDirectionR -< pId
-			_ <- wLiftF (lift . print) -< ("Direction:", dx, dy)
 			_ <- moveR -< (pId, (-dx*200, dy*200))
-			let orientation = traceShow (-dx, dy) $ orientationFromDelta (-dx, dy)
-			_ <- wLiftF (lift . print) -< ("Orientation, ", orientation)
-			let anim = traceShow orientation $ objectAnimation pId orientation
-			_ <- wLiftF (lift . print) -< anim
-			_ <- wLiftUpdateR setOrientation -< traceShow orientation (pId, orientation)
-			--_ <- wLiftF (lift . print) -< val
+			let orientation = orientationFromDelta (-dx, dy)
+			let anim = objectAnimation pId orientation
+			_ <- wLiftUpdateR setOrientation -< (pId, orientation)
 			_ <- animateR -< (pId, anim)
 			returnA -< ()
 

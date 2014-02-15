@@ -47,7 +47,7 @@ applyCommonDelta wd = do
 		) newStaticCollidables
 
 	unless (null newStatic) $
-		wCollisionManager %= traceShow newStatic (execState (octreeAddStatics newStatic))
+		wCollisionManager %= execState (octreeAddStatics newStatic)
 
 	world2 <- get
 	-- pos and boundary for collision
@@ -65,7 +65,7 @@ applyCommonDelta wd = do
 		objBoundaries = zip objUpdate [world2^.objectBoundary oId | oId <- objUpdate]
 
 	unless (null objBoundaries) $
-		wCollisionManager %= traceShow objBoundaries (execState (octreeUpdate objBoundaries))
+		wCollisionManager %= execState (octreeUpdate objBoundaries)
 
 alterObjects delta@Nothing _ = Nothing -- delte object
 alterObjects (Just v) _ = Just v -- add / update object

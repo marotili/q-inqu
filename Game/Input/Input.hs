@@ -145,7 +145,7 @@ actionActivate = untilV (keyDownEvent GLFW.Key'X) W.-->
 
 --actionPickup = asSoonAs . keyDownEvent GLFW.Key'C
 spawn = untilV (keyDownEvent GLFW.Key'X)
-	W.--> for 1 . asSoonAs . spawnAction . once . keyDownEvent GLFW.Key'X 
+	W.--> for 0.05 . asSoonAs . spawnAction . once . keyDownEvent GLFW.Key'X 
 	W.--> spawn
 
 userInput :: InputWire a ((), ())

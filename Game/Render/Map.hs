@@ -183,7 +183,7 @@ numImages map = length . images $ map
 
 numObjects :: Layer -> Int
 numObjects ObjectLayer { _layerObjects } = length _layerObjects
-numObjects Layer { _layerData } = length $ Map.toList _layerData
+numObjects Layer { _layerData } = Map.size _layerData
 
 tileSetData :: Map -> V.Vector Int32
 tileSetData Map { _tiledMap } = V.fromList . map fromIntegral $ 

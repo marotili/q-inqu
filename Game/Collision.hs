@@ -63,8 +63,8 @@ newOctree = GameOctree
 instance Show GameOctree where
 	show go = "Octree\n" ++
 		"Max diameter: " ++ show (go^.goMaxDiameter) ++ "\n" ++
-		"Num static: " ++ show (length $ Map.toList $ go^.goStaticObjects) ++ "\n" ++
-		"Num updateable: " ++ show (length $ Map.toList $ go^.goUpdatableObjects) ++ "\n"
+		"Num static: " ++ show (Map.size $ go^.goStaticObjects) ++ "\n" ++
+		"Num updateable: " ++ show (Map.size $ go^.goUpdatableObjects) ++ "\n"
 
 -- | Update octree with static data
 octreeAddStatics :: [(ObjectId, (Float, Float), (Float, Float))] -> State GameOctree ()
