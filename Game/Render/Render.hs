@@ -30,8 +30,10 @@ loadShader st filePath = do
     BS.readFile filePath >>= (shaderSourceBS shader $=)
     compileShader shader
 
-    _ <- get (compileStatus shader)
-    _ <- get (shaderInfoLog shader)
+    compileStatus <- get (compileStatus shader)
+    shaderLog <- get (shaderInfoLog shader)
+    print (compileStatus, shaderLog)
+    logGL "loadShader: loadShader"
 
     return shader
 
@@ -65,11 +67,11 @@ updateFromVec target buf vec = do
     	GL.bufferData target $= (fromIntegral $ sizeOf(undefined::Float) * V.length vec, ptr, GL.DynamicDraw)
     logGL "updateFromVec: buffer sub data"
 
-setupShaders :: IO Program
-setupShaders = do
-    vs <- loadShader GL.VertexShader $ "data" </> "shader.vert"
+setupShaders :: String -> String -> IO Program
+setupShaders vertName fragName = do
+    vs <- loadShader GL.VertexShader $ "data" </> vertName
     logGL "setupShaders: loadShader"
-    fs <- loadShader GL.FragmentShader $ "data" </> "shader.frag"
+    fs <- loadShader GL.FragmentShader $ "data" </> fragName
     logGL "setupShaders: loadShader"
     linkShaderProgramWith [vs, fs]
 	--(get $ shaderInfoLog vs) >>= print

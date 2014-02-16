@@ -16,6 +16,7 @@ import qualified Graphics.UI.GLFW as GLFW
 import Game.Render.Map
 import Game.Render.Render
 import Game.Render.Camera
+import Game.Render.Light
 
 import Control.Lens
 
@@ -26,6 +27,7 @@ import Data.Tiled
 data RenderContext = RenderContext
 	{ _rcMainProgram :: Program
 	, _rcWorldRenderContext :: WorldRenderContext
+	, _rcLightContext :: LightContext
 	}
 makeLenses ''RenderContext
 
@@ -35,14 +37,15 @@ newRenderContext renderMap = do
 	GL.blend $= GL.Enabled
 	logGL "newRenderContext: blend setup failed"
 
-	program <- setupShaders
+	program <- setupShaders "shader.vert" "shader.frag"
 	_ <- uniformInfo program
 	wrc <- newWorldRenderContext renderMap
-	bindWorldRenderContext wrc program
+	lc <- newLightContext
 
 	return RenderContext
 		{ _rcMainProgram = program
 		, _rcWorldRenderContext = wrc
+		, _rcLightContext = lc
 		}
 
 clearWindow :: GLFW.Window -> IO ()
@@ -67,10 +70,13 @@ render window rc cam = do
 	let tm = rc^.rcWorldRenderContext.wrcMap.tiledMap
 	let [(x, y)] = tm^..object "Player1".objectPos tm
 	let newCam = cameraUpdatePosition cam (-x) y
+
 	programSetViewProjection (rc^.rcMainProgram) newCam
 
 	updateWorldRenderContext (rc^.rcWorldRenderContext)
 	renderWorldRenderContext (rc^.rcMainProgram) (rc^.rcWorldRenderContext)
+
+	renderLightContext (rc^.rcLightContext) newCam
 
 	where
 		object name = mapLayers.traverse._ObjectLayer.layerObjects.traverse.objectsByName name

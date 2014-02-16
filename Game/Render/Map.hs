@@ -40,61 +40,11 @@ data Map = Map
 	} deriving (Show)
 makeLenses ''Map
 
---renderMapWidth :: Map -> Int
---renderMapWidth m = m^.tiledMap.mapWidth
-
---renderMapHeight :: Map -> Int
---renderMapHeight m = m^.tiledMap.mapHeight
-
---mapTileSize :: Map -> V2 Float
---mapTileSize Map { _tiledMap } = V2 (fromIntegral $ tiledMap^.mapTileWidth) (fromIntegral $ tiledMap^.mapTileHeight)
-	--where
-		--tiledMap = _tiledMap
-
---tilesetTileSize :: T.Tileset -> V2 Float
---tilesetTileSize tileSet = V2 (fromIntegral $ tileSet^.tsTileWidth) (fromIntegral $ tileSet^.tsTileHeight)
-
 newRenderMap :: T.TiledMap -> Map
 newRenderMap tMap = Map
 	{ _mapTopLeft = V2 0 0
-	--, tileSize = V2 tileSizeX tileSizeY
 	, _tiledMap = tMap
 	}
-
---data TileMesh = TileMesh (V.Vector Float)
-
---data TileSetData = TileSetData
---	{ firstGid :: Int32
---	, imageSize :: Int32
---	, spacing :: Int32
---	, margin :: Int32
---	, tileWidth :: Int32
---	, tileHeight :: Int32
---	}
-
---newTile :: T.Tileset -> TileMesh
---newTile ts = TileMesh $ V.fromList
---	[ 0, 0
---	, dx, 0
---	, dx, dy
---	, dx, dy
---	, 0, dy
---	, 0, 0
---	]
---	where
---		(dx, dy) = ts^.tsTileSize
-
---mapTilesetByGid :: Map -> Int -> Maybe T.Tileset
---mapTilesetByGid Map { _tiledMap } gid = case find (
---		\ts -> fromIntegral (ts^.tsInitialGid) <= gid && 
---			fromIntegral (ts^.tsInitialGid) + numX ts * numY ts > gid) tilesets of
---				Just ts -> Just ts
---				Nothing -> Nothing
---	where
---		tiledMap = _tiledMap
---		tilesets = tiledMap^.mapTilesets
---		numX ts = fromIntegral $ fromJust (ts^.tsImages^?_head.iWidth) `div` (ts^.tsTileWidth)
---		numY ts = fromIntegral $ fromJust (ts^.tsImages^?_head.iHeight) `div` (ts^.tsTileHeight)
 
 tileCoords :: Map -> Layer -> V.Vector Float
 tileCoords m ol@ObjectLayer {} = objectCoords m ol
@@ -102,7 +52,6 @@ tileCoords m layer = V.fromList $ foldr (\(a, b) l -> a : b : p : p : l) [] (til
 	where p = 0.0 -- padding
 
 tileCoords' :: Map -> Layer -> [(Float, Float)]
---tileCoords' m ol@ObjectLayer { } = objectCoords m ol
 tileCoords' m Layer { _layerData } = toWorldCoords 
 	where
 		coords = map (\((x, y), _) -> (fromIntegral x, -fromIntegral y)) (Map.toList _layerData)
@@ -121,42 +70,22 @@ objectCoords m ObjectLayer { _layerObjects } = V.fromList $
 		V2 lx ly = m^.mapTopLeft
 objectCoords _ _ = V.fromList []
 
---mapBottomRight :: Map -> V2 Float 
---mapBottomRight m@Map { _mapTopLeft } =
---	_mapTopLeft + numTiles * V2 w h
---	where 
---		numTiles = V2 (fromIntegral $ renderMapWidth m) (fromIntegral $ renderMapHeight m)
---		(w, h) = m^.tiledMap.mapTileSize
-
---mapSize :: Map -> V2 Float
---mapSize m = mapBottomRight m - _mapTopLeft m
-
 data WorldRenderContext = WorldRenderContext
 	{ _wrcVao :: GL.VertexArrayObject
-	--, wrcMeshBuffer :: V.Vector Float
-	--, _wrcTileBuffers :: [GL.BufferObject]
 	, _wrcPosSSBs :: [GL.BufferObject]
 	, _wrcTilesetSSB :: GL.BufferObject
 	, _wrcLayerSSBs :: [GL.BufferObject]
-	--, _wrcObjectSSBs :: [GL.BufferObject]
 	, _wrcTextures :: [GL.TextureObject]
-	--, _wrcNumTiles :: Int
 	, _wrcMap :: Map
 	}
 
 makeLenses ''WorldRenderContext
-
---objectLayers :: Map -> [Layer]
---objectLayers Map { _tiledMap } = 
---	filter (\l -> case l of T.ObjectLayer {} -> True; _ -> False) (_tiledMap^.mapLayers)
 
 layers :: Map -> [Layer]
 layers Map { _tiledMap } = _tiledMap^.mapLayers
 
 numLayers :: Map -> Int
 numLayers worldMap = length . layers $ worldMap
---numObjectLayers :: Map -> Int
---numObjectLayers worldMap = length . objectLayers $ worldMap
 
 tileIds :: Layer -> V.Vector Int32
 tileIds Layer { _layerData } = V.fromList $ concatMap (\x -> [x, p, p, p]) $ 
@@ -211,11 +140,8 @@ updateWorldRenderContext wrc =
  
 newWorldRenderContext :: Map -> IO WorldRenderContext
 newWorldRenderContext renderMap = do
-	--let m = newMap gameMap
-	--tileBuffers <- GL.genObjectNames (length $ renderMap^.tiledMap.mapTilesets) :: IO [GL.BufferObject]
 	posBuffers <- GL.genObjectNames (numLayers renderMap) :: IO [GL.BufferObject]
 	layerBuffers <- GL.genObjectNames (numLayers renderMap) :: IO [GL.BufferObject]
-	--objectBuffers <- GL.genObjectNames (numObjectLayers renderMap) :: IO [GL.BufferObject]
 	[tilesetBuffer] <- GL.genObjectNames 1 :: IO [GL.BufferObject]
 	[vao] <- GL.genObjectNames 1 :: IO [GL.VertexArrayObject]
 
@@ -292,6 +218,7 @@ renderNormalLayer program layerSSB posSSB layer = do
 renderWorldRenderContext :: GL.Program -> WorldRenderContext -> IO ()
 renderWorldRenderContext program wrc = do
 	let worldMap = wrc^.wrcMap
+	bindWorldRenderContext wrc program
 
 	numTilesets <- GL.get $ GL.uniformLocation program "numTileSets"
 	logGL "renderWorldRenderContext: uniformLoc numTilesets"

@@ -66,7 +66,7 @@ consumeClientWorld world manager w renderContextVar renderablesIn = do
 
 	 --update our world state
 	let world' = applyDelta world delta
-	lift $ print ("Num wires", Map.size $ world'^.wCommon.wcWires)
+	--lift $ print ("Num wires", Map.size $ world'^.wCommon.wcWires)
 
 	renderContext <- lift $ atomically $
 		readTVar renderContextVar

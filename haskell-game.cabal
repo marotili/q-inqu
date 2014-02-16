@@ -28,6 +28,7 @@ library
         Game.Render.Render
         Game.Render.Map
         Game.Render.Camera
+        Game.Render.Light
         Game.Render
         Game.Render.Error
         
