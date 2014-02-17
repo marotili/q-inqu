@@ -176,7 +176,7 @@ sweep = do
  			| ry1 == 0 && ry2 /= 0 = ((oId3, (x3, y3)):list, [])
  			| rx1 == 0 && ry1 == 0 = (list, [])
  			| rx1 == rx2 && ry1 == ry2 = (list, [])
- 			| abs (ry1*rx2 - rx1*ry2) < 0.05 = traceShow ((ry1 - rx1/rx2*ry2)) $ ((oId3, (x3, y3)):(oId1, (x1, y1)):rest, [oId2])
+ 			| abs (ry1*rx2 - rx1*ry2) < 0.05 = ((oId3, (x3, y3)):(oId1, (x1, y1)):rest, [oId2])
  			| otherwise = ((oId3, (x3, y3)):list, [])
  			where
  				kx = rx2/rx1
@@ -198,67 +198,40 @@ sweepUntil = do
 		sweep
 		sweepUntil
 
-test octree = do
-	t <- getCurrentTime
-
-	let octreeData = octree^.goStaticObjects
-	let dataPoints = Map.fromList $
-		map ((\(oId, obj) -> (oId, obj^..ooRealBoundary.rbLines.traverse.vectorXY.toFloat))) $ Map.toList octreeData
-
-	test1 testOrigin1 dataPoints
-	test1 testOrigin2 dataPoints
-	test1 testOrigin3 dataPoints
-
-	mapM_ (\o -> test1 o dataPoints) [(x, y) | x <- [500..510], y <- [400..410]]
-
-	t2 <- getCurrentTime
-	print $ diffUTCTime t2 t
-
-	--print $ zip (
-	--	orderedX^..traverse.minAngle origin
-	--	) (
-	--	orderedX^..traverse.maxAngle origin
-	--	)
-	return ()
-
+getData octree point = test1 point dataPoints
 	where
-		testOrigin1 = (7*50, 21*50)
-		testOrigin2 = (2*50, 3*50)
-		testOrigin3 = (2*50 + 1, 3*50 + 1)
+		octreeData = octree^.goStaticObjects
+		dataPoints = Map.fromList $
+			map ((\(oId, obj) -> (oId, obj^..ooRealBoundary.rbLines.traverse.vectorXY.toFloat))) $ Map.toList octreeData
 
-		test1 orig dataPoints = do
-			let allPositive = Map.filter (\points -> 
-					all (\y->y>orig^._2) $ points^..traverse._2
-				) dataPoints
+		test1 orig dataPoints = result
+			where
+				allPositive = Map.filter (\points -> 
+						all (\y->y>orig^._2) $ points^..traverse._2
+					) dataPoints
 
-			let allNegative = Map.filter (\points -> 
-					all (\y->y<=orig^._2) $ points^..traverse._2
-				) dataPoints
+				allNegative = Map.filter (\points -> 
+						all (\y->y<=orig^._2) $ points^..traverse._2
+					) dataPoints
 
-			let dat = execState (do
-						initStep allPositive
-						sweepUntil
-						return ()
-					)
-				(empty & stepOrigin .~ orig)
+				dat = execState (do
+							initStep allPositive
+							sweepUntil
+							return ()
+						)
+					(empty & stepOrigin .~ orig)
 
-			print (dat^.stepDelete)
-		 	writeFile "plot.dat" "#\tX\tY"
-		 	appendFile "plot.dat"$ 
-		 		concatMap (\(x, y) -> show x ++ "\t" ++ show y ++ "\n") (map snd $ dat^.stepLine)
+				dat2 = execState (do
+							initStep allNegative
+							sweepUntil
+							return ()
+						)
+					(empty & stepOrigin .~ orig)
 
-			let dat = execState (do
-						initStep allNegative
-						sweepUntil
-						return ()
-					)
-				(empty & stepOrigin .~ orig)
-			print (dat^.stepDelete)
-		 	appendFile "plot.dat"$ 
-		 		concatMap (\(x, y) -> show x ++ "\t" ++ show y ++ "\n") (map snd $ dat^.stepLine)
+				result = map snd $ (dat^.stepLine) ++ reverse (dat2^.stepLine)
 
-mainTest = do
-	tm <- tMap
-	(world, manager) <- newWorldFromTiled tm
+--mainTest = do
+--	tm <- tMap
+--	(world, manager) <- newWorldFromTiled tm
 
-	test $ world^.wCollisionManager
+--	test $ world^.wCollisionManager

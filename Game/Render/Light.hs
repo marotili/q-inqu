@@ -8,6 +8,10 @@ import qualified Data.Vector.Storable as V
 import Game.Render.Render
 import Game.Render.Camera
 import Game.Render.Error
+import Game.Collision
+import Game.World.Visibility
+
+import Game.World.Common
 
 data LightContext = LightContext
 	{ _lcVao :: GL.VertexArrayObject
@@ -21,6 +25,15 @@ data Light = Light
 	, _lightIntensity :: Float
 	}
 
+data VisibilityContext = VisibilityContext
+	{ _vcVao :: GL.VertexArrayObject
+	, _vcProgram :: GL.Program
+	, _vcPoints :: GL.BufferObject
+	, _vcOctree :: GameOctree
+	, _vcData :: [(Float, Float)]
+	}
+
+makeLenses ''VisibilityContext
 makeLenses ''LightContext
 makeLenses ''Light
 
@@ -29,6 +42,48 @@ newLight pos intensity = Light
 	{ _lightPosition = pos
 	, _lightIntensity = intensity
 	}
+
+--newVisibilityContext octree playerPos :: IO VisibilityContext
+newVisibilityContext octree playerPos = do
+	[vao] <- GL.genObjectNames 1 :: IO [GL.VertexArrayObject]
+	[pointBuf] <- GL.genObjectNames 1 :: IO [GL.BufferObject]
+
+	let pointData = playerPos : (getData octree playerPos)
+	print $ pointData
+
+	uploadFromVec GL.ShaderStorageBuffer pointBuf  $
+		V.fromList $ concatMap (\(x, y) -> x:y:[]) pointData
+
+	program <- setupShaders "shader.vis.vert" "shader.vis.frag"
+
+	return VisibilityContext
+		{ _vcVao = vao
+		, _vcPoints = pointBuf
+		, _vcProgram = program
+		, _vcOctree = octree
+		, _vcData = pointData
+		}
+
+updateVisibilityContext visCtx playerPos = do
+	let pointData = playerPos : (getData (visCtx^.vcOctree) playerPos)
+	updateFromVec GL.ShaderStorageBuffer (visCtx^.vcPoints) $
+		V.fromList $ concatMap (\(x, y) -> x:y:[]) pointData
+	return $ visCtx & vcData .~ pointData
+
+renderVisibilityContext vc cam = do
+	GL.currentProgram $= Just (vc^.vcProgram)
+	logGL "renderLightContext: set currentProgram"
+
+	programSetViewProjection (vc^.vcProgram) cam
+
+	GL.bindVertexArrayObject $= (Just $ vc^.vcVao)
+	logGL "renderLightContext: bind vao"
+	lightIndex <- GL.getShaderStorageBlockIndex (vc^.vcProgram) "VisPoints"
+	logGL "renderLightContext: light index"
+	GL.bindBufferBase' GL.ShaderStorageBuffer lightIndex (vc^.vcPoints)
+
+	GL.drawArraysInstanced GL.TriangleFan 0 (fromIntegral . length $ vc^.vcData) 1
+	logGL "renderLightContext: draw instanced"
 
 updateLightContext :: LightContext -> IO ()
 updateLightContext lc =

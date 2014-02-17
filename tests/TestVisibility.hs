@@ -6,4 +6,5 @@ import Control.Lens
 import Game.World.Visibility
 
 main = do
-	mainTest
+	return ()
+	--mainTest

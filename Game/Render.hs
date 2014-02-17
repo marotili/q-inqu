@@ -22,12 +22,15 @@ import Control.Lens
 
 import Game.Render.Error
 import Game.World.Import.Tiled
+import Game.World.Common
+import Game.World
 import Data.Tiled
 
 data RenderContext = RenderContext
 	{ _rcMainProgram :: Program
 	, _rcWorldRenderContext :: WorldRenderContext
 	, _rcLightContext :: LightContext
+	, _rcVisibilityContext :: VisibilityContext
 	}
 makeLenses ''RenderContext
 
@@ -42,14 +45,21 @@ newRenderContext renderMap = do
 	wrc <- newWorldRenderContext renderMap
 	lc <- newLightContext
 
+	tm <- tMap
+	(world, manager) <- newWorldFromTiled tm
+
+	vc <- newVisibilityContext (world^.wCollisionManager) (0, 0)
+
 	return RenderContext
 		{ _rcMainProgram = program
 		, _rcWorldRenderContext = wrc
 		, _rcLightContext = lc
+		, _rcVisibilityContext = vc
 		}
 
 clearWindow :: GLFW.Window -> IO ()
 clearWindow window = do
+
 	GL.clearColor $= GL.Color4 1 1 1 1
 	logGL "clearWindow: clearColor"
 	GL.clear [GL.ColorBuffer]
@@ -64,7 +74,6 @@ render window rc cam = do
 	--(width, height) <- GLFW.getFramebufferSize window
 	clearWindow window
 
-	GL.currentProgram $= Just (rc^.rcMainProgram)
 	logGL "render: set current program"
 
 	let tm = rc^.rcWorldRenderContext.wrcMap.tiledMap
@@ -73,13 +82,28 @@ render window rc cam = do
 
 	let newRc = rc & rcLightContext.lcLights._head.lightPosition .~ (-x, y)
 
-	programSetViewProjection (newRc^.rcMainProgram) newCam
+	GL.stencilTest $= GL.Enabled
+	GL.stencilFunc $= (GL.Never, 1, 255)
+	GL.stencilOp $= (GL.OpReplace, GL.OpKeep, GL.OpKeep)
+	GL.clearStencil $= 0
+	GL.stencilMask $= 255
+	GL.clear [GL.StencilBuffer]
 
+	visCtxt <- updateVisibilityContext (newRc^.rcVisibilityContext) (x, y)
+	renderVisibilityContext visCtxt newCam
+
+	GL.stencilMask $= 0
+	GL.stencilFunc $= (GL.Equal, 0, 255)
+	GL.stencilFunc $= (GL.Equal, 1, 255)
+
+	GL.currentProgram $= Just (newRc^.rcMainProgram)
+	programSetViewProjection (newRc^.rcMainProgram) newCam
 	updateWorldRenderContext (newRc^.rcWorldRenderContext)
 	renderWorldRenderContext (newRc^.rcMainProgram) (newRc^.rcWorldRenderContext)
 
-	updateLightContext (newRc^.rcLightContext)
-	renderLightContext (newRc^.rcLightContext) newCam
+	GL.stencilTest $= GL.Disabled
 
+	--updateLightContext (newRc^.rcLightContext)
+	--renderLightContext (newRc^.rcLightContext) newCam
 	where
 		object name = mapLayers.traverse._ObjectLayer.layerObjects.traverse.objectsByName name
