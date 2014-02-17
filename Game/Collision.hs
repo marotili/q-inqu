@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, TypeFamilies#-}
 module Game.Collision where
 
 -- * Note: we query using the maximum boundary diameter of all objects
@@ -28,6 +28,24 @@ newBoundary = Boundary (Vector3 0 0 0) (Vector3 0 0 0)
 data RealBoundary = RealBoundary
 	{ _rbLines :: [Vector3]
 	} deriving (Show)
+
+vectorX :: Lens' Vector3 Double
+vectorX = lens
+	(\(Vector3 x _ _) -> x)
+	(\(Vector3 _ y z) x -> Vector3 x y z)
+
+vectorY :: Lens' Vector3 Double
+vectorY = lens
+	(\(Vector3 _ y _) -> y)
+	(\(Vector3 x _ z) y -> Vector3 x y z)
+
+vectorXY :: Lens' Vector3 (Double, Double)
+vectorXY = lens
+	(\(Vector3 x y _) -> (x, y))
+	(\(Vector3 _ _ z) (x, y) -> Vector3 x y z)
+
+toFloat :: Getter (Double, Double) (Float, Float)
+toFloat = to (\(x, y) -> (double2Float x, double2Float y))
 
 newRealBoundary :: RealBoundary
 newRealBoundary = RealBoundary []
@@ -110,7 +128,8 @@ octreeQueryObject oId = do
 		goCachedOctree .= foldr O.insert staticOctree (updateObjects^.folded.octreeObjectPoints)
 		goNeedsUpdate .= False
 
-	Just queryObject <- use (goUpdatableObjects . at oId)
+	queryObject' <- use goUpdatableObjects -- . at oId)
+	let Just queryObject = queryObject'^.at oId
 	queryRange <- use goMaxDiameter
 	let points = queryObject^..octreeObjectPoints.traverse._1
 	octree <- use goCachedOctree 
@@ -158,8 +177,8 @@ pointInConvexHull (px, py) convexHullLines = isInside
 		isInside = all (\((ox, oy), (x, y)) -> x*(px - ox) + y*(py - oy) > 0) $ zip convexHullLines normals
 
 
-test :: [ObjectId]
-test = evalState (do
+testCollision :: [ObjectId]
+testCollision = evalState (do
 		octreeAddStatics 
 			[ (0, (0, 0), (1, 1))
 			, (1, (1, 0), (1, 1))

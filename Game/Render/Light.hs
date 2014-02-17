@@ -29,12 +29,17 @@ newLight pos intensity = Light
 	{ _lightPosition = pos
 	, _lightIntensity = intensity
 	}
-uploadLights :: GL.BufferObject -> [Light] -> IO () --V.Vector Float
-uploadLights lightBuffer lights = do
-	let dat = V.fromList $ concatMap toGl lights
-	uploadFromVec GL.UniformBuffer lightBuffer dat
+
+updateLightContext :: LightContext -> IO ()
+updateLightContext lc =
+	updateLights (lc^.lcLightBuffer) (lc^.lcLights)
 	where
-		toGl light = [light^.lightPosition._1, light^.lightPosition._2, light^.lightIntensity, 0]
+		updateLights :: GL.BufferObject -> [Light] -> IO () --V.Vector Float
+		updateLights lightBuffer lights = do
+			let dat = V.fromList $ concatMap toGl lights
+			updateFromVec GL.UniformBuffer lightBuffer dat
+			where
+				toGl light = [light^.lightPosition._1, light^.lightPosition._2, light^.lightIntensity, 0]
 
 renderLightContext :: LightContext -> Camera -> IO ()
 renderLightContext lc cam = do
@@ -60,14 +65,15 @@ renderLightContext lc cam = do
 	GL.drawArraysInstanced GL.Triangles 0 6 1
 	logGL "renderLightContext: draw instanced"
 
+
 newLightContext :: IO LightContext
 newLightContext = do
 	[vao] <- GL.genObjectNames 1 :: IO [GL.VertexArrayObject]
 	[lightsBuffer] <- GL.genObjectNames 1 :: IO [GL.BufferObject]
 
 	let lights =
-		[ newLight (-300, 500) 100
-		, newLight (-400, 500) 50
+		[ newLight (-300, 500) 200
+		, newLight (-400, 500) 100
 		, newLight (0, 0) 0
 		, newLight (0, 0) 0
 		, newLight (0, 0) 0
@@ -84,3 +90,11 @@ newLightContext = do
 		, _lcLights = lights
 		, _lcProgram = program
 		}
+
+	where
+		uploadLights :: GL.BufferObject -> [Light] -> IO () --V.Vector Float
+		uploadLights lightBuffer lights = do
+			let dat = V.fromList $ concatMap toGl lights
+			uploadFromVec GL.UniformBuffer lightBuffer dat
+			where
+				toGl light = [light^.lightPosition._1, light^.lightPosition._2, light^.lightIntensity, 0]

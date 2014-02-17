@@ -71,12 +71,15 @@ render window rc cam = do
 	let [(x, y)] = tm^..object "Player1".objectPos tm
 	let newCam = cameraUpdatePosition cam (-x) y
 
-	programSetViewProjection (rc^.rcMainProgram) newCam
+	let newRc = rc & rcLightContext.lcLights._head.lightPosition .~ (-x, y)
 
-	updateWorldRenderContext (rc^.rcWorldRenderContext)
-	renderWorldRenderContext (rc^.rcMainProgram) (rc^.rcWorldRenderContext)
+	programSetViewProjection (newRc^.rcMainProgram) newCam
 
-	renderLightContext (rc^.rcLightContext) newCam
+	updateWorldRenderContext (newRc^.rcWorldRenderContext)
+	renderWorldRenderContext (newRc^.rcMainProgram) (newRc^.rcWorldRenderContext)
+
+	updateLightContext (newRc^.rcLightContext)
+	renderLightContext (newRc^.rcLightContext) newCam
 
 	where
 		object name = mapLayers.traverse._ObjectLayer.layerObjects.traverse.objectsByName name

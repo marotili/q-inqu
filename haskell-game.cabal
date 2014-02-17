@@ -35,6 +35,7 @@ library
         Game.Collision 
 
         Game.World
+        Game.World.Visibility
         Game.World.Types
         Game.World.Import.Tiled
         Game.World.Objects
@@ -79,7 +80,9 @@ library
         spacepart >= 0.1 && < 0.2,
         hslogger >= 1.2 && < 1.3,
         Octree >= 0.5 && < 0.6,
-        monad-parallel >= 0.7 && < 0.7.2
+        monad-parallel >= 0.7 && < 0.7.2,
+        parallel,
+        time >= 1.4 && <= 1.5
     ghc-options: -rtsopts -threaded -Wall
 
 -- TODO remove netwire dependency
@@ -106,9 +109,21 @@ executable server
         mtl >= 2.1 && < 2.2,
         containers >= 0.5 && < 0.6,
         binary >= 0.7 && < 0.8,
+        parallel,
         Octree >= 0.5 && < 0.6
     ghc-options: -rtsopts -threaded -Wall
     main-is: Server.hs
+
+executable tests
+    default-language: Haskell2010
+    hs-source-dirs: tests
+    main-is: TestVisibility.hs
+    build-depends:
+        base,
+        cell,
+        parallel,
+        lens >= 4.0 && < 4.1
+    ghc-options: -rtsopts -threaded -Wall
 
 executable client
     default-language: Haskell2010
