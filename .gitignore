@@ -5,3 +5,12 @@ cabal-dev
 *.chi
 *.chs.h
 .virthualenv
+#main.hs#
+.depend
+.depend.bak
+*.swp
+.project
+timelog
+log
+*.eventlog
+*.prof
