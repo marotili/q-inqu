@@ -31,57 +31,61 @@ import qualified Game.Render.World as R
 
 type Renderer = RWST (World, WorldDelta, [Renderable]) [Renderable] R.World IO
 
+-- * TODO: fix monad
+whenMaybeDo :: (Monad m) => Maybe a -> (a -> m ()) -> m ()
+whenMaybeDo m f = 
+	case m of
+		Just v -> f v
+		Nothing -> return ()
+
+removeRenderObjects :: Renderer ()
+removeRenderObjects = do
+	(world, delta, _) <- ask
+	let deleted = delta^.deletedObjects
+	lift $ print ("Deleted", deleted)
+	mapM_ (\objId -> do
+			let Just obj = world^.wObjects.L.at objId
+			-- FIXME
+			-- order of deletion is important
+			wLayerObject "ObjectLayer" (obj^.objName) .= Nothing
+			wObject (obj^.objName) .= Nothing
+			mapHashes.gameObjects.L.at (obj^.objName) .= Nothing
+			writer ((), [obj])
+		) deleted
+
 newRenderObjects :: Renderer ()
 newRenderObjects = do
-	return ()
-	--(world, delta, _) <- ask
+	(world, delta, _) <- ask
 
-	--let newObjects' = delta^.newObjects
-	--let objectGids = [world^?getAnimations. L.at (o^.objId)._Just.animTileGid | o <- newObjects']
-	--let objectPoss = [world^?getPositions. L.at (o^.objId)._Just | o <- newObjects']
+	let newObjects' = delta^.newObjects
+	lift $ print ("New", newObjects')
+	let objectGids = [world^?getAnimations. L.at (o^.objId)._Just.animTileGid | o <- newObjects']
+	let objectPoss = [world^?getPositions. L.at (o^.objId)._Just | o <- newObjects']
 
-	--mapM_ (\(obj, objGid, pos) -> do
-	--		wLayer "ObjectLayer" %= \layer -> layerObject 
-
-	--		layerObj.layerObjects <>= buildObject objGid obj pos
-	--		writer ((), [obj])
-	--	) $ zip3 newObjects' objectGids objectPoss
-
-	--where
-	--	buildObject objGid obj mpos = ifPosObj
-	--		where
-	--			ifPosObj = case mpos of
-	--				Just _ -> case objGid of 
-	--					Just gid -> object gid
-	--					Nothing -> object (1 :: Int)
-	--				Nothing -> []
-	--			object objectGid' = [T.Object { _objectName= Just $ obj^.objName
-	--						   , _objectGid= Just (fromIntegral objectGid')
-	--						   , _objectX = round $ fst . fromJust $ mpos
-	--						   , _objectY = round $ snd . fromJust $ mpos
-	--						   , _objectWidth = Nothing
-	--						   , _objectHeight = Nothing
-	--						   , _objectType = Nothing
-	--						   , _objectProperties = []
-	--						   , _objectPolygon = Nothing
-	--						   , _objectPolyline = Nothing
-	--						   }]
+	mapM_ (\(obj, objGid, pos) -> do
+			wObject (obj^.objName) .= (Just $ R.newObject 4 0)
+			Just objId <- use $ mapHashes . gameObjects . L.at (obj^.objName)
+			wLayerObject "ObjectLayer" (obj^.objName) .= (Just $
+				newRenderObject objId (0, 0))
+			writer ((), [obj])
+		) $ zip3 newObjects' objectGids objectPoss
 
 update :: Renderer ()
 update = do
-	return ()
-	--(world, _, renderables) <- ask
-	--mapM_ (\obj -> do
-	--		let oId = obj^.objId 
-	--		--let Just oId = fmap _objId (world^.findObject (obj^.))
-	--		let Just oPos = world^.objectPosition oId
-	--		let oGid = world^?getAnimations. L.at oId._Just.animTileGid
+	(world, _, renderables) <- ask
+	mapM_ (\obj -> do
+			let oId = obj^.objId 
+			--let Just oId = fmap _objId (world^.findObject (obj^.))
+			let Just oPos = world^.objectPosition oId
+			let oGid = world^?getAnimations. L.at oId._Just.animTileGid
 
-	--		tiledMap <- get
-	--		tiledObject (obj^.objName).objectPos tiledMap .= oPos
-	--		whenMaybeDo oGid (\gid -> 
-	--			tiledObject (obj^.objName).objectGid .= Just (fromIntegral gid))
-	--	) renderables
+			tiledMap <- get
+			wLayerObject "ObjectLayer" (obj^.objName) . _Just . roPos .= oPos
+			whenMaybeDo oGid (\gid -> do
+				wObject (obj^.objName)._Just.objTsId .= 4
+				wObject (obj^.objName)._Just.objLocalId .= 0
+				)
+		) renderables
 
 updateTiled :: Renderer ()
 updateTiled = do

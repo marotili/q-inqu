@@ -38,12 +38,6 @@ import Game.World.Wires
 import Game.World.Common
 import qualified Game.World.Objects as World
 
-whenMaybeDo :: (Monad m) => Maybe a -> (a -> m ()) -> m ()
-whenMaybeDo m f = 
-	case m of
-		Just v -> f v
-		Nothing -> return ()
-
 newWorldFromTiled :: TiledMap -> IO (World, WorldManager) -- io due to debug wire
 newWorldFromTiled tiledMap = do
 	let world = emptyW 
@@ -103,7 +97,9 @@ newWorldFromTiled tiledMap = do
 
 moveArrow :: (Float, Float) -> ObjectWire ObjectId ()
 moveArrow direction = proc oId -> do
-	_ <- move direction . for 1 -< oId
+	_ <- move direction . for 1 
+		W.--> untilV removeObject W.--> void exit
+			-< oId
 	returnA -< ()
 
 spawnArrow :: ObjectWire PlayerId ()

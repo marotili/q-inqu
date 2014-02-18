@@ -24,6 +24,7 @@ import Data.Tiled
 import Control.Concurrent.STM ( TVar, readTVar, writeTVar)
 import Control.Lens
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Game.World.Objects
 import Game.World.Common
 import Game.Render.Update
@@ -67,23 +68,34 @@ consumeClientWorld world manager w renderContextVar renderablesIn = do
 
 	(w', (manager', delta)) <- lift $ clientStepWorld w world manager2 dt
 
-	 --update our world state
-	let world' = applyDelta world delta
-	--lift $ print ("Num wires", Map.size $ world'^.wCommon.wcWires)
-
 	renderContext <- lift $ atomically $
 		readTVar renderContextVar
 
 	let renderWorld = renderContext^.rcWorldRenderContext.wrcWorld
 	--let newTm = updateTiled world' delta tm
 
+
+	lift $ print $ renderWorld
+	(_, renderWorld2', removeRenderables) <- lift $ runRWST (do
+			removeRenderObjects
+		) (world, delta, renderablesIn) renderWorld
+
+	let newRenderablesDeleted = Set.toList $ Set.difference (Set.fromList renderablesIn) (Set.fromList removeRenderables)
+
+	-- update our world state 
+	-- removeRenderObjects needs to old world state
+	let world' = applyDelta world delta
+	lift $ print newRenderablesDeleted
+
 	(_, renderWorld2, newRenderables) <- lift $ runRWST (do
 			updateTiled
 			newRenderObjects
-		) (world', delta, renderablesIn) renderWorld
+		) (world', delta, newRenderablesDeleted) renderWorld2'
+
+	lift $ print renderWorld2'
 
 	(_, renderWorld3, _) <- lift $ runRWST update
-		(world', delta, renderablesIn ++ newRenderables) renderWorld2
+		(world', delta, newRenderablesDeleted ++ newRenderables) renderWorld2
 
 	let updatedRenderContext = renderContext 
 		& rcWorldRenderContext.wrcWorld .~ renderWorld3
@@ -91,9 +103,12 @@ consumeClientWorld world manager w renderContextVar renderablesIn = do
 	lift $ atomically $
 		writeTVar renderContextVar updatedRenderContext
 
+	--lift $ print ("Num wires", Map.size $ world'^.wCommon.wcWires)
+
 	-- repeat
 	--lift $ performGC
-	consumeClientWorld world' manager' w' renderContextVar (newRenderables ++ renderablesIn)
+	lift $ print $ ("End Render", (newRenderablesDeleted ++ newRenderables))
+	consumeClientWorld world' manager' w' renderContextVar (newRenderablesDeleted ++ newRenderables)
 
 	where
 		--tMap :: Traversal' RenderContext TiledMap

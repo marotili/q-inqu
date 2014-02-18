@@ -18,6 +18,7 @@ import qualified Graphics.Rendering.OpenGL as GL
 import Graphics.Rendering.OpenGL (($=))
 import Game.Render.Error
 import qualified Codec.Picture as P
+import Control.Monad.State
 
 import Data.Maybe
 import Linear
@@ -105,19 +106,44 @@ newWorldRenderContext world = do
 	imageTextures <- GL.genObjectNames (Map.size (world^.R.mapTilesets)) :: IO [GL.TextureObject]
 	logGL "newWorldRenderContext: genObjects"
 
+	let wrc = execState (do
+			wrcVao .= vao
+			wrcPosSSBs .= Map.empty
+			wrcLayerSSBs .= Map.empty
+			wrcTextures .= Map.empty
+			wrcTilesetSSB .= tilesetBuffer
+			wrcWorld .= world
+
+			mapM_ (\(layerId, layerBuf, posBuf) -> do
+					wrcLayerSSBs.at layerId .= (Just layerBuf)
+					wrcPosSSBs.at layerId .= (Just posBuf)
+				) $ zip3 (Map.keys $ world^.R.mapLayers) layerBuffers posBuffers
+
+			mapM_ (\(tilesetId, i, textureObj) -> do
+				wrcTextures.at tilesetId .= Just (i, textureObj)
+					) $ 
+				zip3 (Map.keys $ world^.R.mapTilesets) [0..] imageTextures
+		) $ WorldRenderContext {}
+
 	-- per layer buffer
 	-- tile types
-	mapM_ (\(layerBuffer, posBuffer, layerName) -> do
+	mapM_ (\layerId -> do
+			let layerName = wrc^.wrcWorld.R.wLayerName layerId
+			let Just layerBuf = wrc^.wrcLayerSSBs.at layerId
+			let Just posBuf = wrc^.wrcPosSSBs.at layerId
 			print (world^.R.wTileIds layerName.wTileData)
 			print (world^.R.wTilePos layerName.wPosData)
-			uploadFromVec GL.ShaderStorageBuffer layerBuffer (world^.R.wTileIds layerName.wTileData)
-			uploadFromVec GL.ShaderStorageBuffer posBuffer (world^.R.wTilePos layerName.wPosData)
-		) $ zip3 layerBuffers posBuffers 
-				(Map.keys $ world^.R.mapHashes.R.hashLayers)
+			uploadFromVec (500 * 4) GL.ShaderStorageBuffer layerBuf (world^.R.wTileIds layerName.wTileData)
+			uploadFromVec (500 * 4) GL.ShaderStorageBuffer posBuf (world^.R.wTilePos layerName.wPosData)
+		) (Map.keys $ world^.R.mapLayers)
 
 	-- per image stuff
-	mapM_ (\(i, texObject, (tsId, image)) -> do
-		GL.activeTexture $= GL.TextureUnit i
+	mapM_ (\tsId -> do
+		let i = wrc^?!wrcTextures.at tsId._Just._1
+		let texObject = wrc^?!wrcTextures.at tsId._Just._2
+		let image = wrc^?!wrcWorld.R.mapTilesets.at tsId._Just.R.tsImage
+
+		GL.activeTexture $= GL.TextureUnit (fromIntegral i)
 		logGL "newWorldRenderContext: activeTexture"
 
 		-- Make it the "currently bound 2D texture"
@@ -139,21 +165,11 @@ newWorldRenderContext world = do
 						GL.textureFilter GL.Texture2D $= ((GL.Nearest, Nothing), GL.Nearest)
 						logGL "newWorldRenderContext: textureFilter"
 				_ -> error "Only RGBA8 supported"
-		) $ zip3 [0..] imageTextures (world^.R.wImages)
+		) $ (Map.keys $ world^.R.mapTilesets)
 
 
-	let wrc = WorldRenderContext
-		{ _wrcVao = vao
-		, _wrcPosSSBs = foldr (uncurry Map.insert) Map.empty $ zip (Map.elems $ world^.R.mapHashes.R.hashLayers) posBuffers
-		, _wrcLayerSSBs = foldr (uncurry Map.insert) Map.empty $ zip (Map.elems $ world^.R.mapHashes.R.hashLayers) layerBuffers
 
-		, _wrcTextures = foldr (\((tsId, _), (i, tex)) -> Map.insert tsId (i, tex)) Map.empty $ zip (world^.R.wImages) $ zip [0..] imageTextures
-		, _wrcTilesetSSB = tilesetBuffer
-		, _wrcWorld = world
-		}
-
-
-	uploadFromVec GL.ShaderStorageBuffer tilesetBuffer (world^.wTilesetData wrc)
+	uploadFromVec 0 GL.ShaderStorageBuffer tilesetBuffer (world^.wTilesetData wrc)
 
 	print (world^.wTilesetData wrc)	
 

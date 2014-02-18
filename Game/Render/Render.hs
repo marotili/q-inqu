@@ -51,12 +51,12 @@ linkShaderProgramWith shaders = do
     return p
 
 -- TODO: size of is hardcoded
-uploadFromVec :: (Storable a) => GL.BufferTarget -> GL.BufferObject -> V.Vector a -> IO ()
-uploadFromVec target buf vec = do
+uploadFromVec :: (Storable a) => Int -> GL.BufferTarget -> GL.BufferObject -> V.Vector a -> IO ()
+uploadFromVec additionalBufferSize target buf vec = do
     GL.bindBuffer target $= Just buf
     logGL "uploadFromVec: bind buffer"
     V.unsafeWith vec $ \ptr ->
-    	GL.bufferData target $= (fromIntegral $ sizeOf(undefined::Float) * V.length vec, ptr, GL.DynamicDraw)
+    	GL.bufferData target $= (fromIntegral $ sizeOf(undefined::Float) * (additionalBufferSize + V.length vec), ptr, GL.DynamicDraw)
     logGL "uploadFromVec: buffer data"
 
 updateFromVec :: (Storable a) => GL.BufferTarget -> GL.BufferObject -> V.Vector a -> IO ()
@@ -64,7 +64,7 @@ updateFromVec target buf vec = do
     GL.bindBuffer target $= Just buf
     logGL "updateFromVec: bind buffer"
     V.unsafeWith vec $ \ptr ->
-    	GL.bufferData target $= (fromIntegral $ sizeOf(undefined::Float) * V.length vec, ptr, GL.DynamicDraw)
+    	GL.bufferSubData target WriteToBuffer (fromIntegral 0) (fromIntegral $ sizeOf(undefined::Float) * V.length vec) ptr
     logGL "updateFromVec: buffer sub data"
 
 setupShaders :: String -> String -> IO Program

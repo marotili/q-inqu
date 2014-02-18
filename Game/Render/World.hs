@@ -380,10 +380,18 @@ wTileIds layerName = to get
 	where
 		get world = case layer of
 				TileLayer { _layerTiles } -> Map.elems _layerTiles
-				ObjectLayer { _layerObjects } -> map getObjectTileId $ Map.elems _layerObjects
+				ObjectLayer { _layerObjects } -> map getObjectTileId $ sortBy sortY $ Map.elems _layerObjects
 			where
 				Just lId = world^.mapHashes.hashLayers.at layerName
 				Just layer = world^.mapLayers.at lId
+
+				sortY :: RenderObject -> RenderObject -> Ordering
+				sortY ro1 ro2  
+					| y <= y2 = LT
+					| otherwise = GT
+					where
+						(x, y) = ro1^.roPos 
+						(x2, y2) = ro2^.roPos
 
 				getObjectTileId ro = 
 					let obj = (world^?!mapObjects.at (ro^.roId)._Just)

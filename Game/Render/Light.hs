@@ -53,7 +53,7 @@ newVisibilityContext octree playerPos = do
 	let pointData = playerPos : (getData octree playerPos)
 	print $ pointData
 
-	uploadFromVec GL.ShaderStorageBuffer pointBuf  $
+	uploadFromVec 0 GL.ShaderStorageBuffer pointBuf  $
 		V.fromList $ concatMap (\(x, y) -> x:y:[]) pointData
 
 	program <- setupShaders "shader.vis.vert" "shader.vis.frag"
@@ -152,6 +152,6 @@ newLightContext = do
 		uploadLights :: GL.BufferObject -> [Light] -> IO () --V.Vector Float
 		uploadLights lightBuffer lights = do
 			let dat = V.fromList $ concatMap toGl lights
-			uploadFromVec GL.UniformBuffer lightBuffer dat
+			uploadFromVec 0 GL.UniformBuffer lightBuffer dat
 			where
 				toGl light = [light^.lightPosition._1, light^.lightPosition._2, light^.lightIntensity, light^.lightFadeDistance]

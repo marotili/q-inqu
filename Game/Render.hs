@@ -89,7 +89,7 @@ render window rc cam = do
 
 	let world = rc^.rcWorldRenderContext.wrcWorld
 	let Just (x, y) = world^?wLayerObject "ObjectLayer" "Player1"._Just.roPos
-	let newCam = cameraUpdatePosition cam (x) (y)
+	let newCam = cameraUpdatePosition cam (-x) (-y)
 
 	let newRc = rc -- & rcLightContext.lcLights._head.lightPosition .~ (-x, y)
 
@@ -109,7 +109,7 @@ render window rc cam = do
 
 	GL.currentProgram $= Just (newRc^.rcMainProgram)
 	programSetViewProjection (newRc^.rcMainProgram) newCam
-	--updateWorldRenderContext (newRc^.rcWorldRenderContext)
+	updateWorldRenderContext (newRc^.rcWorldRenderContext)
 	renderWorldRenderContext (newRc^.rcMainProgram) (newRc^.rcWorldRenderContext)
 
 	GL.stencilTest $= GL.Disabled

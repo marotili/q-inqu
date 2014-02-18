@@ -85,7 +85,7 @@ library
         monad-parallel >= 0.7 && < 0.7.2,
         parallel,
         time >= 1.4 && <= 1.5
-    ghc-options: -rtsopts -threaded
+    ghc-options: -rtsopts -threaded -O2
 
 -- TODO remove netwire dependency
 executable server
@@ -113,7 +113,7 @@ executable server
         binary >= 0.7 && < 0.8,
         parallel,
         Octree >= 0.5 && < 0.6
-    ghc-options: -rtsopts -threaded
+    ghc-options: -rtsopts -threaded -O2
     main-is: Server.hs
 
 executable tests
@@ -125,7 +125,7 @@ executable tests
         cell,
         HUnit,
         lens
-    ghc-options: -rtsopts -threaded
+    ghc-options: -rtsopts -threaded -O2
 
 executable client
     default-language: Haskell2010
@@ -157,6 +157,6 @@ executable client
         pretty >= 1.1 && < 1.2,
         Octree >= 0.5 && < 0.6
 
-  ghc-options: -rtsopts -threaded
+  ghc-options: -rtsopts -threaded -O2
   main-is: main.hs
 
