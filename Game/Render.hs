@@ -60,7 +60,7 @@ newRenderContext renderMap = do
 clearWindow :: GLFW.Window -> IO ()
 clearWindow window = do
 
-	GL.clearColor $= GL.Color4 1 1 1 1
+	GL.clearColor $= GL.Color4 0 0 0 1
 	logGL "clearWindow: clearColor"
 	GL.clear [GL.ColorBuffer]
 	logGL "clearWindow: clear"
@@ -82,19 +82,19 @@ render window rc cam = do
 
 	let newRc = rc & rcLightContext.lcLights._head.lightPosition .~ (-x, y)
 
-	GL.stencilTest $= GL.Enabled
-	GL.stencilFunc $= (GL.Never, 1, 255)
-	GL.stencilOp $= (GL.OpReplace, GL.OpKeep, GL.OpKeep)
-	GL.clearStencil $= 0
-	GL.stencilMask $= 255
-	GL.clear [GL.StencilBuffer]
+	--GL.stencilTest $= GL.Enabled
+	--GL.stencilFunc $= (GL.Never, 1, 255)
+	--GL.stencilOp $= (GL.OpReplace, GL.OpKeep, GL.OpKeep)
+	--GL.clearStencil $= 0
+	--GL.stencilMask $= 255
+	--GL.clear [GL.StencilBuffer]
 
-	visCtxt <- updateVisibilityContext (newRc^.rcVisibilityContext) (x, y)
-	renderVisibilityContext visCtxt newCam
+	--visCtxt <- updateVisibilityContext (newRc^.rcVisibilityContext) (x, y)
+	--renderVisibilityContext visCtxt newCam
 
-	GL.stencilMask $= 0
-	GL.stencilFunc $= (GL.Equal, 0, 255)
-	GL.stencilFunc $= (GL.Equal, 1, 255)
+	--GL.stencilMask $= 0
+	--GL.stencilFunc $= (GL.Equal, 0, 255)
+	--GL.stencilFunc $= (GL.Equal, 1, 255)
 
 	GL.currentProgram $= Just (newRc^.rcMainProgram)
 	programSetViewProjection (newRc^.rcMainProgram) newCam
@@ -103,7 +103,7 @@ render window rc cam = do
 
 	GL.stencilTest $= GL.Disabled
 
-	--updateLightContext (newRc^.rcLightContext)
-	--renderLightContext (newRc^.rcLightContext) newCam
+	updateLightContext (newRc^.rcLightContext)
+	renderLightContext (newRc^.rcLightContext) newCam
 	where
 		object name = mapLayers.traverse._ObjectLayer.layerObjects.traverse.objectsByName name

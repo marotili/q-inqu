@@ -23,6 +23,7 @@ data LightContext = LightContext
 data Light = Light
 	{ _lightPosition :: (Float, Float)
 	, _lightIntensity :: Float
+	, _lightFadeDistance :: Float
 	}
 
 data VisibilityContext = VisibilityContext
@@ -41,6 +42,7 @@ newLight :: (Float, Float) -> Float -> Light
 newLight pos intensity = Light
 	{ _lightPosition = pos
 	, _lightIntensity = intensity
+	, _lightFadeDistance = intensity/2.0
 	}
 
 --newVisibilityContext octree playerPos :: IO VisibilityContext
@@ -105,7 +107,7 @@ renderLightContext lc cam = do
 
 	numLights <- GL.get $ GL.uniformLocation (lc^.lcProgram) "numLights"
 	logGL $ "renderLightContext: numLights, " ++ show numLights
-	GL.uniform numLights $= GL.Index1 (2 :: GL.GLint)
+	GL.uniform numLights $= GL.Index1 (1 :: GL.GLint)
 	logGL "renderLightContext: set uniform numLights"
 
 	GL.bindVertexArrayObject $= (Just $ lc^.lcVao)
@@ -152,4 +154,4 @@ newLightContext = do
 			let dat = V.fromList $ concatMap toGl lights
 			uploadFromVec GL.UniformBuffer lightBuffer dat
 			where
-				toGl light = [light^.lightPosition._1, light^.lightPosition._2, light^.lightIntensity, 0]
+				toGl light = [light^.lightPosition._1, light^.lightPosition._2, light^.lightIntensity, light^.lightFadeDistance]

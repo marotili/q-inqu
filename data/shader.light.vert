@@ -9,7 +9,7 @@ out vec4 position;
 struct Light {
 	vec2 pos;
 	float intensity;
-	float padding;
+	float fadeDistance;
 };
 
 layout(std140) uniform LightUBO {

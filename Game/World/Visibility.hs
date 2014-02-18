@@ -19,6 +19,9 @@ import Debug.Trace
 import Control.Monad.State
 import Game.World.Objects
 
+-- | Create a triangle strip that can be used to render visible areas
+-- | Requires convex static enclosing geometry
+
 
 --minAngle :: (Float, Float) -> Getter OctreeObject Float
 --minAngle (ox, oy) = to $ \obj -> fromJust $
@@ -198,6 +201,7 @@ sweepUntil = do
 		sweep
 		sweepUntil
 
+getData :: GameOctree -> (Float, Float) -> [(Float, Float)]
 getData octree point = test1 point dataPoints
 	where
 		octreeData = octree^.goStaticObjects
