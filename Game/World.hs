@@ -10,10 +10,6 @@ module Game.World
 
 	, newWorldFromTiled
 	, testwire
-	, updateTiled
-	, newRenderObjects
-	, update
-	, Renderable
 	) where
 
 import Game.World.Lens
@@ -47,106 +43,6 @@ whenMaybeDo m f =
 	case m of
 		Just v -> f v
 		Nothing -> return ()
-
-type Renderer = RWST (World, WorldDelta, [Renderable]) [Renderable] TiledMap IO
-
-newRenderObjects :: Renderer ()
-newRenderObjects = do
-	(world, delta, _) <- ask
-
-	let newObjects' = delta^.newObjects
-	let objectGids = [world^?getAnimations. L.at (o^.objId)._Just.animTileGid | o <- newObjects']
-	let objectPoss = [world^?getPositions. L.at (o^.objId)._Just | o <- newObjects']
-
-	mapM_ (\(obj, objGid, pos) -> do
-			layerObj.layerObjects <>= buildObject objGid obj pos
-			writer ((), [obj])
-		) $ zip3 newObjects' objectGids objectPoss
-
-	where
-		buildObject objGid obj mpos = ifPosObj
-			where
-				ifPosObj = case mpos of
-					Just _ -> case objGid of 
-						Just gid -> object gid
-						Nothing -> object (1 :: Int)
-					Nothing -> []
-				object objectGid' = [T.Object { _objectName= Just $ obj^.objName
-							   , _objectGid= Just (fromIntegral objectGid')
-							   , _objectX = round $ fst . fromJust $ mpos
-							   , _objectY = round $ snd . fromJust $ mpos
-							   , _objectWidth = Nothing
-							   , _objectHeight = Nothing
-							   , _objectType = Nothing
-							   , _objectProperties = []
-							   , _objectPolygon = Nothing
-							   , _objectPolyline = Nothing
-							   }]
-
-update :: Renderer ()
-update = do
-	(world, _, renderables) <- ask
-	mapM_ (\obj -> do
-			let oId = obj^.objId 
-			--let Just oId = fmap _objId (world^.findObject (obj^.))
-			let Just oPos = world^.objectPosition oId
-			let oGid = world^?getAnimations. L.at oId._Just.animTileGid
-
-			tiledMap <- get
-			tiledObject (obj^.objName).objectPos tiledMap .= oPos
-			whenMaybeDo oGid (\gid -> 
-				tiledObject (obj^.objName).objectGid .= Just (fromIntegral gid))
-		) renderables
-
-updateTiled :: Renderer ()
-updateTiled = do
-	(world, delta, _) <- ask
-	tiled <- get
-	put (newTiled world delta tiled)
-	where
-		newTiled world _ tiled = execState (do
-				tiledObject "Player1".objectPos tiled .= playerPos
-				tiledObject "Player2".objectPos tiled .= player2Pos
-				tiledObject "Dino".objectPos tiled .= dinoPos
-				tiledObject "Bee".objectPos tiled .= beePos
-				whenMaybeDo playerGid (\gid -> 
-					tiledObject "Player1".objectGid .= Just (fromIntegral gid))
-
-				whenMaybeDo player2Gid (\gid -> 
-					tiledObject "Player2".objectGid .= Just (fromIntegral gid))
-
-				whenMaybeDo dinoGid (\gid -> 
-					tiledObject "Dino".objectGid .= Just (fromIntegral gid))
-
-				whenMaybeDo beeGid (\gid -> 
-					tiledObject "Bee".objectGid .= Just (fromIntegral gid))
-			) tiled
-			where
-				Just dinoId = fmap _objId (world^.findObject "Dino")
-				Just dinoPos = world^.objectPosition dinoId
-				dinoGid = world^?getAnimations. L.at dinoId._Just.animTileGid
-
-				Just beeId = fmap _objId (world^.findObject "Bee")
-				Just beePos = world^.objectPosition beeId
-				beeGid = world^?getAnimations. L.at beeId._Just.animTileGid
-
-				Just pId = fmap _objId (world^.findObject "Neira")
-				Just playerPos = world^.objectPosition pId
-				playerGid = world^?getAnimations. L.at pId._Just.animTileGid
-				--let boulderPos = world'^.wBoulderPos "Boulder1"
-
-				Just p2Id = fmap _objId (world^.findObject "TheGhost")
-				Just player2Pos = world^.objectPosition p2Id
-				player2Gid = world^?getAnimations. L.at p2Id._Just.animTileGid
-
-layerObj :: Traversal' TiledMap Layer
-layerObj = mapLayers.traverse._ObjectLayer
---layerObj1 :: Traversal' RenderContext [Layer]
-tiledObject :: String
-	-> Traversal' TiledMap Data.Tiled.Object
-tiledObject name = mapLayers.traverse._ObjectLayer.layerObjects.traverse.objectsByName name
-
-type Renderable = World.Object
 
 newWorldFromTiled :: TiledMap -> IO (World, WorldManager) -- io due to debug wire
 newWorldFromTiled tiledMap = do

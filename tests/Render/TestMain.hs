@@ -4,4 +4,6 @@ import Test.HUnit
 import World
 
 main :: IO Counts
-main = do runTestTT testAddRemove
+main = do 
+	runTestTT testAddRemove
+	runTestTT testLoadMap

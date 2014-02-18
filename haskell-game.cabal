@@ -32,6 +32,7 @@ library
         Game.Render
         Game.Render.Error
         Game.Render.World
+        Game.Render.Update
         
         Game.Collision 
 
@@ -84,7 +85,7 @@ library
         monad-parallel >= 0.7 && < 0.7.2,
         parallel,
         time >= 1.4 && <= 1.5
-    ghc-options: -rtsopts -threaded -Wall
+    ghc-options: -rtsopts -threaded
 
 -- TODO remove netwire dependency
 executable server
@@ -112,7 +113,7 @@ executable server
         binary >= 0.7 && < 0.8,
         parallel,
         Octree >= 0.5 && < 0.6
-    ghc-options: -rtsopts -threaded -Wall
+    ghc-options: -rtsopts -threaded
     main-is: Server.hs
 
 executable tests
@@ -124,7 +125,7 @@ executable tests
         cell,
         HUnit,
         lens
-    ghc-options: -rtsopts -threaded -Wall
+    ghc-options: -rtsopts -threaded
 
 executable client
     default-language: Haskell2010
@@ -156,6 +157,6 @@ executable client
         pretty >= 1.1 && < 1.2,
         Octree >= 0.5 && < 0.6
 
-  ghc-options: -rtsopts -threaded -Wall
+  ghc-options: -rtsopts -threaded
   main-is: main.hs
 

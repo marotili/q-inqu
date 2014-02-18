@@ -1,6 +1,5 @@
-#version 330
+#version 430
 out vec4 color;
-in float color_in;
 
 flat in int instanceID;
 in vec2 texCoords;
@@ -39,6 +38,7 @@ void main()
 		default:
 			color = vec4(0, 0, 0, 1);
 	}
+	// color = vec4(1, 0, 0, 1);
     // color = vec4(texCoords, 0, 1);//colors[data[instanceID]];
     // color = vec4(1, 0, 0, 1);
 }

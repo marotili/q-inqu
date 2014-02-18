@@ -1,4 +1,4 @@
-#version 330
+#version 430
 
 in float position;
 in float color_in;
@@ -15,8 +15,8 @@ uniform mat4 projection;
 uniform int numTileSets; // needed for dynamic lookup
 
 // Type
-layout(std140) uniform LayerData {
-	ivec4 tileId[2500];
+layout(binding=0) buffer LayerData {
+	ivec4 tileId[];
 };
 
 // layout (binding=6) uniform Mesh {
@@ -36,13 +36,13 @@ struct TileSet {
 	ivec4 padding1;
 };
 
-layout(std140) uniform TileSets {
-	TileSet tileSets[10];
+layout(binding=1) buffer TileSets {
+	TileSet tileSets[];
 };
 
 // Coord
-layout(std140) uniform Pos {
-	vec4 pos[2500];
+layout(binding=2) buffer Pos {
+	vec4 pos[];
 };
 
 // layout(binding=3) buffer ObjectData {
@@ -122,9 +122,12 @@ void main()
 	vec2 newPos = pos[instanceID].xy;
 
 	// color_out = color_in;
-    gl_Position = projection*view*vec4(vec3(newPos, 0) + vec3(tileMeshCoords, 0.0), 1.0);
-    // debug[1] = instanceID;
-    // debug[2] = tileSet.tileWidth;
+    gl_Position = projection*view*vec4(vec3(newPos, 0) + 
+    	vec3(tileMeshCoords, 0.0), 1.0);
+
+    // vec2 newPos2 = vec2(tileMeshCoords.x * 0.01, tileMeshCoords.y*0.01);
+    // gl_Position = vec4(newPos2, 0, 1);
+
     // debug[instanceID*6+gl_VertexID] = gl_Position;
     texCoords = texCoords;
     image = tileSet.tilesetImage;

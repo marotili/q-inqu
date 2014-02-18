@@ -25,6 +25,7 @@ import Game.World.Import.Tiled
 import Game.World.Common
 import Game.World
 import Data.Tiled
+import Game.Render.World
 
 data RenderContext = RenderContext
 	{ _rcMainProgram :: Program
@@ -34,18 +35,28 @@ data RenderContext = RenderContext
 	}
 makeLenses ''RenderContext
 
-newRenderContext :: Map -> IO RenderContext
-newRenderContext renderMap = do
+newRenderContext :: IO RenderContext
+newRenderContext = do
 	GL.blendFunc $= (GL.SrcAlpha, GL.OneMinusSrcAlpha)
 	GL.blend $= GL.Enabled
 	logGL "newRenderContext: blend setup failed"
 
+	tm <- tMap
+	let renderWorld = loadMapFromTiled tm
+	let nWorld = wUpdate (do
+			Just tsId <- use $ mapHashes.gameTilesets.at "sprite_klein3"
+			wObject "Player1" .= (Just $ newObject tsId 0)
+			Just objId <- use $ mapHashes.gameObjects.at "Player1"
+			wLayer "ObjectLayer" .= (Just $ newLayer ObjectLayerType)
+			wLayerObject "ObjectLayer" "Player1" 
+				.= (Just $ newRenderObject objId (50, 50))
+		) renderWorld
+
 	program <- setupShaders "shader.vert" "shader.frag"
 	_ <- uniformInfo program
-	wrc <- newWorldRenderContext renderMap
+	wrc <- newWorldRenderContext nWorld
 	lc <- newLightContext
 
-	tm <- tMap
 	(world, manager) <- newWorldFromTiled tm
 
 	vc <- newVisibilityContext (world^.wCollisionManager) (0, 0)
@@ -60,7 +71,7 @@ newRenderContext renderMap = do
 clearWindow :: GLFW.Window -> IO ()
 clearWindow window = do
 
-	GL.clearColor $= GL.Color4 0 0 0 1
+	GL.clearColor $= GL.Color4 1 1 1 1
 	logGL "clearWindow: clearColor"
 	GL.clear [GL.ColorBuffer]
 	logGL "clearWindow: clear"
@@ -76,11 +87,11 @@ render window rc cam = do
 
 	logGL "render: set current program"
 
-	let tm = rc^.rcWorldRenderContext.wrcMap.tiledMap
-	let [(x, y)] = tm^..object "Player1".objectPos tm
-	let newCam = cameraUpdatePosition cam (-x) y
+	let world = rc^.rcWorldRenderContext.wrcWorld
+	let Just (x, y) = world^?wLayerObject "ObjectLayer" "Player1"._Just.roPos
+	let newCam = cameraUpdatePosition cam (x) (y)
 
-	let newRc = rc & rcLightContext.lcLights._head.lightPosition .~ (-x, y)
+	let newRc = rc -- & rcLightContext.lcLights._head.lightPosition .~ (-x, y)
 
 	--GL.stencilTest $= GL.Enabled
 	--GL.stencilFunc $= (GL.Never, 1, 255)
@@ -98,12 +109,12 @@ render window rc cam = do
 
 	GL.currentProgram $= Just (newRc^.rcMainProgram)
 	programSetViewProjection (newRc^.rcMainProgram) newCam
-	updateWorldRenderContext (newRc^.rcWorldRenderContext)
+	--updateWorldRenderContext (newRc^.rcWorldRenderContext)
 	renderWorldRenderContext (newRc^.rcMainProgram) (newRc^.rcWorldRenderContext)
 
 	GL.stencilTest $= GL.Disabled
 
-	updateLightContext (newRc^.rcLightContext)
-	renderLightContext (newRc^.rcLightContext) newCam
-	where
-		object name = mapLayers.traverse._ObjectLayer.layerObjects.traverse.objectsByName name
+	--updateLightContext (newRc^.rcLightContext)
+	--renderLightContext (newRc^.rcLightContext) newCam
+	--where
+	--	object name = mapLayers.traverse._ObjectLayer.layerObjects.traverse.objectsByName name

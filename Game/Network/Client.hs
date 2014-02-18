@@ -26,9 +26,12 @@ import Control.Lens
 import qualified Data.Map as Map
 import Game.World.Objects
 import Game.World.Common
+import Game.Render.Update
+
 type ProdDecoder a = (Monad m)	 
 	=> Producer B.ByteString m r
 	-> Producer' (ByteOffset, a) m (Either (DecodingError, Producer B.ByteString m r) r)
+
 
 decodeSteps :: ProdDecoder ([(PlayerId, A.Action)], Rational)
 decodeSteps = decodeMany
@@ -71,18 +74,19 @@ consumeClientWorld world manager w renderContextVar renderablesIn = do
 	renderContext <- lift $ atomically $
 		readTVar renderContextVar
 
-	let tm = renderContext^.rcWorldRenderContext.wrcMap.tiledMap
+	let renderWorld = renderContext^.rcWorldRenderContext.wrcWorld
 	--let newTm = updateTiled world' delta tm
 
-	(_, newTm2, newRenderables) <- lift $ runRWST (do
+	(_, renderWorld2, newRenderables) <- lift $ runRWST (do
 			updateTiled
 			newRenderObjects
-		) (world', delta, renderablesIn) tm
+		) (world', delta, renderablesIn) renderWorld
 
-	(_, newTm3, _) <- lift $ runRWST update
-		(world', delta, renderablesIn ++ newRenderables) newTm2
+	(_, renderWorld3, _) <- lift $ runRWST update
+		(world', delta, renderablesIn ++ newRenderables) renderWorld2
 
-	let updatedRenderContext = renderContext & tMap .~ newTm3
+	let updatedRenderContext = renderContext 
+		& rcWorldRenderContext.wrcWorld .~ renderWorld3
 
 	lift $ atomically $
 		writeTVar renderContextVar updatedRenderContext
@@ -92,8 +96,8 @@ consumeClientWorld world manager w renderContextVar renderablesIn = do
 	consumeClientWorld world' manager' w' renderContextVar (newRenderables ++ renderablesIn)
 
 	where
-		tMap :: Traversal' RenderContext TiledMap
-		tMap = rcWorldRenderContext.wrcMap.tiledMap
+		--tMap :: Traversal' RenderContext TiledMap
+		--tMap = rcWorldRenderContext.wrcMap.tiledMap
 		--layerObj :: Traversal' RenderContext Layer
 		--layerObj = tMap.mapLayers.traverse._ObjectLayer
 		--layerObj1 :: Traversal' RenderContext [Layer]

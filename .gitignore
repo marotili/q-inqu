@@ -14,3 +14,4 @@ timelog
 log
 *.eventlog
 *.prof
+*.log

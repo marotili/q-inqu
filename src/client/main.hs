@@ -53,7 +53,6 @@ data State = State
     , stateWindowHeight    :: !Int
     
     , stateCam :: Camera
-    , stateGameMap :: RMap.Map
     , stateInput :: S.State UserInput ()
     }
 
@@ -139,9 +138,8 @@ main = withSocketsDo $ do
 
           -- generate map from tiled
           tMap <- loadMapFile "data/sewers.tmx"
-          let rm = newRenderMap tMap
 
-          rc <- Render.newRenderContext rm
+          rc <- Render.newRenderContext
           -- default render context
           renderContext <- newTVarIO rc
 
@@ -166,7 +164,6 @@ main = withSocketsDo $ do
                 , stateWindowHeight    = fbHeight
                 , stateInput = return ()
                 , stateCam = newDefaultCamera (fromIntegral fbWidth) (fromIntegral fbHeight)
-                , stateGameMap = rm
                 }
           runDemo env state
 
