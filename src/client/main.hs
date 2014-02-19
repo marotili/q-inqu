@@ -39,6 +39,7 @@ import qualified Pipes.Binary as PB
 import Game.Render.Error
 import qualified Data.ByteString as B
 import qualified Control.Monad.Trans.State.Strict as StrictState
+import Game.Game
 --------------------------------------------------------------------------------
 
 data Env = Env
@@ -137,9 +138,9 @@ main = withSocketsDo $ do
           (fbWidth, fbHeight) <- GLFW.getFramebufferSize win
 
           -- generate map from tiled
-          tMap <- loadMapFile "data/sewers.tmx"
+          game <- newGame "TheGame"
 
-          rc <- Render.newRenderContext
+          rc <- Render.newRenderContext game
           -- default render context
           renderContext <- newTVarIO rc
 
@@ -148,8 +149,9 @@ main = withSocketsDo $ do
             performGC
 
           _ <- forkIO $ do
-            (world, manager) <- newWorldFromTiled tMap
-            _ <- runEffect $ decodeSteps fromServer >-> consumeClientWorld world manager testwire renderContext []
+            --(world, manager) <- newWorldFromTiled tMap
+            _ <- runEffect $ decodeSteps fromServer >-> 
+                consumeClientWorld renderContext game
             performGC
 
           let 

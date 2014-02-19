@@ -29,7 +29,7 @@ import qualified Game.World.Objects as World
 import Game.Render.World hiding (World)
 import qualified Game.Render.World as R
 
-type Renderer = RWST (World, WorldDelta, [Renderable]) [Renderable] R.World IO
+type Renderer = RWS (World, WorldDelta, [Renderable]) [Renderable] R.World
 
 -- * TODO: fix monad
 whenMaybeDo :: (Monad m) => Maybe a -> (a -> m ()) -> m ()
@@ -42,7 +42,6 @@ removeRenderObjects :: Renderer ()
 removeRenderObjects = do
 	(world, delta, _) <- ask
 	let deleted = delta^.deletedObjects
-	lift $ print ("Deleted", deleted)
 	mapM_ (\objId -> do
 			let Just obj = world^.wObjects.L.at objId
 			-- FIXME
@@ -58,7 +57,6 @@ newRenderObjects = do
 	(world, delta, _) <- ask
 
 	let newObjects' = delta^.newObjects
-	lift $ print ("New", newObjects')
 	let objectGids = [world^?getAnimations. L.at (o^.objId)._Just.animTileGid | o <- newObjects']
 	let objectPoss = [world^?getPositions. L.at (o^.objId)._Just | o <- newObjects']
 
@@ -87,47 +85,47 @@ update = do
 				)
 		) renderables
 
-updateTiled :: Renderer ()
-updateTiled = do
-	(world, delta, _) <- ask
-	tiled <- get
-	put (newTiled world delta tiled)
-	where
-		newTiled world _ tiled = execState (do
-			wLayerObject "ObjectLayer" "Player1" . _Just . roPos .= playerPos
-			--wLayerObject "ObjectLayer" "Player2" . _Just . roPos .= player2Pos
-			--wLayerObject "ObjectLayer" "Dino" . _Just . roPos .= playerPos
-			--wLayerObject "ObjectLayer" "Bee" . _Just . roPos .= playerPos
+--updateTiled :: Renderer ()
+--updateTiled = do
+--	(world, delta, _) <- ask
+--	tiled <- get
+--	put (newTiled world delta tiled)
+--	where
+--		newTiled world _ tiled = execState (do
+--			wLayerObject "ObjectLayer" "Player1" . _Just . roPos .= playerPos
+--			--wLayerObject "ObjectLayer" "Player2" . _Just . roPos .= player2Pos
+--			--wLayerObject "ObjectLayer" "Dino" . _Just . roPos .= playerPos
+--			--wLayerObject "ObjectLayer" "Bee" . _Just . roPos .= playerPos
 
-			--	whenMaybeDo playerGid (\gid -> 
-			--		tiledObject "Player1".objectGid .= Just (fromIntegral gid))
+--			--	whenMaybeDo playerGid (\gid -> 
+--			--		tiledObject "Player1".objectGid .= Just (fromIntegral gid))
 
-			--	whenMaybeDo player2Gid (\gid -> 
-			--		tiledObject "Player2".objectGid .= Just (fromIntegral gid))
+--			--	whenMaybeDo player2Gid (\gid -> 
+--			--		tiledObject "Player2".objectGid .= Just (fromIntegral gid))
 
-			--	whenMaybeDo dinoGid (\gid -> 
-			--		tiledObject "Dino".objectGid .= Just (fromIntegral gid))
+--			--	whenMaybeDo dinoGid (\gid -> 
+--			--		tiledObject "Dino".objectGid .= Just (fromIntegral gid))
 
-			--	whenMaybeDo beeGid (\gid -> 
-			--		tiledObject "Bee".objectGid .= Just (fromIntegral gid))
-			--) tiled
-			) tiled
-			where
-				Just dinoId = fmap _objId (world^.findObject "Dino")
-				Just dinoPos = world^.objectPosition dinoId
-				dinoGid = world^?getAnimations. L.at dinoId._Just.animTileGid
+--			--	whenMaybeDo beeGid (\gid -> 
+--			--		tiledObject "Bee".objectGid .= Just (fromIntegral gid))
+--			--) tiled
+--			) tiled
+--			where
+--				Just dinoId = fmap _objId (world^.findObject "Dino")
+--				Just dinoPos = world^.objectPosition dinoId
+--				dinoGid = world^?getAnimations. L.at dinoId._Just.animTileGid
 
-				Just beeId = fmap _objId (world^.findObject "Bee")
-				Just beePos = world^.objectPosition beeId
-				beeGid = world^?getAnimations. L.at beeId._Just.animTileGid
+--				Just beeId = fmap _objId (world^.findObject "Bee")
+--				Just beePos = world^.objectPosition beeId
+--				beeGid = world^?getAnimations. L.at beeId._Just.animTileGid
 
-				Just pId = fmap _objId (world^.findObject "Neira")
-				Just playerPos = world^.objectPosition pId
-				playerGid = world^?getAnimations. L.at pId._Just.animTileGid
-				--let boulderPos = world'^.wBoulderPos "Boulder1"
+--				Just pId = fmap _objId (world^.findObject "Neira")
+--				Just playerPos = world^.objectPosition pId
+--				playerGid = world^?getAnimations. L.at pId._Just.animTileGid
+--				--let boulderPos = world'^.wBoulderPos "Boulder1"
 
-				Just p2Id = fmap _objId (world^.findObject "TheGhost")
-				Just player2Pos = world^.objectPosition p2Id
-				player2Gid = world^?getAnimations. L.at p2Id._Just.animTileGid
+--				Just p2Id = fmap _objId (world^.findObject "TheGhost")
+--				Just player2Pos = world^.objectPosition p2Id
+--				player2Gid = world^?getAnimations. L.at p2Id._Just.animTileGid
 
 type Renderable = World.Object

@@ -44,18 +44,18 @@ decodeAction :: ProdDecoder FromClientData
 decodeAction = PB.decodeMany
 
 
-stepWorld :: WorldWire () b -> WorldSession -> World -> WorldManager -> 
-	IO ((WorldWire () b, WorldSession), (WorldManager, WorldDelta), NominalDiffTime)
-stepWorld w' session' world' state' = do
-	-- update session
-	(dt, session) <- stepSession session'
+--stepWorld :: WorldWire () b -> WorldSession -> World -> WorldManager -> 
+--	IO ((WorldWire () b, WorldSession), (WorldManager, WorldDelta), NominalDiffTime)
+--stepWorld w' session' world' state' = do
+--	-- update session
+--	(dt, session) <- stepSession session'
 
-	-- run wires
-	((_, w), worldManager, worldDelta) <- runRWST (
-		stepWire w' dt (Right ())
-		) world' state'
+--	-- run wires
+--	((_, w), worldManager, worldDelta) <- runRWS (
+--		stepWire w' dt (Right ())
+--		) world' state'
 
-	return ((w, session), (worldManager, worldDelta), dtime dt)
+--	return ((w, session), (worldManager, worldDelta), dtime dt)
 
 type FromClientData = (Float, Int, A.Action)
 type ClientData = ([(Int, A.Action)], Rational)
@@ -68,39 +68,19 @@ collect actions = do
 	else
 		collect (actions ++ [(pId, action)])
 
-produceWorld :: World -> WorldManager -> WorldWire () b -> WorldSession ->
+produceWorld :: WorldSession ->
 	Pipe FromClientData ClientData IO ()
-produceWorld world manager w session = do
+produceWorld session' = do
 	--(t, action) <- P.await
 	actions <- collect []
-	--lift $ print actions
-	--let playerId = fromJust $ world^.wPlayerId "Neira"
-	let manager2 = worldManagerUpdate manager actions
+	(dt, session) <- lift $ stepSession session'
+	--let manager2 = worldManagerUpdate manager actions
 
-	--let manager2 = manager & wmPlayerActions %~	Map.insert playerId (A.newInputAction action)
-	-- run wires
-	--lift $ print "run main loop"
-	--lift $ print manager2
-	((w', session'), (manager', delta), dt) <- lift $ stepWorld w session world manager2
-	--lift $ print "update clients"
-	-- update our world state
-	let world' = applyDelta world delta
-	--lift $ print world'
+	--((w', session'), (manager', delta), dt) <- lift $ stepWorld w session world manager2
 
-	-- debug output
-	--lift $ print world'
+	P.yield (actions, realToFrac . dtime $ dt)
 
-	-- Send to user
-	--lift $ print actions
-	P.yield (actions, realToFrac dt)
-	lift $ print dt
-
-	-- wait
-	--lift $ threadDelay oneSecond
-
-	--lift $ performGC
-	-- repeat
-	produceWorld world' manager' w' session'
+	produceWorld session
 
 --getDeltaTime (dt, deltaWorld, world) = dt
 --getWorld (dt, dWorld, world) = world
@@ -113,12 +93,10 @@ produceWorld world manager w session = do
 game :: Input FromClientData -> Output C.ByteString -> IO ()
 game recvEvents output = do
 	let session = clockSession_
-	tiledMap <- loadMapFile "data/sewers.tmx"
-	(world, manager) <- newWorldFromTiled tiledMap
 
 	let
 		worldProducer :: Pipe (Float, Int, A.Action) ClientData IO ()
-		worldProducer = produceWorld world manager testwire session
+		worldProducer = produceWorld session
 
 		--eventProducer :: Producer (Float, A.Action) IO ()
 		eventProducer = P.for (fromInput recvEvents) P.yield

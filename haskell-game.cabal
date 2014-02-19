@@ -25,6 +25,8 @@ library
         Game.Input.Input
         Game.Input.Actions
 
+        Game.Game
+
         Game.Render.Render
         Game.Render.Map
         Game.Render.Camera

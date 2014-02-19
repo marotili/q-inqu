@@ -6,6 +6,7 @@ module Game.Network.Client
 	) where
 
 import Game.World
+import Game.Game
 
 import Control.Monad.RWS
 
@@ -19,6 +20,7 @@ import Pipes.Concurrent
 import Pipes.Binary
 import qualified Game.Input.Actions as A
 import Game.Render
+import Control.Monad.State
 import Game.Render.Map
 import Data.Tiled
 import Control.Concurrent.STM ( TVar, readTVar, writeTVar)
@@ -37,84 +39,29 @@ type ProdDecoder a = (Monad m)
 decodeSteps :: ProdDecoder ([(PlayerId, A.Action)], Rational)
 decodeSteps = decodeMany
 
-clientStepWorld :: 
-	   WorldWire () b 
-	-> World 
-	-> WorldManager 
-	-> Rational 
-	-> IO (WorldWire () b, (WorldManager, WorldDelta))
-clientStepWorld w' world' state' dt' = do
-	let dt = W.Timed (fromRational dt') ()
-	-- run wires
-	((_, w), worldManager, worldDelta) <- runRWST (
-		W.stepWire w' dt (Right ())
-		) world' state'
 
-	return (w, (worldManager, worldDelta))
 
 consumeClientWorld :: 
-	   World 
-	-> WorldManager 
-	-> WorldWire () b 
-	-> TVar RenderContext
-	-> [Renderable]
+	  TVar RenderContext
+	-> Game
 	-> Consumer (ByteOffset, ([(Int, A.Action)], Rational)) IO r
-consumeClientWorld world manager w renderContextVar renderablesIn = do
+consumeClientWorld renderContextVar game = do
 	-- run wires
 	(_, (actions, dt)) <- await
 
-	let manager2 = worldManagerUpdate manager actions
+	let manager2 = worldManagerUpdate (game^.gameWorldManager) actions
 
+	let newGame = execState (do
+			gameWorldManager .= manager2
+			updateGame dt
+		) game
 
-	(w', (manager', delta)) <- lift $ clientStepWorld w world manager2 dt
+	--(w', (manager', delta)) <- lift $ clientStepWorld w world manager2 dt
 
-	renderContext <- lift $ atomically $
-		readTVar renderContextVar
+	lift $ atomically $ do
+		renderContext <- readTVar renderContextVar
+		writeTVar renderContextVar (renderContext 
+				& rcWorldRenderContext.wrcWorld .~ (newGame^.gameRenderWorld)
+			)
 
-	let renderWorld = renderContext^.rcWorldRenderContext.wrcWorld
-	--let newTm = updateTiled world' delta tm
-
-
-	lift $ print $ renderWorld
-	(_, renderWorld2', removeRenderables) <- lift $ runRWST (do
-			removeRenderObjects
-		) (world, delta, renderablesIn) renderWorld
-
-	let newRenderablesDeleted = Set.toList $ Set.difference (Set.fromList renderablesIn) (Set.fromList removeRenderables)
-
-	-- update our world state 
-	-- removeRenderObjects needs to old world state
-	let world' = applyDelta world delta
-	lift $ print newRenderablesDeleted
-
-	(_, renderWorld2, newRenderables) <- lift $ runRWST (do
-			updateTiled
-			newRenderObjects
-		) (world', delta, newRenderablesDeleted) renderWorld2'
-
-	lift $ print renderWorld2'
-
-	(_, renderWorld3, _) <- lift $ runRWST update
-		(world', delta, newRenderablesDeleted ++ newRenderables) renderWorld2
-
-	let updatedRenderContext = renderContext 
-		& rcWorldRenderContext.wrcWorld .~ renderWorld3
-
-	lift $ atomically $
-		writeTVar renderContextVar updatedRenderContext
-
-	--lift $ print ("Num wires", Map.size $ world'^.wCommon.wcWires)
-
-	-- repeat
-	--lift $ performGC
-	lift $ print $ ("End Render", (newRenderablesDeleted ++ newRenderables))
-	consumeClientWorld world' manager' w' renderContextVar (newRenderablesDeleted ++ newRenderables)
-
-	where
-		--tMap :: Traversal' RenderContext TiledMap
-		--tMap = rcWorldRenderContext.wrcMap.tiledMap
-		--layerObj :: Traversal' RenderContext Layer
-		--layerObj = tMap.mapLayers.traverse._ObjectLayer
-		--layerObj1 :: Traversal' RenderContext [Layer]
-		--object name = mapLayers.traverse._ObjectLayer.layerObjects.traverse.objectsByName name
-
+	consumeClientWorld renderContextVar newGame

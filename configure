@@ -1,1 +1,1 @@
-cabal configure --enable-optimization=2
+cabal configure --enable-library-profiling --enable-executable-profiling

@@ -8,7 +8,7 @@ module Game.World
 	-- * To remove
 	, applyDelta
 
-	, newWorldFromTiled
+	--, newWorldFromTiled
 	, testwire
 	) where
 
@@ -38,62 +38,62 @@ import Game.World.Wires
 import Game.World.Common
 import qualified Game.World.Objects as World
 
-newWorldFromTiled :: TiledMap -> IO (World, WorldManager) -- io due to debug wire
-newWorldFromTiled tiledMap = do
-	let world = emptyW 
-		{ _wTileBoundary = tiledMap^.mapTileSize
-		}
-	(worldManager, worldDelta) <- execRWST (
-			stepWire initWire (Timed 0 ()) (Right ())
-		) world emptyWM
+--newWorldFromTiled :: TiledMap -> IO (World, WorldManager) -- io due to debug wire
+--newWorldFromTiled tiledMap = do
+--	let world = emptyW 
+--		{ _wTileBoundary = tiledMap^.mapTileSize
+--		}
+--	(worldManager, worldDelta) <- execRWST (
+--			stepWire initWire (Timed 0 ()) (Right ())
+--		) world emptyWM
 
-	let world' = applyDelta world worldDelta
-	--print world'
-	return (world', worldManager)
+--	let world' = applyDelta world worldDelta
+--	--print world'
+--	return (world', worldManager)
 
-	where
-		Just player1Obj = queryObject tiledMap "Player1"
-		Just player2Obj = queryObject tiledMap "Player2"
-		Just dinoObj = queryObject tiledMap "Dino"
-		Just beeObj = queryObject tiledMap "Bee"
+--	where
+--		Just player1Obj = queryObject tiledMap "Player1"
+--		Just player2Obj = queryObject tiledMap "Player2"
+--		Just dinoObj = queryObject tiledMap "Dino"
+--		Just beeObj = queryObject tiledMap "Bee"
 
-		wallPositions = mapWallPositions tiledMap
-		--boulders = mapBoulders tiledMap
+--		wallPositions = mapWallPositions tiledMap
+--		--boulders = mapBoulders tiledMap
 
-		--genWalls :: [(Float, Float)] -> WorldWire a b
-		genWalls [] = returnA
-		genWalls (wallPos:walls) = proc input -> do
-			wId <- spawnObjectAt "Wall" wallPos -< input
-			genWalls walls -< input
-			wLiftSetOnceVoid setStaticCollidable -< wId
-			returnA -< input
+--		--genWalls :: [(Float, Float)] -> WorldWire a b
+--		genWalls [] = returnA
+--		genWalls (wallPos:walls) = proc input -> do
+--			wId <- spawnObjectAt "Wall" wallPos -< input
+--			genWalls walls -< input
+--			wLiftSetOnceVoid setStaticCollidable -< wId
+--			returnA -< input
 
-		--genBoulders [] = returnA
-		--genBoulders (boulder:boulders) = proc input -> do
-		--	spawnObjectAt "Boulder" (boulder^.objectPos tiledMap) -< input
-		--	genBoulders boulders -< input
-		--	returnA -< input
+--		--genBoulders [] = returnA
+--		--genBoulders (boulder:boulders) = proc input -> do
+--		--	spawnObjectAt "Boulder" (boulder^.objectPos tiledMap) -< input
+--		--	genBoulders boulders -< input
+--		--	returnA -< input
 
-		initWire = proc input -> do
-			p1Id <- spawnObjectAt "Neira" (player1Obj^.objectPos tiledMap) -< input
-			p2Id <- spawnObjectAt "TheGhost" (player2Obj^.objectPos tiledMap) -< input
-			dId <- spawnObjectAt "Dino" (dinoObj^.objectPos tiledMap) -< input
-			bId <- spawnObjectAt "Bee" (beeObj^.objectPos tiledMap) -< input
-			_ <- wLiftSetOnce setBoundary playerBoundary -< p1Id
-			_ <- wLiftSetOnce setBoundary playerBoundary -< p2Id
-			_ <- wLiftSetOnce setBoundary playerBoundary -< dId
-			_ <- wLiftSetOnce setBoundary playerBoundary -< bId
+--		initWire = proc input -> do
+--			p1Id <- spawnObjectAt "Neira" (player1Obj^.objectPos tiledMap) -< input
+--			p2Id <- spawnObjectAt "TheGhost" (player2Obj^.objectPos tiledMap) -< input
+--			dId <- spawnObjectAt "Dino" (dinoObj^.objectPos tiledMap) -< input
+--			bId <- spawnObjectAt "Bee" (beeObj^.objectPos tiledMap) -< input
+--			_ <- wLiftSetOnce setBoundary playerBoundary -< p1Id
+--			_ <- wLiftSetOnce setBoundary playerBoundary -< p2Id
+--			_ <- wLiftSetOnce setBoundary playerBoundary -< dId
+--			_ <- wLiftSetOnce setBoundary playerBoundary -< bId
 
-			-- Initialize: need maybe check in client to remove this TODO
-			--_ <- animate (defaultCharacterAnim (0, 0)) -< 1
-			--_ <- animate (defaultCharacterAnim (0, 0)) -< 2
-			--_ <- animate (defaultCharacterAnim (0, 0)) -< 3
-			--_ <- animate (defaultCharacterAnim (0, 0)) -< 4
+--			-- Initialize: need maybe check in client to remove this TODO
+--			--_ <- animate (defaultCharacterAnim (0, 0)) -< 1
+--			--_ <- animate (defaultCharacterAnim (0, 0)) -< 2
+--			--_ <- animate (defaultCharacterAnim (0, 0)) -< 3
+--			--_ <- animate (defaultCharacterAnim (0, 0)) -< 4
 
-			_ <- genWalls wallPositions -< input
-			--_ <- genBoulders boulders -< input
+--			_ <- genWalls wallPositions -< input
+--			--_ <- genBoulders boulders -< input
 
-			returnA -< ()
+--			returnA -< ()
 
 moveArrow :: (Float, Float) -> ObjectWire ObjectId ()
 moveArrow direction = proc oId -> do
@@ -138,6 +138,10 @@ playerSpawnArrow = untilV spawnArrowEvent
 	W.--> void while . spawnArrowEvent
 	W.--> playerSpawnArrow
 
+--swordTrackPlayer :: ObjectWire PlayerId ()
+--swordTrackPlayer = 
+
+
 playerMovement :: ObjectWire PlayerId ()
 playerMovement = untilV movingDirectionE 
 	W.--> movePlayer
@@ -179,9 +183,9 @@ testwire :: WorldWire a ()
 testwire = proc input -> do
 	_ <- stepObjectWires -< input
 	_ <- once . newObjectWire 1 playerWire -< input
-	_ <- once . newObjectWire 2 playerWire -< input
-	_ <- once . newObjectWire 3 dinoWire -< input
-	_ <- once . newObjectWire 4 beeWire -< input
+	--_ <- once . newObjectWire 2 playerWire -< input
+	--_ <- once . newObjectWire 3 dinoWire -< input
+	--_ <- once . newObjectWire 4 beeWire -< input
 
 	returnA -< ()
 

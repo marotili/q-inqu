@@ -22,7 +22,7 @@ type Physics = Int
 type Boundary = [(Float, Float)]
 
 --type WorldContext = RWS World WorldDelta WorldManager
-type DebugWorldContext = RWST World WorldDelta WorldManager IO
+type DebugWorldContext = RWS World WorldDelta WorldManager
 type WorldContext = DebugWorldContext
 
 --type WorldWire a b = Wire (Timed NominalDiffTime ()) () WorldContext a b
@@ -60,6 +60,12 @@ data WorldCommon = WorldCommon
 	, _wcOrientation :: ObjectProp Orientation
 	, _wcStaticCollidable :: ObjectType
 	, _wcRealm :: ObjectProp Realm
+	-- | The tracking wires are applied after the delta has been applied
+	-- | worldNew = applyDelta world delta
+	-- | trackDelta = runTrackWires worldNew
+	-- | worldFinal = applyDelta worldNew trackDelta
+	-- | renderDelta = mappend delta trackDelta
+	, _wcTrack :: [ObjectWire ObjectId ()]
 	}
 
 instance Show WorldCommon where

@@ -26,72 +26,46 @@ import Game.World.Common
 import Game.World
 import Data.Tiled
 import Game.Render.World
+import Game.Game
 
 data RenderContext = RenderContext
 	{ _rcMainProgram :: Program
 	, _rcWorldRenderContext :: WorldRenderContext
 	, _rcLightContext :: LightContext
-	, _rcVisibilityContext :: VisibilityContext
+	--, _rcVisibilityContext :: VisibilityContext
 	, _rcUIRenderContext :: WorldRenderContext
 	}
 makeLenses ''RenderContext
 
-newRenderContext :: IO RenderContext
-newRenderContext = do
+newRenderContext :: Game -> IO RenderContext
+newRenderContext game = do
 	GL.blendFunc $= (GL.SrcAlpha, GL.OneMinusSrcAlpha)
 	GL.blend $= GL.Enabled
 	logGL "newRenderContext: blend setup failed"
 
-	tm <- tMap
-	let renderWorld = loadMapFromTiled tm
-	let nWorld = wUpdate (do
-			Just tsId <- use $ mapHashes.gameTilesets.at "sprite_klein3"
-			Just swordTsId <- use $ mapHashes.gameTilesets.at "Sword"
+	let nWorld = game^.gameRenderWorld
 
-			wObject "Player1" .= (Just $ newObject tsId 0)
-			wObject "Sword" .= (Just $ newObject swordTsId 0)
-
-			Just objId <- use $ mapHashes.gameObjects.at "Player1"
-			Just swordId <- use $ mapHashes.gameObjects.at "Sword"
-
-			wLayer "ObjectLayer" .= (Just $ newLayer ObjectLayerType)
-			wLayerObject "ObjectLayer" "Player1" 
-				.= (Just $ newRenderObject objId (50, 50) 0)
-			wLayerObject "ObjectLayer" "Sword" 
-				.= (Just $ newRenderObject swordId (55, 50) (3.14159/2.0))
-		) renderWorld
-
-	let uiWorld = loadMapFromTiled tm
-	let ui = wUpdate (do
-			Just tsId <- use $ mapHashes.gameTilesets.at "heart"
-			wObject "PlayerHealth" .= (Just $ newObject tsId 0)
-			Just objId <- use $ mapHashes.gameObjects.at "PlayerHealth"
-			wLayer "ObjectLayer" .= (Just $ newLayer ObjectLayerType)
-			wLayerObject "ObjectLayer" "PlayerHealth" 
-				.= (Just $ newRenderObject objId (10, -10) 0)
-		) uiWorld
-
+	let uiWorld = mkUIWorld game
 	program <- setupShaders "shader.vert" "shader.frag"
 	_ <- uniformInfo program
 	wrc <- newWorldRenderContext nWorld
-	uirc <- newWorldRenderContext ui
+	uirc <- newWorldRenderContext uiWorld
 	lc <- newLightContext
 
-	(world, manager) <- newWorldFromTiled tm
+	--(world, manager) <- newWorldFromTiled tm
 
-	vc <- newVisibilityContext (world^.wCollisionManager) (0, 0)
+	--vc <- newVisibilityContext (world^.wCollisionManager) (0, 0)
 
 	return RenderContext
 		{ _rcMainProgram = program
 		, _rcWorldRenderContext = wrc
 		, _rcLightContext = lc
-		, _rcVisibilityContext = vc
+		--, _rcVisibilityContext = vc
 		, _rcUIRenderContext = uirc
 		}
 
 clearWindow :: GLFW.Window -> IO ()
 clearWindow window = do
-
 	GL.clearColor $= GL.Color4 1 1 1 1
 	logGL "clearWindow: clearColor"
 	GL.clear [GL.ColorBuffer]
@@ -109,6 +83,8 @@ render window rc cam = do
 	logGL "render: set current program"
 
 	let world = rc^.rcWorldRenderContext.wrcWorld
+
+	print (world)
 	let Just (x, y) = world^?wLayerObject "ObjectLayer" "Player1"._Just.roPos
 	let newCam = cameraUpdatePosition cam (-x) (-y)
 
