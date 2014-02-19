@@ -34,7 +34,7 @@ type BoulderId = ObjectId
 data Object = Object
 	{ _objId :: ObjectId
 	, _objName :: String
-	} deriving (Show, Eq)
+	} deriving (Show, Eq, Ord)
 makeLenses ''Object
 
 data Door = Door

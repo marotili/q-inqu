@@ -8,6 +8,7 @@ module Game.Render.Camera
 	, newDefaultCamera
 	, screenToOpenGLCoords
 	, cameraInverse
+	, cameraSetOriginTopLeft
 	) where
 
 import qualified Graphics.Rendering.OpenGL.Raw as GLRaw
@@ -17,6 +18,7 @@ import Linear
 import Foreign.Ptr
 import qualified Data.Vector.Storable as V
 import Game.Render.Error
+import Control.Monad
 
 --data Rect = Rect
 --	{ rectPos :: V2 Float
@@ -41,6 +43,12 @@ data Camera = Camera
 
 cameraUpdatePosition :: Camera -> Float -> Float -> Camera
 cameraUpdatePosition cam x y = cam { cameraPosition = V3 x y (-1) }
+
+cameraSetOriginTopLeft :: Camera -> Camera
+cameraSetOriginTopLeft cam = cam { cameraPosition = V3 (-width/2.0) (height/2.0) (-1)}
+	where
+		width = projectionWidth . cameraProjection $ cam
+		height = projectionHeight . cameraProjection $ cam
 
 screenToOpenGLCoords :: Camera -> Float -> Float -> V2 Float
 screenToOpenGLCoords Camera { cameraProjection } x y = V2 2 (-2) * V2 ((x/w) - 0.5) ((y/h) - 0.5)
@@ -127,5 +135,6 @@ programSetViewProjection program camera = do
 
 	V.unsafeWith workaround $ \ptr -> GLRaw.glUniformMatrix4fv projLoc 1 1 (castPtr ptr)
 	logGL "programSetViewProjection: gl raw matrix projection"
-	V.unsafeWith workaround2 $ \ptr -> GLRaw.glUniformMatrix4fv viewLoc 1 1 (castPtr ptr)
-	logGL "programSetViewProjection: gl raw matrix view"
+	unless (viewLoc == -1) $ do
+		V.unsafeWith workaround2 $ \ptr -> GLRaw.glUniformMatrix4fv viewLoc 1 1 (castPtr ptr)
+		logGL "programSetViewProjection: gl raw matrix view"

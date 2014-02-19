@@ -7,6 +7,7 @@ module Game.World.Import.Tiled
 	, queryObject, objectPos, objectsByName
 	, mapTileSize, mapSize
 	, tsTileSize
+	, tMap
 	) where
 
 import Control.Lens
@@ -15,8 +16,8 @@ import Data.Maybe
 import qualified Data.Map as Map
 import Data.Word
 
---tMap :: IO TiledMap
---tMap = loadMapFile "data/sewers.tmx"
+tMap :: IO TiledMap
+tMap = loadMapFile "data/sewers.tmx"
 
 -- Helpers
 -- |Access the positions of an object. Converts float to int.

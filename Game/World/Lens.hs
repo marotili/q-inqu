@@ -122,6 +122,15 @@ addObject oId obj = writeProp setObjects oId (Just obj)
 deleteObject :: (MonadWriter WorldDelta m) => ObjectId -> m ()
 deleteObject oId = writeProp setObjects oId Nothing
 
+deletedObjects :: Getter WorldDelta [ObjectId]
+deletedObjects = to getDeleted
+    where
+        getDeleted wd = getDeletedObjects (wd^.wdObjects)
+        -- new objects are inserted into the map with Just
+        getDeletedObjects objectMap = map fst $
+            filter (\(objId, mobj) -> case mobj of Nothing -> True; _ -> False) $
+            Map.toList objectMap
+
 newObjects :: Getter WorldDelta [Object]
 newObjects = to getNew
     where

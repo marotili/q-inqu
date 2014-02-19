@@ -53,6 +53,9 @@ stepObjectWires = mkGen $ \ds _ -> do
 					WireFinished ->
 						return ()
 
+exit :: WorldWire a a
+exit = inhibit WireFinished
+
 wLiftUpdateR :: (ObjectId -> a -> WorldContext b) -> WorldWire (ObjectId, a) ()
 wLiftUpdateR f = mkGenN $ \(oId, a) -> do
 	_ <- f oId a
@@ -106,7 +109,7 @@ collides oId (dx, dy) = do
 
 _move :: Timed NominalDiffTime () -> ObjectId -> (Float, Float) -> WorldContext ()
 _move ds oId (vx, vy) = do
-	canCollide <- view $ isCollidable oId
+	canCollide <- return False -- view $ isCollidable oId
 	mignore <- view $ getCollisionFilters . L.at oId
 	let dt = realToFrac (dtime ds)
 	let (dx, dy) = (dt * vx, dt * vy)
@@ -161,6 +164,11 @@ spawnObject name = mkGenN $ \_ -> do
 	oId <- newObject
 	World.addObject oId (Object oId name)
 	return (Right (W.Event oId), never)
+
+removeObject :: WorldWire (ObjectId) (Event ())
+removeObject = mkGenN $ \oId -> do
+	World.deleteObject oId
+	return (Right (W.Event ()), never)
 
 spawnObjectMakeName :: WorldWire a (Event ObjectId)
 spawnObjectMakeName = mkGenN $ \_ -> do
