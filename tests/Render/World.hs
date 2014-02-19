@@ -19,7 +19,7 @@ testLoadMap = TestCase (do
 				wObject "Player1" .= (Just $ newObject tsId 0)
 				Just objId <- use $ mapHashes.gameObjects.at "Player1"
 				wLayer "ObjectLayer" .= (Just $ newLayer ObjectLayerType)
-				wLayerObject "ObjectLayer" "Player1" .= (Just $ newRenderObject objId (50, 50))
+				wLayerObject "ObjectLayer" "Player1" .= (Just $ newRenderObject objId (50, 50) 0)
 
 			) world
 

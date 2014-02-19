@@ -83,12 +83,15 @@ newObject ts lid = Object
 data RenderObject = RenderObject
 	{ _roId :: ObjectId
 	, _roPos :: Position
+	, _roRotation :: Float
 	} deriving (Eq, Show)
 
-newRenderObject oId pos = RenderObject
+newRenderObject oId pos rotation = RenderObject
 	{ _roId = oId
 	, _roPos = pos
+	, _roRotation = rotation
 	}
+
 data LayerType = TileLayerType | ObjectLayerType
 	deriving (Eq, Show)
 
@@ -398,23 +401,33 @@ wTileIds layerName = to get
 					in (world^.wObjTileId obj)
 
 
-wTilePos :: String -> Getter World [(Float, Float)]
+wTilePos :: String -> Getter World [(Float, Float, Float)]
 wTilePos layerName = to get
 	where
 		get world = case layer of
 			TileLayer { _layerTiles } -> map (\(x, y) ->
 					( fromIntegral $ x * world^.mapTileWidth
-					, fromIntegral $ y * world^.mapTileHeight)
+					, fromIntegral $ y * world^.mapTileHeight
+					, 0
+					)
 				) $ Map.keys _layerTiles
-			ObjectLayer { _layerObjects } -> sortBy sortY $ map (^.roPos) $ Map.elems _layerObjects
+			ObjectLayer { _layerObjects } -> map (\obj -> 
+					( obj^.roPos._1
+					, obj^.roPos._2
+					, obj^.roRotation
+					)
+				) $ sortBy sortY $ Map.elems _layerObjects
 			where
 				Just lId = world^.mapHashes.hashLayers.at layerName
 				Just layer = world^.mapLayers.at lId
 
-				sortY :: (Float, Float) -> (Float, Float) -> Ordering
-				sortY (x, y) (x2, y2) 
+				sortY :: RenderObject -> RenderObject -> Ordering
+				sortY ro1 ro2  
 					| y <= y2 = LT
 					| otherwise = GT
+					where
+						(x, y) = ro1^.roPos 
+						(x2, y2) = ro2^.roPos
 
 --mlTileIds :: MapLayer -> [TileId]
 --mlCoords :: MapLayer -> [(Float, Float)]

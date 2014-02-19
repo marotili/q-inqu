@@ -51,8 +51,8 @@ data WorldRenderContext = WorldRenderContext
 	}
 
 makeLenses ''WorldRenderContext
-wPosData :: Getter [(Float, Float)] (V.Vector Float)
-wPosData = to (\poss -> V.fromList $ concatMap (\(x, y) -> [x, y, 0, 0]) poss)
+wPosData :: Getter [(Float, Float, Float)] (V.Vector Float)
+wPosData = to (\poss -> V.fromList $ concatMap (\(x, y, a) -> [x, y, a, 0]) poss)
 wTileData :: Getter [Int] (V.Vector Int32)
 wTileData = to (\ids -> V.fromList $ concatMap (\tId -> [fromIntegral tId, 0, 0, 0]) ids)
 

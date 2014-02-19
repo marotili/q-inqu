@@ -66,7 +66,7 @@ newRenderObjects = do
 			wObject (obj^.objName) .= (Just $ R.newObject 4 0)
 			Just objId <- use $ mapHashes . gameObjects . L.at (obj^.objName)
 			wLayerObject "ObjectLayer" (obj^.objName) .= (Just $
-				newRenderObject objId (0, 0))
+				newRenderObject objId (0, 0) 0)
 			writer ((), [obj])
 		) $ zip3 newObjects' objectGids objectPoss
 

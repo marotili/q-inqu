@@ -133,6 +133,12 @@
   <image source="arrow.png" width="512" height="192"/>
  </tileset>
  <tileset firstgid="137" source="tileset_ghost.tsx"/>
+ <tileset firstgid="153" name="heart" tilewidth="24" tileheight="24">
+  <image source="source_files/heart.png" width="24" height="24"/>
+ </tileset>
+ <tileset firstgid="154" name="Sword" tilewidth="24" tileheight="96">
+  <image source="source_files/Sword.png" width="24" height="96"/>
+ </tileset>
  <layer name="Bottom" width="50" height="50">
   <data>
    <tile gid="13"/>

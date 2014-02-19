@@ -40,9 +40,15 @@ layout(binding=1) buffer TileSets {
 	TileSet tileSets[];
 };
 
+struct TileData {
+	vec2 pos;
+	float rotation;
+	float padding;
+};
+
 // Coord
 layout(binding=2) buffer Pos {
-	vec4 pos[];
+	TileData pos[];
 };
 
 // layout(binding=3) buffer ObjectData {
@@ -116,14 +122,24 @@ void main()
 		ty += 0;
 	}
 
+
+	vec2 center = vec2 (tileMeshCoords.x - tileSet.tileWidth/2.0, tileMeshCoords.y - tileSet.tileHeight/2.0);
+
+	vec2 newTileMeshCoords = vec2( 
+		center.x * cos (pos[instanceID].rotation) + center.y * sin (pos[instanceID].rotation),
+		center.x * (-sin (pos[instanceID].rotation)) + center.y * cos (pos[instanceID].rotation)
+		);
+
+	vec2 deCenter = vec2(newTileMeshCoords.x + tileSet.tileWidth/2.0, newTileMeshCoords.y + tileSet.tileHeight/2.0);
+
 	texCoords = vec2(float(tx) / float(tileSet.imageWidth), 
 		float(ty) / float(tileSet.imageHeight));
 
-	vec2 newPos = pos[instanceID].xy;
+	vec2 newPos = pos[instanceID].pos;
 
 	// color_out = color_in;
     gl_Position = projection*view*vec4(vec3(newPos, 0) + 
-    	vec3(tileMeshCoords, 0.0), 1.0);
+    	vec3(deCenter, 0.0), 1.0);
 
     // vec2 newPos2 = vec2(tileMeshCoords.x * 0.01, tileMeshCoords.y*0.01);
     // gl_Position = vec4(newPos2, 0, 1);

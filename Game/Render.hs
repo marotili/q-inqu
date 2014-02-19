@@ -32,6 +32,7 @@ data RenderContext = RenderContext
 	, _rcWorldRenderContext :: WorldRenderContext
 	, _rcLightContext :: LightContext
 	, _rcVisibilityContext :: VisibilityContext
+	, _rcUIRenderContext :: WorldRenderContext
 	}
 makeLenses ''RenderContext
 
@@ -45,16 +46,35 @@ newRenderContext = do
 	let renderWorld = loadMapFromTiled tm
 	let nWorld = wUpdate (do
 			Just tsId <- use $ mapHashes.gameTilesets.at "sprite_klein3"
+			Just swordTsId <- use $ mapHashes.gameTilesets.at "Sword"
+
 			wObject "Player1" .= (Just $ newObject tsId 0)
+			wObject "Sword" .= (Just $ newObject swordTsId 0)
+
 			Just objId <- use $ mapHashes.gameObjects.at "Player1"
+			Just swordId <- use $ mapHashes.gameObjects.at "Sword"
+
 			wLayer "ObjectLayer" .= (Just $ newLayer ObjectLayerType)
 			wLayerObject "ObjectLayer" "Player1" 
-				.= (Just $ newRenderObject objId (50, 50))
+				.= (Just $ newRenderObject objId (50, 50) 0)
+			wLayerObject "ObjectLayer" "Sword" 
+				.= (Just $ newRenderObject swordId (55, 50) (3.14159/2.0))
 		) renderWorld
+
+	let uiWorld = loadMapFromTiled tm
+	let ui = wUpdate (do
+			Just tsId <- use $ mapHashes.gameTilesets.at "heart"
+			wObject "PlayerHealth" .= (Just $ newObject tsId 0)
+			Just objId <- use $ mapHashes.gameObjects.at "PlayerHealth"
+			wLayer "ObjectLayer" .= (Just $ newLayer ObjectLayerType)
+			wLayerObject "ObjectLayer" "PlayerHealth" 
+				.= (Just $ newRenderObject objId (10, -10) 0)
+		) uiWorld
 
 	program <- setupShaders "shader.vert" "shader.frag"
 	_ <- uniformInfo program
 	wrc <- newWorldRenderContext nWorld
+	uirc <- newWorldRenderContext ui
 	lc <- newLightContext
 
 	(world, manager) <- newWorldFromTiled tm
@@ -66,6 +86,7 @@ newRenderContext = do
 		, _rcWorldRenderContext = wrc
 		, _rcLightContext = lc
 		, _rcVisibilityContext = vc
+		, _rcUIRenderContext = uirc
 		}
 
 clearWindow :: GLFW.Window -> IO ()
@@ -113,6 +134,12 @@ render window rc cam = do
 	renderWorldRenderContext (newRc^.rcMainProgram) (newRc^.rcWorldRenderContext)
 
 	GL.stencilTest $= GL.Disabled
+
+	let uirc = newRc^.rcUIRenderContext
+	GL.currentProgram $= Just (newRc^.rcMainProgram)
+	programSetViewProjection (newRc^.rcMainProgram) (cameraSetOriginTopLeft newCam)
+	updateWorldRenderContext uirc
+	renderWorldRenderContext (newRc^.rcMainProgram) uirc
 
 	--updateLightContext (newRc^.rcLightContext)
 	--renderLightContext (newRc^.rcLightContext) newCam
