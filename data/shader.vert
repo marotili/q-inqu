@@ -1,4 +1,4 @@
-#version 430
+#version 330
 
 in float position;
 in float color_in;
@@ -15,8 +15,8 @@ uniform mat4 projection;
 uniform int numTileSets; // needed for dynamic lookup
 
 // Type
-layout(binding=0) buffer LayerData {
-	ivec4 tileId[];
+layout(std140) uniform LayerData {
+	ivec4 tileId[1];
 };
 
 // layout (binding=6) uniform Mesh {
@@ -36,8 +36,8 @@ struct TileSet {
 	ivec4 padding1;
 };
 
-layout(binding=1) buffer TileSets {
-	TileSet tileSets[];
+layout(std140) uniform TileSets {
+	TileSet tileSets[7];
 };
 
 struct TileData {
@@ -47,8 +47,8 @@ struct TileData {
 };
 
 // Coord
-layout(binding=2) buffer Pos {
-	TileData pos[];
+layout(std140) uniform Pos {
+	TileData pos[1];
 };
 
 // layout(binding=3) buffer ObjectData {

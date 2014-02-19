@@ -46,7 +46,9 @@ newRenderContext game = do
 	let nWorld = game^.gameRenderWorld
 
 	let uiWorld = mkUIWorld game
+	print "Setup shader"
 	program <- setupShaders "shader.vert" "shader.frag"
+	print "End setup shaders"
 	_ <- uniformInfo program
 	wrc <- newWorldRenderContext nWorld
 	uirc <- newWorldRenderContext uiWorld
@@ -55,6 +57,8 @@ newRenderContext game = do
 	--(world, manager) <- newWorldFromTiled tm
 
 	--vc <- newVisibilityContext (world^.wCollisionManager) (0, 0)
+
+	print "Created render"
 
 	return RenderContext
 		{ _rcMainProgram = program
@@ -79,6 +83,7 @@ render window rc cam = do
 	-- update camera in every frame for now
 	--(width, height) <- GLFW.getFramebufferSize window
 	clearWindow window
+	print "clear window"
 
 	logGL "render: set current program"
 
@@ -104,6 +109,7 @@ render window rc cam = do
 	--GL.stencilFunc $= (GL.Equal, 0, 255)
 	--GL.stencilFunc $= (GL.Equal, 1, 255)
 
+	print "Render world"
 	GL.currentProgram $= Just (newRc^.rcMainProgram)
 	programSetViewProjection (newRc^.rcMainProgram) newCam
 	updateWorldRenderContext (newRc^.rcWorldRenderContext)
@@ -111,6 +117,7 @@ render window rc cam = do
 
 	GL.stencilTest $= GL.Disabled
 
+	print "Render ui"
 	let uirc = newRc^.rcUIRenderContext
 	GL.currentProgram $= Just (newRc^.rcMainProgram)
 	programSetViewProjection (newRc^.rcMainProgram) (cameraSetOriginTopLeft newCam)
