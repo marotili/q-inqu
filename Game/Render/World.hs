@@ -13,6 +13,14 @@ import Control.Lens
 
 -- | 
 
+type TileName = String
+type TilesetName = String
+
+data RenderConfig = RenderConfig
+	{ _rcTiles :: Map.Map TileName (TilesetName, Int)
+	} deriving (Show, Eq)
+makeLenses ''RenderConfig
+
 type TilesetId = Int
 type LayerId = Int
 
@@ -36,6 +44,8 @@ data World = World
 	, _mapNextId :: Int
 
 	, _mapUpdateLayers :: Set.Set LayerId
+	
+	, _wRenderConfig :: RenderConfig
 	} deriving (Eq, Show)
 
 --data MapUpdates = MapUpdates
@@ -67,7 +77,8 @@ data Tileset = Tileset
 	} deriving (Eq, Show)
 
 data Tile = Tile
-	{ _tileId :: TileId
+	{ _tileTsId :: TilesetId
+	, _tileLocalId :: LocalTileId
 	} deriving (Eq, Show)
 
 data Object = Object
@@ -79,6 +90,12 @@ newObject ts lid = Object
 	{ _objTsId = ts
 	, _objLocalId = lid
 	}
+
+newTile ts lid = Tile
+	{ _tileTsId = ts
+	, _tileLocalId = lid
+	}
+
 
 data RenderObject = RenderObject
 	{ _roId :: ObjectId
@@ -96,7 +113,7 @@ data LayerType = TileLayerType | ObjectLayerType
 	deriving (Eq, Show)
 
 data MapLayer = TileLayer
-	{ _layerTiles :: Map.Map (Int, Int) TileId
+	{ _layerTiles :: Map.Map (Int, Int) Tile
 	}
 	| ObjectLayer
 	{ _layerObjects :: Map.Map ObjectId RenderObject
@@ -153,6 +170,16 @@ wTileSize = lens (\w -> (w^.mapTileWidth, w^.mapTileHeight))
 		& mapTileHeight .~ h
 		)
 
+wTile :: String -> Getter World Tile
+wTile name = to get
+	where get world = newTile tsId localTileId
+		where
+			tileMap = world^.wRenderConfig . rcTiles
+			Just (tilesetName, localTileId) = traceShow (name, tileMap) $
+				tileMap ^. at name
+
+			Just tsId = world ^. mapHashes . gameTilesets . at tilesetName
+
 wTileset :: String -> Lens' World (Maybe Tileset)
 wTileset name = lens get set
 	where
@@ -204,6 +231,16 @@ wObject name = lens get set
 				) world
 			Nothing -> wUpdate (wRemoveObject name) world
 
+wLayerTile :: String -> (Int, Int) -> Lens' World (Maybe Tile)
+wLayerTile layerName (x, y) = lens get set
+	where
+		get world = world^?!wLayer layerName._Just._layerTile (x, y)
+		set world mro = let 
+				Just lId = world^.mapHashes.hashLayers.at layerName
+			in world 
+				& wLayer layerName._Just._layerTile (x, y) .~ mro
+				& mapUpdateLayers %~ Set.insert lId
+
 wLayerObject :: String -> String -> Lens' World (Maybe RenderObject)
 wLayerObject layerName objName = lens get set
 	where
@@ -216,6 +253,17 @@ wLayerObject layerName objName = lens get set
 			in world 
 				& wLayer layerName._Just._layerObject oId .~ mro
 				& mapUpdateLayers %~ Set.insert lId
+
+_layerTile :: (Int, Int) -> Lens' MapLayer (Maybe Tile)
+_layerTile (x, y) = lens get set
+	where 
+		get ml = case ml of
+			TileLayer { _layerTiles } -> _layerTiles^.at (x, y)
+			otherwise -> Nothing
+		set ml mro = case ml of
+			tl@TileLayer { _layerTiles } -> tl & layerTiles . at (x, y) .~ mro
+			otherwise -> ml
+			 
 
 _layerObject :: ObjectId -> Lens' MapLayer (Maybe RenderObject)
 _layerObject oId = lens get set
@@ -369,6 +417,8 @@ wGetTile tsName (x, y) = to get
 wObjTileId :: Object -> Getter World TileId
 wObjTileId obj = to (\world -> (world^?!mapTsOffsets.at (obj^.objTsId)._Just) + (obj^.objLocalId))
 
+wTileTileId tile = to (\world -> (world^?!mapTsOffsets.at (tile^.tileTsId)._Just) + (tile^.tileLocalId))
+
 wLayerNumObjects :: String -> Getter World Int
 wLayerNumObjects layerName = to get
 	where get world = case layer of
@@ -378,27 +428,29 @@ wLayerNumObjects layerName = to get
 				Just lId = world^.mapHashes.hashLayers.at layerName
 				Just layer = world^.mapLayers.at lId
 
+sortY :: RenderObject -> RenderObject -> Ordering
+sortY ro1 ro2  
+	| y >= y2 = LT -- -y <= -y2
+	| otherwise = GT
+	where
+		(x, y) = ro1^.roPos 
+		(x2, y2) = ro2^.roPos
+
 wTileIds :: String -> Getter World [TileId]
 wTileIds layerName = to get
 	where
 		get world = case layer of
-				TileLayer { _layerTiles } -> Map.elems _layerTiles
+				TileLayer { _layerTiles } -> map getTileTileId $ Map.elems _layerTiles
 				ObjectLayer { _layerObjects } -> map getObjectTileId $ sortBy sortY $ Map.elems _layerObjects
 			where
 				Just lId = world^.mapHashes.hashLayers.at layerName
 				Just layer = world^.mapLayers.at lId
 
-				sortY :: RenderObject -> RenderObject -> Ordering
-				sortY ro1 ro2  
-					| y <= y2 = LT
-					| otherwise = GT
-					where
-						(x, y) = ro1^.roPos 
-						(x2, y2) = ro2^.roPos
-
 				getObjectTileId ro = 
 					let obj = (world^?!mapObjects.at (ro^.roId)._Just)
 					in (world^.wObjTileId obj)
+
+				getTileTileId tile = world^.wTileTileId tile
 
 
 wTilePos :: String -> Getter World [(Float, Float, Float)]
@@ -421,13 +473,6 @@ wTilePos layerName = to get
 				Just lId = world^.mapHashes.hashLayers.at layerName
 				Just layer = world^.mapLayers.at lId
 
-				sortY :: RenderObject -> RenderObject -> Ordering
-				sortY ro1 ro2  
-					| y <= y2 = LT
-					| otherwise = GT
-					where
-						(x, y) = ro1^.roPos 
-						(x2, y2) = ro2^.roPos
 
 --mlTileIds :: MapLayer -> [TileId]
 --mlCoords :: MapLayer -> [(Float, Float)]

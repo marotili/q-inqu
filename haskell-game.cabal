@@ -50,6 +50,7 @@ library
         Game.World.Gen
         Game.World.Gen.Frequency
         Game.World.Gen.Types
+        Game.World.Gen.Terrain
 
         Game.Network.Common
         Game.Network.Client

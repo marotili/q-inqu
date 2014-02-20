@@ -30,6 +30,7 @@ import Game.Game
 
 data RenderContext = RenderContext
 	{ _rcMainProgram :: Program
+	, _rcShadowProgram :: Program
 	, _rcWorldRenderContext :: WorldRenderContext
 	, _rcLightContext :: LightContext
 	--, _rcVisibilityContext :: VisibilityContext
@@ -48,6 +49,7 @@ newRenderContext game = do
 	let uiWorld = mkUIWorld game
 	print "Setup shader"
 	program <- setupShaders "shader.vert" "shader.frag"
+	shadowProgram <- setupShaders "shader.shadow.vert" "shader.shadow.frag"
 	print "End setup shaders"
 	_ <- uniformInfo program
 	wrc <- newWorldRenderContext nWorld
@@ -62,6 +64,7 @@ newRenderContext game = do
 
 	return RenderContext
 		{ _rcMainProgram = program
+		, _rcShadowProgram = shadowProgram
 		, _rcWorldRenderContext = wrc
 		, _rcLightContext = lc
 		--, _rcVisibilityContext = vc
@@ -109,7 +112,11 @@ render window rc cam = do
 	--GL.stencilFunc $= (GL.Equal, 0, 255)
 	--GL.stencilFunc $= (GL.Equal, 1, 255)
 
-	--print "Render world"
+	GL.currentProgram $= Just (newRc^.rcShadowProgram)
+	programSetViewProjection (newRc^.rcShadowProgram) newCam
+	updateWorldRenderContext (newRc^.rcWorldRenderContext)
+	renderWorldRenderContext (newRc^.rcShadowProgram) (newRc^.rcWorldRenderContext)
+
 	GL.currentProgram $= Just (newRc^.rcMainProgram)
 	programSetViewProjection (newRc^.rcMainProgram) newCam
 	updateWorldRenderContext (newRc^.rcWorldRenderContext)

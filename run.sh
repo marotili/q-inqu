@@ -1,5 +1,7 @@
 dist/build/server/server &
 pid=$!
 sleep 1
-dist/build/client/client +RTS -N4 -A1024k -c -G4 -H512M -xc
+dist/build/client/client +RTS -N4 -c -A1024k -H512M -sstderr &
+dist/build/client/client +RTS -N4 -c -A1024k -H512M -sstderr
+#dist/build/client/client +RTS -N4 -I0.1 -A2048k -F2 -qg1 -qb2 -c -G2 -H512M -K16M -xc -B -sstderr
 kill -9 $pid

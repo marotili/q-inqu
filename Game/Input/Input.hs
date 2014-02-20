@@ -148,8 +148,8 @@ untilV source = W.until . fmap(\e -> ((), e)) source
 
 --actionPickup = asSoonAs . keyDownEvent GLFW.Key'C
 spawn :: InputWire a ()
-spawn = untilV (keyDownEvent GLFW.Key'X)
-	W.--> for 0.01 . asSoonAs . spawnAction . once . keyDownEvent GLFW.Key'X 
+spawn = untilV (keyDownEvent GLFW.Key'Space)
+	W.--> for 0.5 . asSoonAs . spawnAction . once . keyDownEvent GLFW.Key'Space 
 	W.--> waitOneUpdate -- We need a state update at this point
 	W.--> spawn
 
