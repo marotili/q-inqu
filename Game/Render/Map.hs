@@ -89,9 +89,9 @@ updateWorldRenderContext wrc =
 		let Just posBuf = wrc^.wrcPosSSBs.at layerId
 		print (wrc^.wrcWorld.R.wTileIds layerName.wTileData)
 		print (wrc^.wrcWorld.R.wTilePos layerName.wPosData)
-		updateFromVec GL.ShaderStorageBuffer layerBuf 
+		updateFromVec GL.UniformBuffer layerBuf 
 			(wrc^.wrcWorld.R.wTileIds layerName.wTileData)
-		updateFromVec GL.ShaderStorageBuffer posBuf 
+		updateFromVec GL.UniformBuffer posBuf 
 			(wrc^.wrcWorld.R.wTilePos layerName.wPosData)
 		) (Set.toList $ wrc^.wrcWorld.R.mapUpdateLayers)
  
@@ -133,8 +133,8 @@ newWorldRenderContext world = do
 			let Just posBuf = wrc^.wrcPosSSBs.at layerId
 			print (world^.R.wTileIds layerName.wTileData)
 			print (world^.R.wTilePos layerName.wPosData)
-			uploadFromVec (500 * 4) GL.ShaderStorageBuffer layerBuf (world^.R.wTileIds layerName.wTileData)
-			uploadFromVec (500 * 4) GL.ShaderStorageBuffer posBuf (world^.R.wTilePos layerName.wPosData)
+			uploadFromVec (500 * 4) GL.UniformBuffer layerBuf (world^.R.wTileIds layerName.wTileData)
+			uploadFromVec (500 * 4) GL.UniformBuffer posBuf (world^.R.wTilePos layerName.wPosData)
 		) (Map.keys $ world^.R.mapLayers)
 
 	-- per image stuff
@@ -169,7 +169,7 @@ newWorldRenderContext world = do
 
 
 
-	uploadFromVec 0 GL.ShaderStorageBuffer tilesetBuffer (world^.wTilesetData wrc)
+	uploadFromVec 0 GL.UniformBuffer tilesetBuffer (world^.wTilesetData wrc)
 
 	print (world^.wTilesetData wrc)	
 
@@ -182,18 +182,18 @@ bindWorldRenderContext wrc _ =
 
 --renderNormalLayer :: GL.Program -> GL.BufferObject -> GL.BufferObject -> Layer -> IO ()
 renderNormalLayer program layerSSB posSSB layerName world = do
-	posIndex <- GL.getShaderStorageBlockIndex program "Pos"
-	layerIndex <- GL.getShaderStorageBlockIndex program "LayerData"
+	posIndex <- GL.getUniformBlockIndex program "Pos"
+	layerIndex <- GL.getUniformBlockIndex program "LayerData"
 
-	GL.bindBufferBase' GL.ShaderStorageBuffer posIndex posSSB
+	GL.bindBufferBase' GL.UniformBuffer posIndex posSSB
 	logGL "renderNormalLayer: bindBufferBase' posIndex"
-	GL.shaderStorageBlockBinding program posIndex posIndex	
-	logGL "renderNormalLayer: shaderStorageBlockBinding posIndex"
+	GL.uniformBlockBinding program posIndex posIndex	
+	logGL "renderNormalLayer: uniformBlockBinding posIndex"
 
-	GL.bindBufferBase' GL.ShaderStorageBuffer layerIndex layerSSB
+	GL.bindBufferBase' GL.UniformBuffer layerIndex layerSSB
 	logGL "renderNormalLayer: bindBufferBase' layerIndex"
-	GL.shaderStorageBlockBinding program layerIndex layerIndex
-	logGL "renderNormalLayer: shaderStorageBlockBinding layerIndex"
+	GL.uniformBlockBinding program layerIndex layerIndex
+	logGL "renderNormalLayer: uniformBlockBinding layerIndex"
 
 	print (posIndex, layerIndex)
 	print (fromIntegral $ world^.R.wLayerNumObjects layerName)
@@ -202,21 +202,26 @@ renderNormalLayer program layerSSB posSSB layerName world = do
 
 renderWorldRenderContext :: GL.Program -> WorldRenderContext -> IO ()
 renderWorldRenderContext program wrc = do
+	print "get world"
 	let world = wrc^.wrcWorld
+	print "bind wrc"
 	bindWorldRenderContext wrc program
 
+	print "bind num tilesets"
 	numTilesets <- GL.get $ GL.uniformLocation program "numTileSets"
 	logGL "renderWorldRenderContext: uniformLoc numTilesets"
 	GL.uniform numTilesets $= GL.Index1 (fromIntegral $ 
 		Map.size (world^.R.mapTilesets) :: GL.GLint)
 	logGL "renderWorldRenderContext: uniform numTilesets"
 
-	tilesetIndex <- GL.getShaderStorageBlockIndex program "TileSets"
-	logGL "renderWorldRenderContext: getShaderStorageBlockIndex"
-	GL.bindBufferBase' GL.ShaderStorageBuffer tilesetIndex (wrc^.wrcTilesetSSB)
+
+	print "bind tilesets"
+	tilesetIndex <- GL.getUniformBlockIndex program "TileSets"
+	logGL "renderWorldRenderContext: getUniformBlockIndex"
+	GL.bindBufferBase' GL.UniformBuffer tilesetIndex (wrc^.wrcTilesetSSB)
 	logGL "renderWorldRenderContext: bindBufferBase' tilesetIndex"
-	GL.shaderStorageBlockBinding program tilesetIndex tilesetIndex	
-	logGL "renderWorldRenderContext: shaderStorageBlockBinding tilesetIndex"
+	GL.uniformBlockBinding program tilesetIndex tilesetIndex	
+	logGL "renderWorldRenderContext: uniformBlockBinding tilesetIndex"
 
 	print (tilesetIndex, numTilesets)
 	print $ Map.size (world^.R.mapTilesets)

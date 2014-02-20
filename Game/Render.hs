@@ -109,15 +109,15 @@ render window rc cam = do
 	--GL.stencilFunc $= (GL.Equal, 0, 255)
 	--GL.stencilFunc $= (GL.Equal, 1, 255)
 
-	print "Render world"
+	--print "Render world"
 	GL.currentProgram $= Just (newRc^.rcMainProgram)
 	programSetViewProjection (newRc^.rcMainProgram) newCam
 	updateWorldRenderContext (newRc^.rcWorldRenderContext)
 	renderWorldRenderContext (newRc^.rcMainProgram) (newRc^.rcWorldRenderContext)
 
-	GL.stencilTest $= GL.Disabled
+	--GL.stencilTest $= GL.Disabled
 
-	print "Render ui"
+	--print "Render ui"
 	let uirc = newRc^.rcUIRenderContext
 	GL.currentProgram $= Just (newRc^.rcMainProgram)
 	programSetViewProjection (newRc^.rcMainProgram) (cameraSetOriginTopLeft newCam)
