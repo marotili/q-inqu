@@ -8,6 +8,7 @@ import Data.Maybe
 import Game.Input.Input
 
 import Control.Wire
+import Control.Monad
 import qualified Control.Wire as W
 import Control.Wire.Unsafe.Event
 import qualified Prelude as P
@@ -62,11 +63,14 @@ newRenderObjects = do
 	let objectPoss = [world^?getPositions. L.at (o^.objId)._Just | o <- newObjects']
 
 	mapM_ (\(obj, tileName, pos) -> do
-			wObject (obj^.objName) .= (Just $ R.newObject 4 0)
-			Just objId <- use $ mapHashes . gameObjects . L.at (obj^.objName)
-			wLayerObject "ObjectLayer" (obj^.objName) .= (Just $
-				newRenderObject objId (0, 0) 0)
-			writer ((), [obj])
+			-- only objects with a position are renderable
+			Control.Monad.when (isJust pos && isJust tileName
+				) $ do
+					wObject (obj^.objName) .= (Just $ R.newObject 4 0)
+					Just objId <- use $ mapHashes . gameObjects . L.at (obj^.objName)
+					wLayerObject "ObjectLayer" (obj^.objName) .= (Just $
+						newRenderObject objId (0, 0) 0)
+					writer ((), [obj])
 		) $ zip3 newObjects' objectTileNames objectPoss
 
 update :: Renderer ()

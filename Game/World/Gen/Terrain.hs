@@ -3,24 +3,34 @@
 
 module Game.World.Gen.Terrain where
 
+import Debug.Trace
 import Control.Lens
 import Data.List
 import qualified Data.Map as Map
 
-data TerrainType = 
-	  TerrainWall
-	| TerrainFloor
- 	deriving (Show)
+data BaseTileType =
+	  Wall
+	| Floor
+	| Door
+	| NoMatch
+	| Outside
+	deriving (Show, Eq)
 
-data Tileset = Tileset
-	{ tilesetName :: String
-	} deriving (Show)
-
-isWallOrBorder tileType = not (tileType == Floor || tileType == Door)
-isWall tileType = not (tileType == Floor || tileType == Door || tileType == NoMatch)
-
-isVisible tileType = not (tileType `elem` 
-	[ WallN3, WallNE3, WallE3])
+data StepTileType = 
+	  WallS
+	| WallSW
+	| WallW
+	| WallNW
+	| WallN
+	| WallNE
+	| WallE
+	| WallSE
+	| WallInnerNW
+	| WallInnerNE
+	| WallInnerSE
+	| WallInnerSW 
+	| WallCenter
+	deriving (Show, Eq)
 
 data TileType = 
 	  WallSW1
@@ -30,6 +40,8 @@ data TileType =
 	| WallS2
 	| WallW2
 	| WallE2
+	| WallSW2
+	| WallSE2
 
 	| WallN3
 	| WallNE3
@@ -46,172 +58,20 @@ data TileType =
 	| WallOuterSW3
 	| WallOuterSE3
 
-	| Wall
-	| Floor
-	| Door
-	| NoMatch
+	| FinalFloor
+	| FinalNoMatch
 	 deriving (Show, Eq)
 
-
-rule _ Wall Wall 
-	 Floor Wall 
-	 Floor Floor Floor = WallSW1 
-
-rule Wall  Wall  _ 
-	 Wall 		 Floor 
-	 Floor Floor Floor = WallSE1
-
-rule Wall  Wall  Wall
-	 Wall  		 Wall
-	 Floor Floor Floor = WallS1
-
-rule Wall Wall Wall
-	Wall Wall
-	Floor Floor Wall = WallSE1
-
-rule Wall Wall Wall
-	Wall Wall
-	Wall Floor Floor = WallSW1
-
---rule Wall Wall Wall
---	Wall Wall
---	Floor Wall Wall = WallSE1
-
---rule Wall Wall Wall
---	Wall Wall
---	Floor Wall Wall = WallSW1
-
-rule _ _  _
-	 _ 		 _
-	 _ WallSW1 _ = WallW2
-
-rule _ _  _
-	 _ 		 _
-	 _ WallSE1 _ = WallE2
-
-rule _ _ _
-	 _	 _
-	 _ WallS1 _ = WallS2
-
-rule Floor w2 w3
-	 Floor w1
-	 Floor WallW2 w4
-	 	| isWall w1 && isWall w2 && isWall w3 && isWall w4 = WallW3
-
-rule Floor Floor Floor
-	 Floor w1
-	 Floor WallW2 w4
-	 	| isWall w1 && isWall w4 = WallNW3
-
-rule Floor Floor Floor
-	 w1 Floor
-	 w4 WallE2 Floor
-	 	| isWall w1 && isWall w4 = WallNE3
-
-rule Floor Floor Floor
-	 w1 w2
-	 w3 w4 w5 | all isWall [w1, w2, w3, w4, w5] = WallN3
-
-rule w5 w3 w4
-	 Floor w2
-	 Floor WallW2 w1
-	 	| isWall w1 && isWall w2 && isWall w3 && isWall w4 && isWall w5 = WallW3
-
-rule w3 w4 w5
-	 w2 w6
-	 Floor WallW3 w1
-	 	| all isWallOrBorder [w1, w2, w3, w4, w5, w6] = WallW3
-
-rule w3 w4 Floor
-	 w2 Floor
-	 w1 WallE2 Floor	 	
-	 	| isWall w1 && isWall w2 && isWall w3 && isWall w4 = WallE3
-
-rule w3 w4 w5
-	 w2 Floor
-	 w1 WallE2 Floor
-	 	| isWall w1 && isWall w2 && isWall w3 && isWall w4 && isWall w5 = WallE3
-
-rule w3 w4 w5
-	 w2 w6
-	 w1 WallE3 Floor
-	 	| all isWallOrBorder [w1, w2, w3, w4, w5, w6] = WallE3
-
--- borders
-rule NoMatch NoMatch NoMatch
-	 w1 w2
-	 _ Floor _ | isWall w1 && isWall w2 = WallS3
-
-rule _ Floor _
-	 w1 w2
-	 NoMatch NoMatch NoMatch | isWall w1 && isWall w2 = WallN3
-
-rule NoMatch w1 _
-	 NoMatch Floor
-	 NoMatch w2 _ | isWall w1 && isWall w2 = WallE3
-
-rule _ w1 NoMatch
-	 Floor NoMatch
-	 _ w2 NoMatch | isWall w1 && isWall w2 = WallW3
-
-rule NoMatch NoMatch NoMatch
-	 NoMatch w1
-	 NoMatch w2 Floor | isWall w1 && isWall w2 = WallOuterNW3
-
-rule NoMatch NoMatch NoMatch
-	 NoMatch w1
-	 NoMatch w2 w3 | isWall w1 && isWall w2 && isWall w3 = WallCenter3
-
-rule NoMatch NoMatch NoMatch
-	 w1 NoMatch
-	 Floor w2 NoMatch | isWall w1 && isWall w2 = WallOuterNE3
-
-rule NoMatch NoMatch NoMatch
-	 w1 NoMatch
-	 w3 w2 NoMatch | isWall w1 && isWall w2 && isWall w3 = WallCenter3
-
-rule Floor w1 NoMatch
-	 w2 NoMatch
-	 NoMatch NoMatch NoMatch | isWall w1 && isWall w2 = WallOuterSE3
-
-rule w3 w1 NoMatch
-	 w2 NoMatch
-	 NoMatch NoMatch NoMatch | isWall w1 && isWall w2 && isWall w3 = WallCenter3
-
-rule NoMatch w2 Floor
-	 NoMatch w1
-	 NoMatch NoMatch NoMatch | isWall w1 && isWall w2 = WallOuterSW3
-
-rule NoMatch w2 w3
-	 NoMatch w1
-	 NoMatch NoMatch NoMatch | isWall w1 && isWall w2 && isWall w3 = WallCenter3
-{-
-rule w1 w2 w3
-	 w4 w5
-	 Floor w6 w7 | all isWallOrBorder [w1, w2, w3, w4, w5, w6, w7] = WallSE1
-
-rule w1 w2 w3
-	 w4 w5
-	 w7 w6 Floor | all isWallOrBorder [w1, w2, w3, w4, w5, w6, w7] = WallSW1
-
-rule w1 w2 w3
-	 w4 w5
-	 w7 Floor w6 | all isWallOrBorder [w1, w2, w3, w4, w5, w6, w7] = WallS1-}
-
-
-rule w1 w2 w3
-	 w4 	w5
-	 w6 w7 w8
-	 	| all isWallOrBorder [w1, w2, w3, w4, w5, w6, w7, w8] = WallCenter3
-	 	| otherwise = NoMatch -- error "unmatched center"
-
-rule _ _ _ _ _ _ _ _ = NoMatch
-
 data GenMap = GenMap
-	{ _mapCells :: Map.Map (Int, Int) TileType
+	{ _mapBaseCells :: Map.Map (Int, Int) BaseTileType
+	, _mapLevel1Cells :: Map.Map (Int, Int) StepTileType
+	, _mapLevel2Cells :: Map.Map (Int, Int) StepTileType
+	, _mapLevel3Cells :: Map.Map (Int, Int) StepTileType
+	, _mapCompiledCells :: Map.Map (Int, Int) TileType
 	, _mapWidth :: Int
 	, _mapHeight :: Int
 	} deriving (Show, Eq)
+
 makeLenses ''GenMap
 
 neighbors (x, y) = 
@@ -220,35 +80,42 @@ neighbors (x, y) =
 	, (x - 1, y + 1), (x, y + 1), (x + 1, y + 1)
 	]
 
-cellNeighborTypes :: GenMap -> (Int, Int) -> [TileType]
-cellNeighborTypes gm (x, y) = map (\(x, y) -> if 
-		Map.member (x, y) (gm^.mapCells) 
-			then (gm^.mapCells) Map.! (x, y)
-			else NoMatch -- indicates border
+cellNeighborTypes :: GenMap -> (Int, Int) -> [BaseTileType]
+cellNeighborTypes gm (x, y) = map (\(nx, ny) -> if 
+		Map.member (nx, ny) (gm^.mapBaseCells) 
+			then (gm^.mapBaseCells) Map.! (nx, ny)
+			else Outside -- if ny > y then Floor else Wall -- up = wall / down =
 	) neighborPos
 	where
 		neighborPos = neighbors (x, y)
 
 newGenMap :: GenMap 
 newGenMap = GenMap
-	{ _mapCells = Map.empty
+	{ _mapBaseCells = Map.empty
+	, _mapLevel1Cells = Map.empty
+	, _mapLevel2Cells = Map.empty
+	, _mapLevel3Cells = Map.empty
+	, _mapCompiledCells = Map.empty
 	, _mapWidth = 0
 	, _mapHeight = 0
 	}
 
-tileLayer gm (x, y) = if 
-			   (topTileType `elem` [WallN3, WallNW3, WallNE3]
-			|| tileType `elem` [WallN3, WallNW3, WallNE3]) && tileType /= WallCenter3
-		then "TopLayer"
-		else "BottomLayer"
+tileLayer gm (x, y) = if
+		((topTileType `elem` [WallN3, WallNW3, WallNE3] && not (tileType `elem` [WallS3, WallSE3, WallSW3]))
+		|| tileType `elem` [WallN3, WallNW3, WallNE3]) || tileType == WallCenter3
+	then "TopLayer"
+	else "BottomLayer"
 	where
-		Just tileType = gm^.mapCells . at (x, y)
-		Just topTileType = if Map.member (x, y-1) (gm^.mapCells) 
-			then gm^.mapCells . at (x, y-1)
-			else Just NoMatch
+		Just tileType = gm^.mapCompiledCells . at (x, y)
+		Just topTileType = if Map.member (x, y-1) (gm^.mapCompiledCells)
+			then gm^.mapCompiledCells . at (x, y-1)
+			else Just FinalNoMatch
 
-bottomTiles :: GenMap -> Map.Map (Int, Int) TileType
-bottomTiles gm = Map.filterWithKey (\(x, y) tile -> tileLayer gm (x, y) == "BottomLayer" && tile /= Floor) (gm^.mapCells)
+
+
+bottomTiles :: GenMap -> Map.Map (Int, Int) BaseTileType
+--bottomTiles gm = Map.filterWithKey (\(x, y) tile -> tileLayer gm (x, y) == "BottomLayer" && tile /= FinalFloor) (gm^.mapCompiledCells)
+bottomTiles gm = (Map.filter (\tile -> tile == Wall) $ gm^.mapBaseCells)
 
 -- TODO: refactor
 data Collect = Collect 
@@ -262,11 +129,11 @@ data Collect = Collect
 
 makeLenses ''Collect
 
-tileBoundaries gm = loop (bottomTiles gm) [] 
+tileBoundaries gm = map (^.collectBoundary) $ loop (bottomTiles gm) [] 
 	where
-		loop tileMap collection = let (collected, newTileMap) = matchBox tileMap in
+		loop tileMap collection = let (collected, newTileMap) = matchBox tileMap in traceShow (newTileMap) $
 			if newTileMap == Map.empty 
-				then collection
+				then collection ++ collected
 				else loop newTileMap (collected ++ collection)
 
 		sortOrder (x1, y1) (x2, y2)
@@ -274,6 +141,7 @@ tileBoundaries gm = loop (bottomTiles gm) []
 			| y1 == y2 && x1 < x2 = LT
 			| otherwise = GT
 
+		-- collect box then remove the box and continue to collect
 		matchBox tileMap = (collected, newMap)
 			where
 				-- reverse because foldr starts on the right side and we ordered descending
@@ -282,6 +150,7 @@ tileBoundaries gm = loop (bottomTiles gm) []
 					[] -> Map.empty
 					_ -> removeMatched (head collected) tileMap
 
+		-- remove the collected
 		removeMatched col tileMap = foldr (Map.delete) tileMap between
 			where
 				between = [(x, y) | 
@@ -346,7 +215,7 @@ tileBoundaries gm = loop (bottomTiles gm) []
 				xf = fromIntegral x
 				yf = fromIntegral y
 			 
-test = do
+testBound = do
 	let ds = tileBoundaries mkGenWorld
 	mapM_ print ds
 	--print $ sortBy sortOrder $ Map.keys $ bottomTiles mkGenWorld
@@ -356,17 +225,12 @@ test = do
 			| y1 == y2 && x1 < x2 = LT
 			| otherwise = GT
 world = 
-	[ [Wall, Wall, Wall, Wall, Wall, Wall, Wall, Wall,Wall, Wall, Wall, Wall,Wall]
-	, [Wall, Wall, Wall, Wall, Wall, Wall, Wall, Wall,Wall, Wall, Wall, Wall,Wall]
-	, [Wall, Wall, Wall, Wall, Wall, Wall, Wall, Wall,Wall, Wall, Wall, Wall,Wall]
-	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
-	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
+	[ [Wall, Wall, 	Wall,  Wall, Wall,  Wall,  Wall,  Wall,  Wall,  Wall, Wall,  Wall,   Wall]
 	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
 	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
 	, [Wall, Floor, Floor, Floor,Floor, Wall, Wall, Wall, Floor, Floor,Floor, Floor,  Wall]
-	, [Wall, Floor, Floor, Floor,Floor, Wall, Wall, Wall, Floor, Floor,Floor, Floor,  Wall]
-	, [Wall, Floor, Floor, Floor,Floor, Wall, Wall, Wall, Floor, Floor,Floor, Floor,  Wall]
-	, [Wall, Floor, Floor, Floor,Floor, Wall, Wall, Wall, Floor, Floor,Floor, Floor,  Wall]
+	, [Wall, Floor, Floor, Floor,Floor, Wall,  Wall,  Wall,  Floor, Floor,Floor, Floor,  Wall]
+	, [Wall, Floor, Floor, Floor,Floor, Wall,  Wall,  Wall,  Floor, Floor,Floor, Floor,  Wall]
 	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
 	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
 	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
@@ -374,42 +238,201 @@ world =
 	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
 	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
 	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
-	, [Wall, Wall, Wall, Wall,Wall, Wall, Wall,Wall, Wall, Wall,Wall, Wall, Wall]
-	, [Wall, Wall, Wall, Wall,Wall, Wall, Wall,Wall, Wall, Wall,Wall, Wall, Wall]
-	, [Wall, Wall, Wall, Wall,Wall, Wall, Wall,Wall, Wall, Wall,Wall, Wall, Wall]
+	, [Wall, Wall, 	Wall,  Wall, Wall,  Wall,  Wall,  Wall,  Wall,  Wall, Wall,  Wall,   Wall]
 	]
 
 newMapFromList lists = newGenMap 
-	& mapCells .~ foldr (uncurry Map.insert) Map.empty
+	& mapBaseCells .~ foldr (uncurry Map.insert) Map.empty
 		[((x, y), tileType) | (y, line) <- zip [0..] lists, (x, tileType) <- zip [0..] line]
 	& mapWidth .~ (length (lists!!0))
 	& mapHeight .~ (length lists)
 
 uncurry8 func [a, b, c, d, e, f, g, h] = func a b c d e f g h
 
+
+matchStart Floor Floor Floor
+			Floor Floor
+			Floor Floor Floor = error "Single walls are not supported"
+matchStart Wall Floor Floor
+			Floor Floor
+			Floor Floor Floor = error "Diagonal walls are not supported"
+matchStart Wall Wall Floor
+			Floor Floor
+			Floor Floor Floor = error "Single walls are not supported"
+matchStart Wall Wall Wall
+			Floor Floor
+			Floor Floor Floor = error "Single walls are not supported"
+
+matchStart Wall Wall Wall
+			Wall 	Wall
+			_ Floor _ = WallS
+
+matchStart _ Floor _
+			Wall 	Wall
+			Wall Wall Wall = WallN
+
+matchStart _ Wall Wall
+			Floor Wall
+			_ Wall Wall = WallW
+
+matchStart Wall Wall _
+			Wall Floor
+			Wall Wall _ = WallE
+
+matchStart _ Wall Wall
+			Floor Wall
+			Floor Floor Floor = WallSW
+
+matchStart Wall Wall _
+		 	Wall Floor
+		 	Floor Floor Floor = WallSE
+
+matchStart Floor Floor Floor
+			Floor Wall
+			_ Wall Wall = WallNW
+
+matchStart Floor Floor Floor
+			Wall Floor
+			Wall Wall _ = WallNE
+
+-- inner corners
+matchStart Wall Wall Wall
+			Wall Wall
+			Wall Wall Floor = WallInnerNW
+
+matchStart Wall Wall Wall
+			Wall Wall
+			Floor Wall Wall = WallInnerNE
+
+matchStart Wall Wall Floor
+			Wall Wall
+			Wall Wall Wall = WallInnerSW
+
+matchStart Floor Wall Wall
+			Wall Wall
+			Wall Wall Wall = WallInnerSE
+
+matchStart Wall Wall Wall
+			Wall Wall
+			Wall Wall Wall = WallCenter
+
+
+-- borders (otherwise not allowed)
+matchStart Outside Outside Outside
+			Outside Wall
+			Outside Wall Floor = WallInnerNW
+matchStart Outside Outside Outside
+			Wall Outside
+			Floor Wall Outside = WallInnerNE
+matchStart Outside Wall Floor
+			Outside Wall
+			Outside Outside Outside = WallInnerSW
+matchStart Floor Wall Outside
+			Wall Outside
+			Outside Outside Outside = WallInnerSE
+
+matchStart Outside Wall _
+			Outside _	
+			Outside Wall _ = WallE
+
+matchStart _ Wall Outside
+			_ Outside	
+			_ Wall Outside = WallW
+
+matchStart _ _ _
+			Wall Wall	
+			Outside Outside Outside = WallN
+
+matchStart Outside Outside Outside
+			Wall Wall	
+			_ _ _ = WallS
+
+matchStart w1 w2 w3 w4 w5 w6 w7 w8 = error $ 
+	show [w1, w2, w3, w4, w5, w6, w7, w8]
+
 step :: GenMap -> GenMap
-step gm = gm & mapCells .~ newCells
+step gm = gm 
+		& mapLevel1Cells .~ newCells
+		& mapLevel2Cells .~ newCells2
+		& mapLevel3Cells .~ newCells3
 	where
-		cellPos = map fst $ Map.toList (gm^.mapCells)
+		cellPos = map fst $ filter (\(_, tileType) -> tileType == Wall) $ 
+			Map.toList (gm^.mapBaseCells)
 		cellNeighbors = map neighbors cellPos
 
-		newCells :: Map.Map (Int, Int) TileType
-		newCells = foldr (uncurry Map.insert . applyRule) Map.empty cellPos
+		newCells :: Map.Map (Int, Int) StepTileType
+		newCells = foldr (uncurry Map.insert . applyRule 0) Map.empty cellPos
 
-		applyRule :: (Int, Int) -> ((Int, Int), TileType)
-		applyRule cellPos = (cellPos
-			, case uncurry8 rule cellNeighbors of
-					NoMatch -> (gm^.mapCells) Map.! cellPos
-					otherwise -> uncurry8 rule cellNeighbors
+		newCells2 :: Map.Map (Int, Int) StepTileType
+		newCells2 = foldr (uncurry Map.insert . applyRule 1) Map.empty cellPos
+
+		newCells3 :: Map.Map (Int, Int) StepTileType
+		newCells3 = foldr (uncurry Map.insert . applyRule 2) Map.empty cellPos
+
+		applyRule :: Int -> (Int, Int) -> ((Int, Int), StepTileType)
+		applyRule offset (cpx, cpy) = (
+				(cpx, cpy-offset), uncurry8 matchStart cellNeighbors
 			)
 			where
-				cellNeighbors :: [TileType]
-				cellNeighbors = cellNeighborTypes gm cellPos
+				cellNeighbors :: [BaseTileType]
+				cellNeighbors = cellNeighborTypes gm (cpx, cpy)
 
-mkGenWorld = m4
+compile :: GenMap -> GenMap
+compile gm = gm
+	& mapCompiledCells .~ step4
+	where
+		step0 = foldr (\(k, a) -> Map.insert k (level0 a)) Map.empty $ Map.toList (gm^.mapBaseCells)
+
+		step1 = foldr (\(k, a) m -> case level1 a of
+				FinalNoMatch -> Map.insert k FinalNoMatch m
+				a' -> Map.insert k a' m
+			) step0 $ Map.toList (gm^.mapLevel1Cells)
+
+		step2 = foldr (\(k, a) m -> case level2 a of
+				FinalNoMatch -> Map.insert k FinalNoMatch m
+				a' -> Map.insert k a' m
+			) step1 $ Map.toList (gm^.mapLevel2Cells)
+		step3 = foldr (\(k, a) -> Map.insert k (level3 a)) step2 $ Map.toList (gm^.mapLevel3Cells)
+		step4 = Map.map (\a -> if a == FinalNoMatch then WallCenter3 else a) step3
+
+		level0 Floor = FinalFloor
+		level0 _ = FinalNoMatch
+
+		level1 :: StepTileType -> TileType
+		level1 WallS = WallS1
+		level1 WallSW = WallSW1
+		level1 WallSE = WallSE1
+		level1 _ = FinalNoMatch
+
+		level2 WallW = WallW2
+		level2 WallE = WallE2
+		level2 WallS = WallS2
+		level2 WallSW = WallSW2
+		level2 WallSE = WallSE2
+		level2 _ = FinalNoMatch
+
+		level3 WallN = WallN3
+		level3 WallNE = WallNE3
+		level3 WallE = WallE3
+		level3 WallSE = WallSE3
+		level3 WallS = WallS3
+		level3 WallSW = WallSW3
+		level3 WallW = WallW3
+		level3 WallNW = WallNW3
+		level3 WallCenter = WallCenter3
+
+		level3 WallInnerNW = WallOuterNW3
+		level3 WallInnerNE = WallOuterNE3
+		level3 WallInnerSW = WallOuterSW3
+		level3 WallInnerSE = WallOuterSE3
+		--level3 _ = FinalNoMatch
+
+mkGenWorld = m2
 	where
 		m = newMapFromList world
 		m' = step m
-		m2 = step m'
-		m3 = step m2
-		m4 = step m3
+		m2 = compile m'
+
+test = do
+	let cells =  (mkGenWorld^.mapCompiledCells)
+	mapM_ (\(xs, y) -> print [cells Map.! (x, y) | x <- xs]) [([0..12], y) | y <- [-2..13]]

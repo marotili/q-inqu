@@ -72,6 +72,7 @@ instance Show WorldCommon where
 	show wc = "WorldCommon{\n" ++
 		"\twcPositions = " ++ show (_wcPositions wc) ++ "\n" ++
 		"\twcAnimations = " ++ show (_wcAnimations wc) ++ "\n" ++
+		"\twcBoundaries = " ++ show (_wcBoundaries wc) ++ "\n" ++
 		"}\n"
 
 

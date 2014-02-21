@@ -21,6 +21,7 @@ import Game.World.Lens
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import qualified Control.Wire as W
+import qualified Control.Wire.Unsafe.Event as W
 
 import Control.Monad.State
 import Control.Monad.RWS
@@ -79,6 +80,10 @@ newRenderConfig = execState (do
 		R.rcTiles . at "WallS2" .= Just ("sewer_tileset", 9)
 		R.rcTiles . at "WallE2" .= Just ("sewer_tileset", 10)
 
+		-- duplicates
+		R.rcTiles . at "WallSW2" .= Just ("sewer_tileset", 8)
+		R.rcTiles . at "WallSE2" .= Just ("sewer_tileset", 10)
+
 		R.rcTiles . at "WallSW1" .= Just ("sewer_tileset", 16)
 		R.rcTiles . at "WallS1" .= Just ("sewer_tileset", 17)
 		R.rcTiles . at "WallSE1" .= Just ("sewer_tileset", 18)
@@ -98,7 +103,7 @@ newRenderConfig = execState (do
 		R.rcTiles . at "WallOuterSW3" .= Just ("sewer_tileset", 22)
 		R.rcTiles . at "WallOuterSE3" .= Just ("sewer_tileset", 23)
 
-		R.rcTiles . at "Floor" .= Just ("sewer_tileset", 33)
+		R.rcTiles . at "FinalFloor" .= Just ("sewer_tileset", 33)
 		R.rcTiles . at "NoMatch" .= Just ("sewer_tileset", 40)
 		R.rcTiles . at "Wall" .= Just ("sewer_tileset", 41)
 
@@ -109,15 +114,16 @@ makeLenses ''Game
 newGame :: String -> IO Game
 newGame name = do
 	tiledMap <- T.tMap
-	(oldWorld, newWorld, delta, manager) <- mkGameWorld tiledMap (50, 50)
 	let genMap = Gen.mkGenWorld
+	(oldWorld, newWorld, delta, manager) <- mkGameWorld tiledMap (50, -200) genMap
+	print delta 
 	let renderWorld = mkRenderWorld tiledMap delta genMap
 	let (newRenderWorld, newRenderables) = 
 		updateRender delta oldWorld newWorld renderWorld []
 	let game = Game
 		{ _gameName = name
 		, _gameTiled = tiledMap
-		, _gamePlayerStartPos = (50, 50)
+		, _gamePlayerStartPos = (50, -200)
 		, _gameLogicWorld = newWorld
 		, _gameLastDelta = delta
 		, _gameWorldManager = manager
@@ -203,16 +209,16 @@ mkRenderWorld tiledMap delta genMap = nWorld
 						-- top tiles are transparent so we need a floor tile beneath them
 						if (Gen.tileLayer genMap (x, y)) == "TopLayer"
 							then  do
-								floorTile <- use $ R.wTile "Floor"
+								floorTile <- use $ R.wTile "FinalFloor"
 								R.wLayerTile "BottomLayer" (x, -y) .= (Just floorTile)
 							else return ()
 						R.wLayerTile (Gen.tileLayer genMap (x, y)) (x, -y) .= (Just tile)
-					) (Map.toList $ genMap^.Gen.mapCells)
+					) (Map.toList $ genMap^.Gen.mapCompiledCells)
 
 			) renderWorld
 
 --mkGameWorld :: Game -> IO (G.World, Delta, WorldManager)
-mkGameWorld tiledMap startPos = do
+mkGameWorld tiledMap startPos genMap = do
 	let (worldManager, worldDelta) = execRWS (
 			W.stepWire initWire (W.Timed 0 ()) (Right ())
 		) world G.emptyWM
@@ -220,10 +226,28 @@ mkGameWorld tiledMap startPos = do
 	let world' = G.applyDelta world worldDelta
 	return (world, world', worldDelta, worldManager)
 
+
 	where
+		wallBoundaries = Gen.tileBoundaries genMap
 		world = G.emptyW 
 			{ _wTileBoundary = tiledMap^.T.mapTileSize
 			}
+
+		initWalls [] = proc input -> do
+			returnA -< ()
+		initWalls (((ox, oy), (px, py)):wallsData) = proc input -> do
+
+			wallsId <- spawnObjectAt "Wall" (ox, -oy) -< input
+			_ <- wLiftSetOnce setBoundary (
+					[ (0, 0)
+					, (0, py - oy)
+					, (px - ox, py - oy)
+					, (px - ox, 0)]
+				) -< wallsId
+			_ <- wLiftSetOnceVoid setStaticCollidable -< wallsId
+
+			_ <- initWalls wallsData -< input
+			returnA -< ()
 
 		initWire = proc input -> do
 			p1Id <- spawnObjectAt "Player1" startPos -< input
@@ -234,6 +258,8 @@ mkGameWorld tiledMap startPos = do
 
 			_ <- wLiftSetOnce setBoundary G.playerBoundary -< p1Id
 			_ <- wLiftSetOnce setBoundary G.playerBoundary -< p2Id
+
+			_ <- initWalls wallBoundaries -< input
 
 			returnA -< ()
 

@@ -109,7 +109,7 @@ collides oId (dx, dy) = do
 
 _move :: Timed NominalDiffTime () -> ObjectId -> (Float, Float) -> WorldContext ()
 _move ds oId (vx, vy) = do
-	canCollide <- return False -- view $ isCollidable oId
+	canCollide <- view $ isCollidable oId
 	mignore <- view $ getCollisionFilters . L.at oId
 	let dt = realToFrac (dtime ds)
 	let (dx, dy) = (dt * vx, -dt * vy)
