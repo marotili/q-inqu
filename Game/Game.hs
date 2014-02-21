@@ -237,12 +237,13 @@ mkGameWorld tiledMap startPos genMap = do
 			returnA -< ()
 		initWalls (((ox, oy), (px, py)):wallsData) = proc input -> do
 
-			wallsId <- spawnObjectAt "Wall" (ox, -oy) -< input
+			wallsId <- spawnObjectAt "Wall" (ox, -oy) -< 
+				traceShow(((ox, oy), (px, py))) $ input
 			_ <- wLiftSetOnce setBoundary (
-					[ (0, 0)
-					, (0, py - oy)
-					, (px - ox, py - oy)
-					, (px - ox, 0)]
+					[ (0, -py + oy)
+					, (0, 0)
+					, (px-ox, 0)
+					, (px-ox, -py + oy)]
 				) -< wallsId
 			_ <- wLiftSetOnceVoid setStaticCollidable -< wallsId
 
@@ -251,7 +252,7 @@ mkGameWorld tiledMap startPos genMap = do
 
 		initWire = proc input -> do
 			p1Id <- spawnObjectAt "Player1" startPos -< input
-			p2Id <- spawnObjectAt "Player2" (120, 50) -< input
+			p2Id <- spawnObjectAt "Player2" (0, 0) -< input
 
 			_ <- animate (G.objectAnimation 1 G.South) -< p1Id
 			_ <- animate (G.objectAnimation 2 G.South) -< p2Id

@@ -63,18 +63,18 @@ instance Eq Animation where
 -- clockwise
 playerBoundary :: [(Float, Float)]
 playerBoundary =
-    [ (0, 60)
-    , (0, 90)
-    , (50, 90)
-    , (50, 60)
+    [ (0, -90)
+    , (0, -60)
+    , (50, -60)
+    , (50, -90)
     ]
 
 arrowBoundary :: Orientation -> [(Float, Float)]
 arrowBoundary West =
-    [ (8, 28)
-    , (8+21, 28)
-    , (8+21, 28+7)
-    , (8, 28+7)
+    [ (8, -28-7)
+    , (8+21, -28)
+    , (8+21, -28)
+    , (8, -28-7)
     ]
 arrowBoundary _ = arrowBoundary West
 
