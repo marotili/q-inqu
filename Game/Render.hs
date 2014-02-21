@@ -30,10 +30,9 @@ import Game.Game
 
 data RenderContext = RenderContext
 	{ _rcMainProgram :: Program
-	, _rcShadowProgram :: Program
 	, _rcWorldRenderContext :: WorldRenderContext
 	, _rcLightContext :: LightContext
-	--, _rcVisibilityContext :: VisibilityContext
+	, _rcVisibilityContext :: VisibilityContext
 	, _rcUIRenderContext :: WorldRenderContext
 	}
 makeLenses ''RenderContext
@@ -47,27 +46,21 @@ newRenderContext game = do
 	let nWorld = game^.gameRenderWorld
 
 	let uiWorld = mkUIWorld game
-	print "Setup shader"
 	program <- setupShaders "shader.vert" "shader.frag"
-	shadowProgram <- setupShaders "shader.shadow.vert" "shader.shadow.frag"
-	print "End setup shaders"
 	_ <- uniformInfo program
 	wrc <- newWorldRenderContext nWorld
 	uirc <- newWorldRenderContext uiWorld
 	lc <- newLightContext
 
-	--(world, manager) <- newWorldFromTiled tm
+	let world = game^.gameLogicWorld
 
-	--vc <- newVisibilityContext (world^.wCollisionManager) (0, 0)
-
-	print "Created render"
+	vc <- newVisibilityContext (world^.wCollisionManager) (0, 0)
 
 	return RenderContext
 		{ _rcMainProgram = program
-		, _rcShadowProgram = shadowProgram
 		, _rcWorldRenderContext = wrc
 		, _rcLightContext = lc
-		--, _rcVisibilityContext = vc
+		, _rcVisibilityContext = vc
 		, _rcUIRenderContext = uirc
 		}
 
@@ -86,45 +79,37 @@ render window rc cam = do
 	-- update camera in every frame for now
 	--(width, height) <- GLFW.getFramebufferSize window
 	clearWindow window
-	print "clear window"
 
 	logGL "render: set current program"
 
 	let world = rc^.rcWorldRenderContext.wrcWorld
 
-	print (world)
 	let Just (x, y) = world^?wLayerObject "ObjectLayer" "Player1"._Just.roPos
 	let newCam = cameraUpdatePosition cam (-x) (-y)
 
 	let newRc = rc -- & rcLightContext.lcLights._head.lightPosition .~ (-x, y)
 
-	--GL.stencilTest $= GL.Enabled
-	--GL.stencilFunc $= (GL.Never, 1, 255)
-	--GL.stencilOp $= (GL.OpReplace, GL.OpKeep, GL.OpKeep)
-	--GL.clearStencil $= 0
-	--GL.stencilMask $= 255
-	--GL.clear [GL.StencilBuffer]
+	GL.stencilTest $= GL.Enabled
+	GL.stencilFunc $= (GL.Never, 1, 255)
+	GL.stencilOp $= (GL.OpReplace, GL.OpKeep, GL.OpKeep)
+	GL.clearStencil $= 0
+	GL.stencilMask $= 255
+	GL.clear [GL.StencilBuffer]
 
-	--visCtxt <- updateVisibilityContext (newRc^.rcVisibilityContext) (x, y)
-	--renderVisibilityContext visCtxt newCam
+	visCtxt <- updateVisibilityContext (newRc^.rcVisibilityContext) (x, y)
+	renderVisibilityContext visCtxt newCam
 
-	--GL.stencilMask $= 0
-	--GL.stencilFunc $= (GL.Equal, 0, 255)
-	--GL.stencilFunc $= (GL.Equal, 1, 255)
-
-	GL.currentProgram $= Just (newRc^.rcShadowProgram)
-	programSetViewProjection (newRc^.rcShadowProgram) newCam
-	updateWorldRenderContext (newRc^.rcWorldRenderContext)
-	renderWorldRenderContext (newRc^.rcShadowProgram) (newRc^.rcWorldRenderContext)
+	GL.stencilMask $= 0
+	GL.stencilFunc $= (GL.Equal, 0, 255)
+	GL.stencilFunc $= (GL.Equal, 1, 255)
 
 	GL.currentProgram $= Just (newRc^.rcMainProgram)
 	programSetViewProjection (newRc^.rcMainProgram) newCam
 	updateWorldRenderContext (newRc^.rcWorldRenderContext)
 	renderWorldRenderContext (newRc^.rcMainProgram) (newRc^.rcWorldRenderContext)
 
-	--GL.stencilTest $= GL.Disabled
+	GL.stencilTest $= GL.Disabled
 
-	--print "Render ui"
 	let uirc = newRc^.rcUIRenderContext
 	GL.currentProgram $= Just (newRc^.rcMainProgram)
 	programSetViewProjection (newRc^.rcMainProgram) (cameraSetOriginTopLeft newCam)
