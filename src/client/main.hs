@@ -4,7 +4,7 @@ module Main (main) where
 
 import System.Environment
 
-import Control.Concurrent.STM    (TQueue, TVar, newTVarIO, readTVar, newTQueueIO, readTQueue, tryReadTQueue, writeTQueue)
+import Control.Concurrent.STM    (TQueue, TVar, newTVarIO, readTVar, writeTVar, newTQueueIO, readTQueue, tryReadTQueue, writeTQueue)
 import Control.Monad.Reader
 import Control.Monad.RWS.Strict  (RWST, evalRWST, get, modify)
 import Data.List                 (intercalate)
@@ -15,6 +15,10 @@ import qualified Data.Set as Set
 import qualified Graphics.UI.GLFW          as GLFW
 import Game.Input.Input
 import Game.Input.Actions
+import qualified Game.Input.Actions as A
+import Control.Lens
+import Game.Render
+import qualified Game.Render.World as R
 import Text.PrettyPrint
 import qualified Game.Render as Render
 import Game.Render.Map
@@ -80,7 +84,7 @@ data Event =
 
 --------------------------------------------------------------------------------
 
-actionProducer :: TQueue (Float, InputActions) -> Int -> Producer (Float, Int, Action) IO ()
+actionProducer :: TQueue (Float, InputActions) -> Int -> Producer (Float, Int, A.Action) IO ()
 actionProducer ac playerId = do
     timeactions <- liftIO $ atomically $ readTQueue ac
     let (time, InputActions actions) = timeactions
@@ -357,12 +361,23 @@ draw = do
   state <- get
 
   rcVar <- asks envRenderContext
-  rc <- lift $ atomically $ readTVar rcVar
+
+  let oldSet1 = rcWorldRenderContext.wrcWorld.R.mapUpdateLayers
+  let oldSet2 = rcUIRenderContext.wrcWorld.R.mapUpdateLayers
+
+  rc <- lift $ atomically $ do
+    rc <- readTVar rcVar
+    writeTVar rcVar $ rc
+      & oldSet1 .~ Set.empty
+      & oldSet2 .~ Set.empty
+
+    return rc
 
   let cam = asks stateCam state
 
   lift $ print "Client: Render"
-  liftIO $ Render.render win rc cam
+
+  lift $ Render.render win rc cam
   lift $ print "Client: Render finished"
 
   return ()
@@ -382,7 +397,7 @@ printInformation win = do
     debug <- GLFW.getWindowOpenGLDebugContext win
     profile <- GLFW.getWindowOpenGLProfile win
 
-    putStrLn $ render $
+    putStrLn $ Text.PrettyPrint.render $
       nest 4 (
         text "------------------------------------------------------------" $+$
         text "GLFW C library:" $+$

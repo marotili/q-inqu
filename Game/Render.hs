@@ -1,13 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-module Game.Render 
-	(
-	  RenderContext
-	, newRenderContext
-	, clearWindow, render
-
-	-- * To remove
-	, rcWorldRenderContext
-	) where
+module Game.Render where
 
 import Graphics.Rendering.OpenGL
 import qualified Graphics.Rendering.OpenGL as GL
@@ -48,8 +40,8 @@ newRenderContext game = do
 	let uiWorld = mkUIWorld game
 	program <- setupShaders "shader.vert" "shader.frag"
 	_ <- uniformInfo program
-	wrc <- newWorldRenderContext nWorld
-	uirc <- newWorldRenderContext uiWorld
+	wrc <- newWorldRenderContext nWorld program
+	uirc <- newWorldRenderContext uiWorld program
 	lc <- newLightContext
 
 	let world = game^.gameLogicWorld
@@ -89,19 +81,19 @@ render window rc cam = do
 
 	let newRc = rc -- & rcLightContext.lcLights._head.lightPosition .~ (-x, y)
 
-	GL.stencilTest $= GL.Enabled
-	GL.stencilFunc $= (GL.Never, 1, 255)
-	GL.stencilOp $= (GL.OpReplace, GL.OpKeep, GL.OpKeep)
-	GL.clearStencil $= 0
-	GL.stencilMask $= 255
-	GL.clear [GL.StencilBuffer]
+	--GL.stencilTest $= GL.Enabled
+	--GL.stencilFunc $= (GL.Never, 1, 255)
+	--GL.stencilOp $= (GL.OpReplace, GL.OpKeep, GL.OpKeep)
+	--GL.clearStencil $= 0
+	--GL.stencilMask $= 255
+	--GL.clear [GL.StencilBuffer]
 
-	visCtxt <- updateVisibilityContext (newRc^.rcVisibilityContext) (x, y)
-	renderVisibilityContext visCtxt newCam
+	--visCtxt <- updateVisibilityContext (newRc^.rcVisibilityContext) (x, y)
+	--renderVisibilityContext visCtxt newCam
 
-	GL.stencilMask $= 0
-	GL.stencilFunc $= (GL.Equal, 0, 255)
-	GL.stencilFunc $= (GL.Equal, 1, 255)
+	--GL.stencilMask $= 0
+	--GL.stencilFunc $= (GL.Equal, 0, 255)
+	--GL.stencilFunc $= (GL.Equal, 1, 255)
 
 	GL.currentProgram $= Just (newRc^.rcMainProgram)
 	programSetViewProjection (newRc^.rcMainProgram) newCam
@@ -115,6 +107,7 @@ render window rc cam = do
 	programSetViewProjection (newRc^.rcMainProgram) (cameraSetOriginTopLeft newCam)
 	updateWorldRenderContext uirc
 	renderWorldRenderContext (newRc^.rcMainProgram) uirc
+
 
 	--updateLightContext (newRc^.rcLightContext)
 	--renderLightContext (newRc^.rcLightContext) newCam

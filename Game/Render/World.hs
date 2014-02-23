@@ -175,8 +175,7 @@ wTile name = to get
 	where get world = newTile tsId localTileId
 		where
 			tileMap = world^.wRenderConfig . rcTiles
-			Just (tilesetName, localTileId) = traceShow (name, tileMap) $
-				tileMap ^. at name
+			Just (tilesetName, localTileId) = tileMap ^. at name
 
 			Just tsId = world ^. mapHashes . gameTilesets . at tilesetName
 

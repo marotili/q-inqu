@@ -51,7 +51,7 @@ newVisibilityContext octree playerPos = do
 	[pointBuf] <- GL.genObjectNames 1 :: IO [GL.BufferObject]
 
 	let pointData = playerPos : (getData octree playerPos)
-	print $ pointData
+	--print $ pointData
 
 	uploadFromVec 0 GL.UniformBuffer pointBuf  $
 		V.fromList $ concatMap (\(x, y) -> x:y:[]) pointData
@@ -68,7 +68,8 @@ newVisibilityContext octree playerPos = do
 
 updateVisibilityContext visCtx playerPos = do
 	let pointData = playerPos : (getData (visCtx^.vcOctree) playerPos)
-	updateFromVec GL.UniformBuffer (visCtx^.vcPoints) $
+	--print ("Point data", pointData)
+	updateNewFromVec GL.UniformBuffer (visCtx^.vcPoints) $
 		V.fromList $ concatMap (\(x, y) -> x:y:[]) pointData
 	return $ visCtx & vcData .~ pointData
 
@@ -84,6 +85,7 @@ renderVisibilityContext vc cam = do
 	logGL "renderLightContext: light index"
 	GL.bindBufferBase' GL.UniformBuffer lightIndex (vc^.vcPoints)
 
+	--print ("Visiblity", length $ vc^.vcData)
 	GL.drawArraysInstanced GL.TriangleFan 0 (fromIntegral . length $ vc^.vcData) 1
 	logGL "renderLightContext: draw instanced"
 

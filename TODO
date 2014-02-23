@@ -1,9 +1,11 @@
 TODO
 ====
 
+- load tile data using vertex arrays instead of uniform buffers
+
 - screenshake
 
-- Rendering
+- Rendering (done)
 render front to back (order by y coordinate) per layer
 
 - Camera movement

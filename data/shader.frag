@@ -1,7 +1,6 @@
 #version 330
 out vec4 color;
 
-flat in int instanceID;
 in vec2 texCoords;
 flat in int image;
 

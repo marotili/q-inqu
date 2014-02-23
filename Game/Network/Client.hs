@@ -51,16 +51,22 @@ consumeClientWorld renderContextVar game = do
 
 	let manager2 = worldManagerUpdate (game^.gameWorldManager) actions
 
+	rc <- lift $ atomically $ do
+		renderContext <- readTVar renderContextVar
+		return renderContext
+
+	let game' = game & gameRenderWorld .~ (rc^.rcWorldRenderContext.wrcWorld)
+
 	let newGame = execState (do
 			gameWorldManager .= manager2
 			updateGame dt
-		) game
+		) game'
 
 	--(w', (manager', delta)) <- lift $ clientStepWorld w world manager2 dt
 
 	lift $ atomically $ do
-		renderContext <- readTVar renderContextVar
-		writeTVar renderContextVar (renderContext 
+		--renderContext <- readTVar renderContextVar
+		writeTVar renderContextVar (rc 
 				& rcWorldRenderContext.wrcWorld .~ (newGame^.gameRenderWorld)
 			)
 

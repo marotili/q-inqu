@@ -12,12 +12,15 @@ module Game.Render.Map
 	-- * To remove
 	) where
 
+import Foreign.C.Types
 import Data.List
-
+import Graphics.Rendering.OpenGL.GL.Shaders.Program
 import qualified Graphics.Rendering.OpenGL as GL
+import qualified Graphics.Rendering.OpenGL.Raw as GLRaw
 import Graphics.Rendering.OpenGL (($=))
 import Game.Render.Error
 import qualified Codec.Picture as P
+import Foreign.Ptr
 import Control.Monad.State
 
 import Data.Maybe
@@ -40,7 +43,8 @@ import qualified Game.Render.World as R
 
 
 data WorldRenderContext = WorldRenderContext
-	{ _wrcVao :: GL.VertexArrayObject
+	{ _wrcVaos :: Map.Map R.LayerId GL.VertexArrayObject
+	, _wrcElements :: Map.Map R.LayerId GL.BufferObject
 
 	, _wrcPosSSBs :: Map.Map R.LayerId GL.BufferObject
 	, _wrcLayerSSBs :: Map.Map R.LayerId GL.BufferObject
@@ -52,17 +56,16 @@ data WorldRenderContext = WorldRenderContext
 
 makeLenses ''WorldRenderContext
 wPosData :: Getter [(Float, Float, Float)] (V.Vector Float)
-wPosData = to (\poss -> V.fromList $ concatMap (\(x, y, a) -> [x, y, a, 0]) poss)
+wPosData = to (\poss -> V.fromList $ concatMap (\(x, y, a) -> concat . take 6 . repeat $ [x, y, a, 0]) poss)
 wTileData :: Getter [Int] (V.Vector Int32)
-wTileData = to (\ids -> V.fromList $ concatMap (\tId -> [fromIntegral tId, 0, 0, 0]) ids)
-
+wTileData = to (\ids -> V.fromList $ concatMap (\tId -> concat . take 6 . repeat $ [fromIntegral tId]) ids)
 
 wTilesetData :: WorldRenderContext -> Getter R.World (V.Vector Int32)
 wTilesetData wrc = to get
 	where
-		get world = V.fromList $ map fromIntegral $ concat $
+		get world = V.fromList $ (map fromIntegral $ concat $
 			sortBy tsInitialIdSort $ map(\(i, id, ts) -> tsData i ts id)
-				$ zip3 [0..] ids tss
+				$ zip3 [0..] ids tss) ++ padding
 			where
 				tsInitialIdSort (tsId:xs) (tsId2:ys) 
 					| tsId < tsId2 = LT
@@ -80,44 +83,62 @@ wTilesetData wrc = to get
 					, fst (wrc^?!wrcTextures.at tsId._Just)
 					, 0, 0, 0, 0, 0, 0, 0, 0
 					]
+				padding = concat $ take (20 - length ids) $ repeat
+					[ 0, 0, 0, 0, 0, 0, 0, 0
+					, 0, 0, 0, 0, 0, 0, 0, 0]
+
+wElementData :: R.World -> String -> V.Vector CUInt
+wElementData world layerName = get
+	where
+		get = V.fromList $ map fromIntegral $
+			concatMap (\(i, l) -> map ((+) (6*i)) l) $ zip [0..numObjects-1] (repeat [0, 1, 2, 3, 4, 5])
+		numObjects = (world^.R.wLayerNumObjects layerName)
 
 updateWorldRenderContext :: WorldRenderContext -> IO ()
-updateWorldRenderContext wrc =
+updateWorldRenderContext wrc = do
+	print (wrc^.wrcWorld.R.mapUpdateLayers)
 	mapM_ (\layerId -> do
 		let layerName = wrc^.wrcWorld.R.wLayerName layerId
 		let Just layerBuf = wrc^.wrcLayerSSBs.at layerId
-		let Just posBuf = wrc^.wrcPosSSBs.at layerId
-		print (wrc^.wrcWorld.R.wTileIds layerName.wTileData)
-		print (wrc^.wrcWorld.R.wTilePos layerName.wPosData)
-		updateFromVec GL.UniformBuffer layerBuf 
+		let Just posBuf = wrc^.wrcPosSSBs.at layerId 
+		let Just elementBuf = wrc^.wrcElements.at layerId
+		--print (wrc^.wrcWorld.R.wTileIds layerName.wTileData)
+		--print (wrc^.wrcWorld.R.wTilePos layerName.wPosData)
+		updateNewFromVec GL.UniformBuffer layerBuf 
 			(wrc^.wrcWorld.R.wTileIds layerName.wTileData)
-		updateFromVec GL.UniformBuffer posBuf 
+		updateNewFromVec GL.UniformBuffer posBuf 
 			(wrc^.wrcWorld.R.wTilePos layerName.wPosData)
+		uploadFromVec 0 GL.ElementArrayBuffer elementBuf 
+			(wElementData (wrc^.wrcWorld) layerName)
 		) (Set.toList $ wrc^.wrcWorld.R.mapUpdateLayers)
- 
-newWorldRenderContext :: R.World -> IO WorldRenderContext
-newWorldRenderContext world = do
+
+newWorldRenderContext :: R.World -> GL.Program -> IO WorldRenderContext
+newWorldRenderContext world program = do
 	posBuffers <- GL.genObjectNames (Map.size (world^.R.mapLayers)) :: IO [GL.BufferObject]
 	layerBuffers <- GL.genObjectNames (Map.size (world^.R.mapLayers)) :: IO [GL.BufferObject]
+	elementBuffers <- GL.genObjectNames (Map.size (world^.R.mapLayers)) :: IO [GL.BufferObject]
 
 	[tilesetBuffer] <- GL.genObjectNames 1 :: IO [GL.BufferObject]
-	[vao] <- GL.genObjectNames 1 :: IO [GL.VertexArrayObject]
+	vaos <- GL.genObjectNames (Map.size (world^.R.mapLayers)) :: IO [GL.VertexArrayObject]
 
 	imageTextures <- GL.genObjectNames (Map.size (world^.R.mapTilesets)) :: IO [GL.TextureObject]
 	logGL "newWorldRenderContext: genObjects"
 
 	let wrc = execState (do
-			wrcVao .= vao
+			wrcVaos .= Map.empty
+			wrcElements .= Map.empty
 			wrcPosSSBs .= Map.empty
 			wrcLayerSSBs .= Map.empty
 			wrcTextures .= Map.empty
 			wrcTilesetSSB .= tilesetBuffer
 			wrcWorld .= world
 
-			mapM_ (\(layerId, layerBuf, posBuf) -> do
+			mapM_ (\(layerId, layerBuf, posBuf, vao, element) -> do
 					wrcLayerSSBs.at layerId .= (Just layerBuf)
 					wrcPosSSBs.at layerId .= (Just posBuf)
-				) $ zip3 (Map.keys $ world^.R.mapLayers) layerBuffers posBuffers
+					wrcVaos.at layerId .= Just vao
+					wrcElements.at layerId .= Just element
+				) $ zip5 (Map.keys $ world^.R.mapLayers) layerBuffers posBuffers vaos elementBuffers
 
 			mapM_ (\(tilesetId, i, textureObj) -> do
 				wrcTextures.at tilesetId .= Just (i, textureObj)
@@ -131,10 +152,13 @@ newWorldRenderContext world = do
 			let layerName = wrc^.wrcWorld.R.wLayerName layerId
 			let Just layerBuf = wrc^.wrcLayerSSBs.at layerId
 			let Just posBuf = wrc^.wrcPosSSBs.at layerId
-			print (world^.R.wTileIds layerName.wTileData)
-			print (world^.R.wTilePos layerName.wPosData)
-			uploadFromVec (500 * 4) GL.UniformBuffer layerBuf (world^.R.wTileIds layerName.wTileData)
-			uploadFromVec (500 * 4) GL.UniformBuffer posBuf (world^.R.wTilePos layerName.wPosData)
+			let Just elementBuf = wrc^.wrcElements.at layerId
+			--print (world^.R.wTileIds layerName.wTileData)
+			--print (world^.R.wTilePos layerName.wPosData)
+			print $ wElementData (wrc^.wrcWorld) layerName
+			uploadFromVec 0 GL.ArrayBuffer layerBuf (world^.R.wTileIds layerName.wTileData)
+			uploadFromVec 0 GL.ArrayBuffer posBuf (world^.R.wTilePos layerName.wPosData)
+			uploadFromVec 0 GL.ElementArrayBuffer elementBuf (wElementData (wrc^.wrcWorld) layerName)
 		) (Map.keys $ world^.R.mapLayers)
 
 	-- per image stuff
@@ -150,7 +174,7 @@ newWorldRenderContext world = do
 		GL.textureBinding GL.Texture2D $= Just texObject
 		logGL "newWorldRenderContext: textureBinding"
 
-		print (i, image)
+		--print (i, image)
 
 		pngImage <- P.readPng (image^.R.iSource)
 		case pngImage of
@@ -171,43 +195,67 @@ newWorldRenderContext world = do
 
 	uploadFromVec 0 GL.UniformBuffer tilesetBuffer (world^.wTilesetData wrc)
 
-	print (world^.wTilesetData wrc)	
+	--print ("Tsdata", world^.wTilesetData wrc)
+
+	mapM_ (\layerId -> do
+			let layerName = wrc^.wrcWorld.R.wLayerName layerId
+			let Just layerBuf = wrc^.wrcLayerSSBs.at layerId
+			let Just posBuf = wrc^.wrcPosSSBs.at layerId
+			let Just vao = wrc^.wrcVaos.at layerId
+
+			GL.bindVertexArrayObject $= (Just vao)	
+			GL.AttribLocation tileIdLoc <- GL.get $ GL.attribLocation program "tileId"
+			GL.AttribLocation posLoc <- GL.get $ GL.attribLocation program "pos"
+			GL.AttribLocation rotationLoc <- GL.get $ GL.attribLocation program "rotation"
+
+			--print ("Locations", vao, layerBuf, posBuf, tileIdLoc, posLoc, rotationLoc)
+
+			GL.bindBuffer GL.ArrayBuffer $= Just layerBuf
+			GLRaw.glVertexAttribIPointer tileIdLoc 1 GLRaw.gl_INT 0 (nullPtr)
+			--GLRaw.glVertexAttribDivisor tileIdLoc 3
+			GLRaw.glEnableVertexAttribArray tileIdLoc
+
+			GL.bindBuffer GL.ArrayBuffer $= Just posBuf
+			GLRaw.glVertexAttribPointer posLoc 2 GLRaw.gl_FLOAT 0 16 (nullPtr)
+			--GLRaw.glVertexAttribDivisor posLoc 3
+			GLRaw.glEnableVertexAttribArray posLoc
+
+			GLRaw.glVertexAttribPointer rotationLoc 1 GLRaw.gl_FLOAT 0 16 (plusPtr nullPtr 8)
+			--GLRaw.glVertexAttribDivisor rotationLoc 3
+			GLRaw.glEnableVertexAttribArray rotationLoc
+			return ()
+		) (Map.keys $ world^.R.mapLayers)
 
 	return wrc
 
 
 bindWorldRenderContext :: WorldRenderContext -> GL.Program -> IO ()
-bindWorldRenderContext wrc _ = 
-	GL.bindVertexArrayObject $= (Just $ wrc^.wrcVao)	
+bindWorldRenderContext wrc program = return ()
 
 --renderNormalLayer :: GL.Program -> GL.BufferObject -> GL.BufferObject -> Layer -> IO ()
-renderNormalLayer program layerSSB posSSB layerName world = do
-	posIndex <- GL.getUniformBlockIndex program "Pos"
-	layerIndex <- GL.getUniformBlockIndex program "LayerData"
+renderNormalLayer program wrc layerName layerId world = do
+	let Just layerBuf = wrc^.wrcLayerSSBs.at layerId
+	let Just posBuf = wrc^.wrcPosSSBs.at layerId
+	let Just vao = wrc^.wrcVaos.at layerId
+	let Just element = wrc^.wrcElements.at layerId
 
-	GL.bindBufferBase' GL.UniformBuffer posIndex posSSB
-	logGL "renderNormalLayer: bindBufferBase' posIndex"
-	GL.uniformBlockBinding program posIndex posIndex	
-	logGL "renderNormalLayer: uniformBlockBinding posIndex"
+	GL.bindVertexArrayObject $= (Just vao)
 
-	GL.bindBufferBase' GL.UniformBuffer layerIndex layerSSB
-	logGL "renderNormalLayer: bindBufferBase' layerIndex"
-	GL.uniformBlockBinding program layerIndex layerIndex
-	logGL "renderNormalLayer: uniformBlockBinding layerIndex"
+	print ((world^.R.wLayerNumObjects layerName), layerName)
 
-	print (posIndex, layerIndex)
-	print (fromIntegral $ world^.R.wLayerNumObjects layerName)
-	GL.drawArraysInstanced GL.Triangles 0 6 (fromIntegral (world^.R.wLayerNumObjects layerName))
+	GL.bindBuffer GL.ElementArrayBuffer $= Just element
+
+	GLRaw.glDrawElements GLRaw.gl_TRIANGLES (6*(fromIntegral (world^.R.wLayerNumObjects layerName))) GLRaw.gl_UNSIGNED_INT nullPtr
 	logGL "renderNormalLayer: drawArraysInstanced"
 
 renderWorldRenderContext :: GL.Program -> WorldRenderContext -> IO ()
 renderWorldRenderContext program wrc = do
-	print "get world"
+	--print "get world"
 	let world = wrc^.wrcWorld
-	print "bind wrc"
+	--print "bind wrc"
 	bindWorldRenderContext wrc program
 
-	print "bind num tilesets"
+	--print "bind num tilesets"
 	numTilesets <- GL.get $ GL.uniformLocation program "numTileSets"
 	logGL "renderWorldRenderContext: uniformLoc numTilesets"
 	GL.uniform numTilesets $= GL.Index1 (fromIntegral $ 
@@ -215,7 +263,7 @@ renderWorldRenderContext program wrc = do
 	logGL "renderWorldRenderContext: uniform numTilesets"
 
 
-	print "bind tilesets"
+	--print "bind tilesets"
 	tilesetIndex <- GL.getUniformBlockIndex program "TileSets"
 	logGL "renderWorldRenderContext: getUniformBlockIndex"
 	GL.bindBufferBase' GL.UniformBuffer tilesetIndex (wrc^.wrcTilesetSSB)
@@ -223,8 +271,8 @@ renderWorldRenderContext program wrc = do
 	GL.uniformBlockBinding program tilesetIndex tilesetIndex	
 	logGL "renderWorldRenderContext: uniformBlockBinding tilesetIndex"
 
-	print (tilesetIndex, numTilesets)
-	print $ Map.size (world^.R.mapTilesets)
+	--print (tilesetIndex, numTilesets)
+	--print $ Map.size (world^.R.mapTilesets)
 
 	mapM_ (\i -> do
 			sampler <- GL.get $ GL.uniformLocation program ("Texture" ++ show i)
@@ -234,7 +282,5 @@ renderWorldRenderContext program wrc = do
 		) [0..Map.size (wrc^.wrcTextures)-1]
 
 	mapM_ (\(layerName, layerId) -> do
-		let Just layerBuf = wrc^.wrcLayerSSBs.at layerId
-		let Just posBuf = wrc^.wrcPosSSBs.at layerId
-		renderNormalLayer program layerBuf posBuf layerName world
+		renderNormalLayer program wrc layerName layerId world
 		) (Map.toList $ world^.R.mapHashes.R.hashLayers)

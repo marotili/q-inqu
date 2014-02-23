@@ -35,12 +35,12 @@ applyCommonDelta wd = do
 
 	world <- get
 	let newStaticCollidables = Set.toList $ wd^.wdCommon.wcDelta.wcStaticCollidable
-	let newStatic = map (\oId -> 
-			let (pos, size) = world^.tileBoundary oId in (oId, pos, size)
-		) newStaticCollidables
+	--let newStatic = map (\oId -> 
+	--		let (pos, size) = world^.tileBoundary oId in (oId, pos, size)
+	--	) newStaticCollidables
 
-	unless (null newStatic) $
-		wCollisionManager %= execState (octreeAddStatics newStatic)
+	--unless (null newStatic) $
+	--	wCollisionManager %= execState (octreeAddStatics newStatic)
 
 	world2 <- get
 	-- pos and boundary for collision

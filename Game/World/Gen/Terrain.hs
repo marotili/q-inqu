@@ -131,7 +131,7 @@ makeLenses ''Collect
 
 tileBoundaries gm = map (^.collectBoundary) $ loop (bottomTiles gm) [] 
 	where
-		loop tileMap collection = let (collected, newTileMap) = matchBox tileMap in traceShow (newTileMap) $
+		loop tileMap collection = let (collected, newTileMap) = matchBox tileMap in 
 			if newTileMap == Map.empty 
 				then collection ++ collected
 				else loop newTileMap (collected ++ collection)
@@ -224,22 +224,37 @@ testBound = do
 			| y1 < y2 = LT
 			| y1 == y2 && x1 < x2 = LT
 			| otherwise = GT
-world = 
-	[ [Wall, Wall, 	Wall,  Wall, Wall,  Wall,  Wall,  Wall,  Wall,  Wall, Wall,  Wall,   Wall]
-	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
-	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
-	, [Wall, Floor, Floor, Floor,Floor, Wall, Wall, Wall, Floor, Floor,Floor, Floor,  Wall]
-	, [Wall, Floor, Floor, Floor,Floor, Wall,  Wall,  Wall,  Floor, Floor,Floor, Floor,  Wall]
-	, [Wall, Floor, Floor, Floor,Floor, Wall,  Wall,  Wall,  Floor, Floor,Floor, Floor,  Wall]
-	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
-	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
-	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
-	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
-	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
-	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
-	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
-	, [Wall, Wall, 	Wall,  Wall, Wall,  Wall,  Wall,  Wall,  Wall,  Wall, Wall,  Wall,   Wall]
-	]
+--world = 
+--	[ [Wall, Wall, 	Wall,  Wall, Wall,  Wall,  Wall,  Wall,  Wall,  Wall, Wall,  Wall,   Wall]
+--	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
+--	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
+--	, [Wall, Floor, Floor, Floor,Floor, Wall, Wall, Wall, Floor, Floor,Floor, Floor,  Wall]
+--	, [Wall, Floor, Floor, Floor,Floor, Wall,  Wall,  Wall,  Floor, Floor,Floor, Floor,  Wall]
+--	, [Wall, Floor, Floor, Floor,Floor, Wall,  Wall,  Wall,  Floor, Floor,Floor, Floor,  Wall]
+--	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
+--	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
+--	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
+--	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
+--	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
+--	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
+--	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
+--	, [Wall, Wall, 	Wall,  Wall, Wall,  Floor,  Floor,  Wall,  Wall,  Wall, Wall,  Wall,   Wall]
+--	, [Wall, Wall, 	Wall,  Wall, Wall,  Floor,  Floor,  Wall,  Wall,  Wall, Wall,  Wall,   Wall]
+--	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
+--	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
+--	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
+--	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
+--	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
+--	, [Wall, Floor, Floor, Floor,Floor, Floor, Floor, Floor, Floor, Floor,Floor, Floor,  Wall]
+--	, [Wall, Wall, 	Wall,  Wall, Wall,  Wall,  Wall,  Wall,  Wall,  Wall, Wall,  Wall,   Wall]
+--	]
+
+floors = take 38 $ repeat Floor
+
+world = [take 40 $ repeat Wall] ++
+	[[Wall] ++ floors ++ [Wall] | _ <- [0..37]] ++
+	[take 40 $ repeat Wall]
+
 
 newMapFromList lists = newGenMap 
 	& mapBaseCells .~ foldr (uncurry Map.insert) Map.empty

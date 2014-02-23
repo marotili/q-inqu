@@ -95,7 +95,7 @@ playerMovement = untilV movingDirectionE
 			(dx, dy) <- movingDirectionR -< pId
 
 			-- move the player
-			_ <- moveR -< (pId, (-dx*200, dy*200))
+			_ <- moveR -< (pId, (-dx*300, dy*300))
 
 			-- set new orientation
 			let orientation = orientationFromDelta (-dx, dy)

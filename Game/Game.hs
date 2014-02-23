@@ -116,7 +116,7 @@ newGame name = do
 	tiledMap <- T.tMap
 	let genMap = Gen.mkGenWorld
 	(oldWorld, newWorld, delta, manager) <- mkGameWorld tiledMap (50, -200) genMap
-	print delta 
+	--print delta 
 	let renderWorld = mkRenderWorld tiledMap delta genMap
 	let (newRenderWorld, newRenderables) = 
 		updateRender delta oldWorld newWorld renderWorld []
@@ -198,7 +198,6 @@ mkRenderWorld tiledMap delta genMap = nWorld
 			& R.wRenderConfig .~ newRenderConfig
 
 		nWorld = 
-			traceShow (renderWorld^.R.wRenderConfig) $
 			R.wUpdate (do
 				R.wLayer "BottomLayer" .= (Just $ R.newLayer R.TileLayerType)
 				R.wLayer "ObjectLayer" .= (Just $ R.newLayer R.ObjectLayerType)
@@ -237,8 +236,7 @@ mkGameWorld tiledMap startPos genMap = do
 			returnA -< ()
 		initWalls (((ox, oy), (px, py)):wallsData) = proc input -> do
 
-			wallsId <- spawnObjectAt "Wall" (ox, -oy) -< 
-				traceShow(((ox, oy), (px, py))) $ input
+			wallsId <- spawnObjectAt "Wall" (ox, -oy) -< input
 			_ <- wLiftSetOnce setBoundary (
 					[ (0, -py + oy)
 					, (0, 0)
@@ -252,7 +250,7 @@ mkGameWorld tiledMap startPos genMap = do
 
 		initWire = proc input -> do
 			p1Id <- spawnObjectAt "Player1" startPos -< input
-			p2Id <- spawnObjectAt "Player2" (0, 0) -< input
+			p2Id <- spawnObjectAt "Player2" (200, -50) -< input
 
 			_ <- animate (G.objectAnimation 1 G.South) -< p1Id
 			_ <- animate (G.objectAnimation 2 G.South) -< p2Id

@@ -2,7 +2,7 @@
 module Game.Render.Render 
 	(
 	  setupShaders
-	, uploadFromVec, updateFromVec
+	, uploadFromVec, updateFromVec, updateNewFromVec
     , uniformInfo
 	) where
 
@@ -64,8 +64,16 @@ updateFromVec target buf vec = do
     GL.bindBuffer target $= Just buf
     logGL "updateFromVec: bind buffer"
     V.unsafeWith vec $ \ptr ->
-    	GL.bufferSubData target WriteToBuffer (fromIntegral 0) (fromIntegral $ sizeOf(undefined::Float) * V.length vec) ptr
+        GL.bufferSubData target WriteToBuffer (fromIntegral 0) (fromIntegral $ sizeOf(undefined::Float) * V.length vec) ptr
     logGL "updateFromVec: buffer sub data"
+
+updateNewFromVec :: (Storable a) => GL.BufferTarget -> GL.BufferObject -> V.Vector a -> IO ()
+updateNewFromVec target buf vec = do
+    GL.bindBuffer target $= Just buf
+    logGL "uploadFromVec: bind buffer"
+    V.unsafeWith vec $ \ptr ->
+        GL.bufferData target $= (fromIntegral $ sizeOf(undefined::Float) * (V.length vec), ptr, GL.DynamicDraw)
+    logGL "uploadFromVec: buffer data"
 
 setupShaders :: String -> String -> IO Program
 setupShaders vertName fragName = do
