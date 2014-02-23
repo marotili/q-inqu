@@ -46,25 +46,45 @@ data Game = Game
 newRenderConfig :: R.RenderConfig
 newRenderConfig = execState (do
 		-- players
-		R.rcTiles . at "PlayerS1" .= Just ("sprite_klein3", 0)
-		R.rcTiles . at "PlayerS2" .= Just ("sprite_klein3", 1)
-		R.rcTiles . at "PlayerS3" .= Just ("sprite_klein3", 2)
-		R.rcTiles . at "PlayerS4" .= Just ("sprite_klein3", 3)
+		R.rcTiles . at "Player1S1" .= Just ("sprite_klein3", 0)
+		R.rcTiles . at "Player1S2" .= Just ("sprite_klein3", 1)
+		R.rcTiles . at "Player1S3" .= Just ("sprite_klein3", 2)
+		R.rcTiles . at "Player1S4" .= Just ("sprite_klein3", 3)
 
-		R.rcTiles . at "PlayerN1" .= Just ("sprite_klein3", 8)
-		R.rcTiles . at "PlayerN2" .= Just ("sprite_klein3", 9)
-		R.rcTiles . at "PlayerN3" .= Just ("sprite_klein3", 10)
-		R.rcTiles . at "PlayerN4" .= Just ("sprite_klein3", 11)
+		R.rcTiles . at "Player1N1" .= Just ("sprite_klein3", 8)
+		R.rcTiles . at "Player1N2" .= Just ("sprite_klein3", 9)
+		R.rcTiles . at "Player1N3" .= Just ("sprite_klein3", 10)
+		R.rcTiles . at "Player1N4" .= Just ("sprite_klein3", 11)
 
-		R.rcTiles . at "PlayerW1" .= Just ("sprite_klein3", 16)
-		R.rcTiles . at "PlayerW2" .= Just ("sprite_klein3", 17)
-		R.rcTiles . at "PlayerW3" .= Just ("sprite_klein3", 18)
-		R.rcTiles . at "PlayerW4" .= Just ("sprite_klein3", 19)
+		R.rcTiles . at "Player1W1" .= Just ("sprite_klein3", 16)
+		R.rcTiles . at "Player1W2" .= Just ("sprite_klein3", 17)
+		R.rcTiles . at "Player1W3" .= Just ("sprite_klein3", 18)
+		R.rcTiles . at "Player1W4" .= Just ("sprite_klein3", 19)
 
-		R.rcTiles . at "PlayerE1" .= Just ("sprite_klein3", 28)
-		R.rcTiles . at "PlayerE2" .= Just ("sprite_klein3", 29)
-		R.rcTiles . at "PlayerE3" .= Just ("sprite_klein3", 30)
-		R.rcTiles . at "PlayerE4" .= Just ("sprite_klein3", 31)
+		R.rcTiles . at "Player1E1" .= Just ("sprite_klein3", 28)
+		R.rcTiles . at "Player1E2" .= Just ("sprite_klein3", 29)
+		R.rcTiles . at "Player1E3" .= Just ("sprite_klein3", 30)
+		R.rcTiles . at "Player1E4" .= Just ("sprite_klein3", 31)
+
+		R.rcTiles . at "Player2S1" .= Just ("ghost_sprite", 0)
+		R.rcTiles . at "Player2S2" .= Just ("ghost_sprite", 1)
+		R.rcTiles . at "Player2S3" .= Just ("ghost_sprite", 2)
+		R.rcTiles . at "Player2S4" .= Just ("ghost_sprite", 3)
+
+		R.rcTiles . at "Player2N1" .= Just ("ghost_sprite", 4)
+		R.rcTiles . at "Player2N2" .= Just ("ghost_sprite", 5)
+		R.rcTiles . at "Player2N3" .= Just ("ghost_sprite", 6)
+		R.rcTiles . at "Player2N4" .= Just ("ghost_sprite", 7)
+
+		R.rcTiles . at "Player2W1" .= Just ("ghost_sprite", 8)
+		R.rcTiles . at "Player2W2" .= Just ("ghost_sprite", 9)
+		R.rcTiles . at "Player2W3" .= Just ("ghost_sprite", 10)
+		R.rcTiles . at "Player2W4" .= Just ("ghost_sprite", 11)
+
+		R.rcTiles . at "Player2E1" .= Just ("ghost_sprite", 12)
+		R.rcTiles . at "Player2E2" .= Just ("ghost_sprite", 13)
+		R.rcTiles . at "Player2E3" .= Just ("ghost_sprite", 14)
+		R.rcTiles . at "Player2E4" .= Just ("ghost_sprite", 15)
 	
 		-- arrows
 		R.rcTiles . at "ArrowW" .= Just ("arrow", 0)

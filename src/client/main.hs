@@ -144,7 +144,7 @@ main = withSocketsDo $ do
           -- generate map from tiled
           game <- newGame "TheGame"
 
-          rc <- Render.newRenderContext game
+          rc <- Render.newRenderContext playerId game
           -- default render context
           renderContext <- newTVarIO rc
 

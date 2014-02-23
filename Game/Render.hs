@@ -21,7 +21,8 @@ import Game.Render.World
 import Game.Game
 
 data RenderContext = RenderContext
-	{ _rcMainProgram :: Program
+	{ _rcPlayerId :: Int
+	, _rcMainProgram :: Program
 	, _rcWorldRenderContext :: WorldRenderContext
 	, _rcLightContext :: LightContext
 	, _rcVisibilityContext :: VisibilityContext
@@ -29,8 +30,8 @@ data RenderContext = RenderContext
 	}
 makeLenses ''RenderContext
 
-newRenderContext :: Game -> IO RenderContext
-newRenderContext game = do
+--newRenderContext :: Game -> IO RenderContext
+newRenderContext playerId game = do
 	GL.blendFunc $= (GL.SrcAlpha, GL.OneMinusSrcAlpha)
 	GL.blend $= GL.Enabled
 	logGL "newRenderContext: blend setup failed"
@@ -49,7 +50,8 @@ newRenderContext game = do
 	vc <- newVisibilityContext (world^.wCollisionManager) (0, 0)
 
 	return RenderContext
-		{ _rcMainProgram = program
+		{ _rcPlayerId = playerId
+		, _rcMainProgram = program
 		, _rcWorldRenderContext = wrc
 		, _rcLightContext = lc
 		, _rcVisibilityContext = vc
@@ -76,7 +78,7 @@ render window rc cam = do
 
 	let world = rc^.rcWorldRenderContext.wrcWorld
 
-	let Just (x, y) = world^?wLayerObject "ObjectLayer" "Player1"._Just.roPos
+	let Just (x, y) = world^?wLayerObject "ObjectLayer" ("Player" ++ show (rc^.rcPlayerId))._Just.roPos
 	let newCam = cameraUpdatePosition cam (-x) (-y)
 
 	let newRc = rc -- & rcLightContext.lcLights._head.lightPosition .~ (-x, y)

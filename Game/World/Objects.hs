@@ -88,6 +88,17 @@ data Orientation =
     | West
     | NorthWest
     deriving (Eq)
+
+toInt :: Orientation -> Int
+toInt North = 0
+toInt NorthEast = 1
+toInt East = 2
+toInt SouthEast = 3
+toInt South = 4
+toInt SouthWest = 5
+toInt West = 6
+toInt NorthWest = 7
+
 instance Show Orientation where
     show North = "N"
     show NorthEast = "NE"
@@ -122,95 +133,19 @@ orientationFromDelta (dx, dy)
     
 
 objectAnimation :: ObjectId -> Orientation -> Animation
-objectAnimation 1 NorthWest = objectAnimation 1 North
-objectAnimation 1 NorthEast = objectAnimation 1 North
-objectAnimation 1 SouthEast = objectAnimation 1 South
-objectAnimation 1 SouthWest = objectAnimation 1 South
-objectAnimation 1 South = a1
+objectAnimation pId NorthWest = objectAnimation pId North
+objectAnimation pId NorthEast = objectAnimation pId North
+objectAnimation pId SouthEast = objectAnimation pId South
+objectAnimation pId SouthWest = objectAnimation pId South
+
+objectAnimation playerId dir = a1
     where
-        a1 = Animation 1 "PlayerS1" 0.25 a2 0 
-        a2 = Animation 1 "PlayerS1" 0.25 a3 0
-        a3 = Animation 1 "PlayerS1" 0.25 a4 0
-        a4 = Animation 1 "PlayerS1" 0.25 a1 0
-
---objectAnimation 1 North = b1
---    where
---        b1 = Animation 2 81 0.25 b2 0
---        b2 = Animation 2 82 0.25 b3 0
---        b3 = Animation 2 83 0.25 b4 0
---        b4 = Animation 2 84 0.25 b1 0
-
---objectAnimation 1 West = c1
---    where
---        c1 = Animation 3 89 0.25 c2 0
---        c2 = Animation 3 90 0.25 c3 0
---        c3 = Animation 3 91 0.25 c4 0
---        c4 = Animation 3 92 0.25 c1 0
-
---objectAnimation 1 East = d1
---    where
---        d1 = Animation 4 101 0.25 d2 0
---        d2 = Animation 4 102 0.25 d3 0
---        d3 = Animation 4 103 0.25 d4 0
---        d4 = Animation 4 104 0.25 d1 0
-
---objectAnimation 2 NorthWest = objectAnimation 2 North
---objectAnimation 2 NorthEast = objectAnimation 2 North
---objectAnimation 2 SouthEast = objectAnimation 2 South
---objectAnimation 2 SouthWest = objectAnimation 2 South
---objectAnimation 2 South = a1
---    where
---        a1 = Animation 7 137 0.25 a2 0 
---        a2 = Animation 7 138 0.25 a3 0
---        a3 = Animation 7 139 0.25 a4 0
---        a4 = Animation 7 140 0.25 a1 0
-
---objectAnimation 2 North = b1
---    where
---        b1 = Animation 8 141 0.25 b2 0
---        b2 = Animation 8 142 0.25 b3 0
---        b3 = Animation 8 143 0.25 b4 0
---        b4 = Animation 8 144 0.25 b1 0
-
---objectAnimation 2 West = c1
---    where
---        c1 = Animation 9 145 0.25 c2 0
---        c2 = Animation 9 146 0.25 c3 0
---        c3 = Animation 9 147 0.25 c4 0
---        c4 = Animation 9 148 0.25 c1 0
-
---objectAnimation 2 East = d1
---    where
---        d1 = Animation 10 149 0.25 d2 0
---        d2 = Animation 10 150 0.25 d3 0
---        d3 = Animation 10 151 0.25 d4 0
---        d4 = Animation 10 152 0.25 d1 0
-
---objectAnimation 3 _ = a1
---    where
---        a1 = Animation 5 105 2 a2 0 
---        a2 = Animation 5 106 0.1 a3 0
---        a3 = Animation 5 107 0.1 a4 0
---        a4 = Animation 5 108 0.1 a1 0
-
---objectAnimation 4 _ = a1
---    where
---        a1 = Animation 6 109 2 a2 0 
---        a2 = Animation 6 110 0.1 a3 0
---        a3 = Animation 6 111 0.1 a4 0
---        a4 = Animation 6 112 0.1 a1 0
-
-objectAnimation _ _ = let a1 = Animation 1 "PlayerS1" 0.25 a1 0 in a1
-
+        animName num = "Player" ++ show playerId ++ show dir ++ show num
+        a1 = Animation (playerId*toInt dir) (animName 1) 0.25 a2 0 
+        a2 = Animation (playerId*toInt dir) (animName 2) 0.25 a3 0
+        a3 = Animation (playerId*toInt dir) (animName 3) 0.25 a4 0
+        a4 = Animation (playerId*toInt dir) (animName 4) 0.25 a1 0
 
 arrowAnimation :: Orientation -> Animation
 arrowAnimation dir = let a1 = Animation 99 ("Arrow" ++ show dir) 999 a1 0 in a1
 
-
---arrowAnimation NorthWest = let a1 = Animation 99 114 999 a1 0 in a1
---arrowAnimation North = let a1 = Animation 99 115 999 a1 0 in a1
---arrowAnimation NorthEast = let a1 = Animation 99 116 999 a1 0 in a1
---arrowAnimation East = let a1 = Animation 99 117 999 a1 0 in a1
---arrowAnimation SouthEast = let a1 = Animation 99 118 999 a1 0 in a1
---arrowAnimation South = let a1 = Animation 99 119 999 a1 0 in a1
---arrowAnimation SouthWest = let a1 = Animation 99 120 999 a1 0 in a1

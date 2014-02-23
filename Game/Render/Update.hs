@@ -93,7 +93,7 @@ update = do
 				-- tileset of tile
 				tileMap <- use $ 
 					R.wRenderConfig . rcTiles
-				let Just (tilesetName, localTileId) =
+				let Just (tilesetName, localTileId) = traceShow (tileName, tileMap) $
 					tileMap ^. L.at (tileName)
 
 				Just tsId <- use $ mapHashes . gameTilesets . L.at tilesetName
