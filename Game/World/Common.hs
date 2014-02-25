@@ -45,6 +45,15 @@ data Realm = Realm
 	{ _realmName :: String
 	}
 
+--type TrackerId = ObjectId
+--data TrackingManager = TrackingManager
+--	{ _tmTracking :: Map.Map ObjectId [(TrackerId, ObjectWire TrackerId ())]
+--	}
+--newTrackingManager = TrackingManager
+--	{ _tmTracking = Map.empty
+--	}
+
+
 
 data WorldCommon = WorldCommon
 	{ _wcPositions :: ObjectProp Position
@@ -65,7 +74,8 @@ data WorldCommon = WorldCommon
 	-- | trackDelta = runTrackWires worldNew
 	-- | worldFinal = applyDelta worldNew trackDelta
 	-- | renderDelta = mappend delta trackDelta
-	, _wcTrack :: [ObjectWire ObjectId ()]
+	-- we need a tree for this
+	--, _wcTrack :: TrackingManager
 	}
 
 instance Show WorldCommon where
@@ -83,14 +93,14 @@ data WorldDelta = WorldDelta
 	} deriving (Show)
 
 data World = World
-    { _wCommon :: WorldCommon
-    , _wObjects :: ObjectProp Object
+    { _wCommon :: !WorldCommon
+    , _wObjects :: !(ObjectProp Object)
 
 	-- list of objects ignored for this object
-	, _wCollisionFilter :: ObjectProp (Set.Set ObjectId)
+	, _wCollisionFilter :: !(ObjectProp (Set.Set ObjectId))
 
-    , _wCollisionManager :: C.GameOctree
-    , _wTileBoundary :: (Float, Float)
+    , _wCollisionManager :: !C.GameOctree
+    , _wTileBoundary :: !(Float, Float)
     } deriving (Show)
 
 data WorldManager = WorldManager
@@ -109,6 +119,7 @@ wcEmpty = WorldCommon
  	, _wcStaticCollidable = Set.empty
  	, _wcRealm = Map.empty
  	, _wcOrientation = Map.empty
+ 	--, _wcTrack = newTrackingManager
  	}
 
 emptyW :: World
@@ -136,6 +147,7 @@ makeLenses ''WorldCommonDelta
 makeLenses ''WorldCommon
 makeLenses ''World
 makeLenses ''WorldDelta
+makeLenses ''TrackingManager	
 
 alterPos :: (Float, Float) -> Maybe (Float, Float) -> Maybe (Float, Float)
 alterPos val Nothing = Just val
@@ -223,3 +235,11 @@ worldManagerUpdate manager actions = manager2
 				) actions
 			) manager0
 
+
+--isCircular :: ObjectId -> TrackerId -> TrackingManager -> Bool
+--isCircular oId tId tm 
+--	| oId == tId = True
+--	| isNothing tracking = False
+--	| otherwise = any (\newTId -> isCircular oId newTId tm) $ map fst (tm^.tmTracking.at tId._Just)
+--	where
+--		tracking = tm^.tmTracking.at tId

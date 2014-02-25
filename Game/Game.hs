@@ -160,14 +160,16 @@ gameStepWorld ::
 	-> WorldManager 
 	-> Rational 
 	-> (WorldWire () b, (WorldManager, WorldDelta))
-gameStepWorld w' world' state' dt' = (w, (worldManager, worldDelta))
+gameStepWorld w' world' state' dt' = (newWire, (worldManager, worldDelta))
 	where
 		dt = W.Timed (fromRational dt') ()
 	-- run wires
-		(w, worldManager, worldDelta) = runRWS (do
+		(newWire, worldManager, worldDelta) = runRWS (do
 				(mx, newWire) <- W.stepWire w' dt (Right ())
 				return newWire
 			) world' state'
+
+		--tracking = world'^.wCommon.wcTrack
 
 --updateRender :: G.WorldDelta -> G.World -> G.World -> R.World -> (R.World, [U.Renderable])
 updateRender delta oldWorld newWorld renderWorld renderablesIn = (renderWorld3, newRenderablesDeleted ++ newRenderables)

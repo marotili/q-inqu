@@ -20,6 +20,7 @@ import qualified Data.Set as Set
 import Linear
 import Debug.Trace
 import Control.Lens
+import Data.Monoid
 
 type ObjectIds = Set.Set ObjectId
 type ObjectId = Int
@@ -30,6 +31,15 @@ type SwitchId = ObjectId
 type PlayerId = ObjectId
 type WallId = ObjectId
 type BoulderId = ObjectId
+
+type Position = (Float, Float)
+
+newtype One a = One { unOne :: Maybe a }
+instance Monoid (One a) where
+    mempty = One Nothing
+    mappend (One Nothing) (One x) = One x
+    mappend (One x) (One Nothing) = One x
+    mappend _ _ = error "One cannot be used twice"
 
 data Object = Object
 	{ _objId :: ObjectId

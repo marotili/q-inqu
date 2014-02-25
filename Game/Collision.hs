@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, TypeFamilies#-}
+{-# LANGUAGE TemplateHaskell, TypeFamilies, BangPatterns #-}
 module Game.Collision where
 
 -- * Note: we query using the maximum boundary diameter of all objects
@@ -14,6 +14,7 @@ import Control.Lens
 import Game.World.Objects
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Data.List
 
 -- Axis aligned box (2D for now, z ignored)
 data Boundary = Boundary
@@ -159,8 +160,11 @@ octreeQueryObject oId = do
 		queryPointInHull hull = any (\point -> pointInConvexHull point hull) queryConvexHull
 		hullPointInQueryPoint hull = any (\point -> pointInConvexHull point queryConvexHull) hull
 
-		collisions = foldr (\(obj, hull) -> if queryPointInHull hull || hullPointInQueryPoint hull
-			then (++) [obj] else (++) []) [] $ zip otherObjects otherObjectsConvexHull
+		collisions = foldl' (\s (obj, hull) -> if let 
+				!pih = queryPointInHull hull
+				!hpiqp = hullPointInQueryPoint hull
+				in pih || hpiqp
+			then (++) [obj] s else (++) [] s) [] $ zip otherObjects otherObjectsConvexHull
 
 	return $ Set.toList . Set.fromList $ map _ooObjectId collisions
 
@@ -168,13 +172,14 @@ octreeQueryObject oId = do
 objectLines :: [(Float, Float)] -> [((Float, Float), (Float, Float))]
 objectLines points = zip points (tail points ++ [head points])
 
+-- FIXME speed
 -- for now we assume the real boundary to be convex and clockwise
 pointInConvexHull :: (Double, Double) -> [(Double, Double)] -> Bool
 pointInConvexHull (px, py) convexHullLines = isInside
 	where
 		lineSegments = zip convexHullLines (tail convexHullLines ++ [head convexHullLines])
-		normals = map (\((ax, ay), (bx, by)) -> (by - ay, -(bx - ax))) lineSegments
-		isInside = all (\((ox, oy), (x, y)) -> x*(px - ox) + y*(py - oy) > 0) $ zip convexHullLines normals
+		!normals = map (\((ax, ay), (bx, by)) -> (by - ay, -(bx - ax))) lineSegments
+		!isInside = all (\((ox, oy), (x, y)) -> x*(px - ox) + y*(py - oy) > 0) $ zip convexHullLines normals
 
 
 testCollision :: [ObjectId]

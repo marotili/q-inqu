@@ -140,13 +140,6 @@ newObjects = to getNew
             filter (\mobj -> case mobj of Just _ -> True; _ -> False) $
             map snd $ Map.toList objectMap
 
-newtype One a = One { unOne :: Maybe a }
-instance Monoid (One a) where
-    mempty = One Nothing
-    mappend (One Nothing) (One x) = One x
-    mappend (One x) (One Nothing) = One x
-    mappend _ _ = error "One cannot be used twice"
-
 findObject :: String -> Getter World (Maybe Object)
 findObject name = to (\w -> 
         unOne $ ifoldMap (\_ obj -> One $
