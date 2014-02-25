@@ -23,6 +23,8 @@ applyCommonDelta wd = do
 	wCommon.wcAnimations %= \animations -> 
 		(wd^.wdCommon.wcDelta.wcAnimations) `Map.union` animations -- left biased
 
+	wCommon.wcRotations %= \old -> Map.unionWith mappend old (wd^.wdCommon.wcDelta.wcRotations)
+
 	-- we drop all wires from the last state
 	wCommon.wcWires .= wd^.wdCommon.wcDelta.wcWires
 

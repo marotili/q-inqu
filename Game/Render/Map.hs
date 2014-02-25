@@ -96,7 +96,7 @@ wElementData world layerName = get
 
 updateWorldRenderContext :: WorldRenderContext -> IO ()
 updateWorldRenderContext wrc = do
-	print (wrc^.wrcWorld.R.mapUpdateLayers)
+	--print (wrc^.wrcWorld.R.mapUpdateLayers)
 	mapM_ (\layerId -> do
 		let layerName = wrc^.wrcWorld.R.wLayerName layerId
 		let Just layerBuf = wrc^.wrcLayerSSBs.at layerId
@@ -155,7 +155,7 @@ newWorldRenderContext world program = do
 			let Just elementBuf = wrc^.wrcElements.at layerId
 			--print (world^.R.wTileIds layerName.wTileData)
 			--print (world^.R.wTilePos layerName.wPosData)
-			print $ wElementData (wrc^.wrcWorld) layerName
+			--print $ wElementData (wrc^.wrcWorld) layerName
 			uploadFromVec 0 GL.ArrayBuffer layerBuf (world^.R.wTileIds layerName.wTileData)
 			uploadFromVec 0 GL.ArrayBuffer posBuf (world^.R.wTilePos layerName.wPosData)
 			uploadFromVec 0 GL.ElementArrayBuffer elementBuf (wElementData (wrc^.wrcWorld) layerName)
@@ -241,7 +241,7 @@ renderNormalLayer program wrc layerName layerId world = do
 
 	GL.bindVertexArrayObject $= (Just vao)
 
-	print ((world^.R.wLayerNumObjects layerName), layerName)
+	--print ((world^.R.wLayerNumObjects layerName), layerName)
 
 	GL.bindBuffer GL.ElementArrayBuffer $= Just element
 

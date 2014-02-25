@@ -16,7 +16,6 @@ import qualified Control.Monad as CM
 
 type ObjectProp a = Map.Map ObjectId a
 type ObjectType = Set.Set ObjectId
-type Position = (Float, Float)
 type Physics = Int
 
 type Boundary = [(Float, Float)]
@@ -53,10 +52,15 @@ data Realm = Realm
 --	{ _tmTracking = Map.empty
 --	}
 
+type Rotation = Float
+instance Monoid Float where
+	mempty = 0.0
+	mappend x y = x + y
 
 
 data WorldCommon = WorldCommon
 	{ _wcPositions :: ObjectProp Position
+	, _wcRotations :: ObjectProp Rotation
 	, _wcPhysics :: ObjectProp Physics
 	, _wcAnimations :: ObjectProp Animation
 
@@ -111,6 +115,7 @@ data WorldManager = WorldManager
 wcEmpty :: WorldCommon
 wcEmpty = WorldCommon
  	{ _wcPositions = Map.empty
+ 	, _wcRotations = Map.empty
  	, _wcPhysics = Map.empty
  	, _wcAnimations = Map.empty
  	, _wcCollisionEvents = Map.empty
@@ -147,7 +152,7 @@ makeLenses ''WorldCommonDelta
 makeLenses ''WorldCommon
 makeLenses ''World
 makeLenses ''WorldDelta
-makeLenses ''TrackingManager	
+--makeLenses ''TrackingManager	
 
 alterPos :: (Float, Float) -> Maybe (Float, Float) -> Maybe (Float, Float)
 alterPos val Nothing = Just val
@@ -158,6 +163,8 @@ mergeCommonDelta wc2 = do
 	wcPositions %= \positions -> Map.unionWith (\(x, y) (x2, y2) -> (x + x2, y + y2)) positions (wc2^.wcPositions)
 		--foldr (\(k, v) -> Map.alter (alterPos v) k) positions $
 			--Map.toList (wc2^.wcPositions)
+
+	wcRotations %= Map.unionWith (mappend) (wc2^.wcRotations)
 
 	wcWires %= Map.unionWith (++) (wc2^.wcWires)
 	wcAnimations %= Map.union (wc2^.wcAnimations) -- left biased
@@ -202,7 +209,7 @@ instance Monoid WorldDelta where
         --	& wdObjects .~ (obj1 `Map.union` obj2)
         --	& wdCollisionFilter .~ (wd1^.wdCollisionFilter) `mappend` (wd2^.wdCollisionFilter)
 
-
+t a = case a of ActionSpawnArrow {} -> True; _ -> False
 worldManagerUpdate :: WorldManager -> [(Int, A.Action)] -> WorldManager
 worldManagerUpdate manager actions = manager2
 	where
@@ -214,7 +221,7 @@ worldManagerUpdate manager actions = manager2
 					else mempty
 
 				wmPlayerActions %= \pa -> foldr (\action -> 
-						if action == ActionSpawnArrow || action == ActionStopMove 
+						if t action || action == ActionStopMove 
 							then Map.delete pId
 							else id
 						) pa $ Set.toList playerActions 

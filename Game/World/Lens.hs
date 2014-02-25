@@ -42,6 +42,12 @@ compPosition = Component
     , _compSet = wdCommon.wcDelta.wcPositions
     }    
 
+compRotation :: Component' (ObjectProp Rotation)
+compRotation = Component
+    { _compGet = wCommon.wcRotations
+    , _compSet = wdCommon.wcDelta.wcRotations
+    }
+
 compWires :: Component' (ObjectProp [ObjectWire ObjectId ()])
 compWires = Component
     { _compGet = wCommon.wcWires
@@ -108,6 +114,18 @@ getPositions = _compGet compPosition
 
 objectPosition :: ObjectId -> Getter World (Maybe Position)
 objectPosition oId = getPositions . at oId
+
+-- | Rotation component
+setRotations :: Setter' WorldDelta (ObjectProp Rotation)
+setRotations = _compSet compRotation
+getRotations :: Getter World (ObjectProp Rotation)
+getRotations = _compGet compRotation
+
+rotateObject :: (MonadWriter WorldDelta m) 
+    => ObjectId -> Rotation -> m ()
+rotateObject = writeProp setRotations 
+objectRotation :: ObjectId -> Get (Maybe Rotation)
+objectRotation oId = getRotations . at oId
 
 moveObject :: (MonadWriter WorldDelta m) => ObjectId -> (Float, Float) -> m ()
 moveObject = writeProp setPositions

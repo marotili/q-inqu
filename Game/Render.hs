@@ -68,7 +68,7 @@ clearWindow window = do
 	GL.viewport $= (GL.Position 0 0, GL.Size (fromIntegral width) (fromIntegral height))
 	logGL "clearWindow: viewport"
 
-render :: GLFW.Window -> RenderContext -> Camera -> IO ()
+render :: GLFW.Window -> RenderContext -> Camera -> IO Camera
 render window rc cam = do
 	-- update camera in every frame for now
 	--(width, height) <- GLFW.getFramebufferSize window
@@ -109,6 +109,8 @@ render window rc cam = do
 	programSetViewProjection (newRc^.rcMainProgram) (cameraSetOriginTopLeft newCam)
 	updateWorldRenderContext uirc
 	renderWorldRenderContext (newRc^.rcMainProgram) uirc
+
+	return newCam
 
 
 	--updateLightContext (newRc^.rcLightContext)

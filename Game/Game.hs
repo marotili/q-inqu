@@ -85,7 +85,20 @@ newRenderConfig = execState (do
 		R.rcTiles . at "Player2E2" .= Just ("ghost_sprite", 13)
 		R.rcTiles . at "Player2E3" .= Just ("ghost_sprite", 14)
 		R.rcTiles . at "Player2E4" .= Just ("ghost_sprite", 15)
-	
+
+		R.rcTiles . at "Player2E4" .= Just ("ghost_sprite", 15)
+		R.rcTiles . at "Player2E4" .= Just ("ghost_sprite", 15)
+
+		R.rcTiles . at "Player3S1" .= Just ("dino", 0)
+		R.rcTiles . at "Player3S2" .= Just ("dino", 1)
+		R.rcTiles . at "Player3S3" .= Just ("dino", 2)
+		R.rcTiles . at "Player3S4" .= Just ("dino", 3)
+
+		R.rcTiles . at "Player4S1" .= Just ("dino", 4)
+		R.rcTiles . at "Player4S2" .= Just ("dino", 5)
+		R.rcTiles . at "Player4S3" .= Just ("dino", 6)
+		R.rcTiles . at "Player4S4" .= Just ("dino", 7)
+
 		-- arrows
 		R.rcTiles . at "ArrowW" .= Just ("arrow", 0)
 		R.rcTiles . at "ArrowNW" .= Just ("arrow", 1)
@@ -273,12 +286,18 @@ mkGameWorld tiledMap startPos genMap = do
 		initWire = proc input -> do
 			p1Id <- spawnObjectAt "Player1" startPos -< input
 			p2Id <- spawnObjectAt "Player2" (200, -50) -< input
+			p3Id <- spawnObjectAt "Player3" (200, -150) -< input
+			p4Id <- spawnObjectAt "Player4" (200, -250) -< input
 
 			_ <- animate (G.objectAnimation 1 G.South) -< p1Id
 			_ <- animate (G.objectAnimation 2 G.South) -< p2Id
+			_ <- animate (G.objectAnimation 3 G.South) -< p3Id
+			_ <- animate (G.objectAnimation 4 G.South) -< p4Id
 
 			_ <- wLiftSetOnce setBoundary G.playerBoundary -< p1Id
 			_ <- wLiftSetOnce setBoundary G.playerBoundary -< p2Id
+			_ <- wLiftSetOnce setBoundary G.playerBoundary -< p3Id
+			_ <- wLiftSetOnce setBoundary G.playerBoundary -< p4Id
 
 			_ <- initWalls wallBoundaries -< input
 

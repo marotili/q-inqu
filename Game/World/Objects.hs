@@ -148,6 +148,22 @@ objectAnimation pId NorthEast = objectAnimation pId North
 objectAnimation pId SouthEast = objectAnimation pId South
 objectAnimation pId SouthWest = objectAnimation pId South
 
+objectAnimation 3 dir = a1
+    where
+        animName num = "Player" ++ show 3 ++ "S" ++ show num
+        a1 = Animation (3*toInt dir) (animName 1) 0.25 a2 0 
+        a2 = Animation (3*toInt dir) (animName 2) 0.25 a3 0
+        a3 = Animation (3*toInt dir) (animName 3) 0.25 a4 0
+        a4 = Animation (3*toInt dir) (animName 4) 0.25 a1 0
+
+objectAnimation 4 dir = a1
+    where
+        animName num = "Player" ++ show 4 ++ "S" ++ show num
+        a1 = Animation (4*toInt dir) (animName 1) 0.25 a2 0 
+        a2 = Animation (4*toInt dir) (animName 2) 0.25 a3 0
+        a3 = Animation (4*toInt dir) (animName 3) 0.25 a4 0
+        a4 = Animation (4*toInt dir) (animName 4) 0.25 a1 0
+
 objectAnimation playerId dir = a1
     where
         animName num = "Player" ++ show playerId ++ show dir ++ show num

@@ -25,6 +25,7 @@ import Game.World.Import.Tiled
 
 import Game.World.Delta
 import Game.World.Wires
+import Game.World.Lens
 import Game.World.Common
 import qualified Game.World.Objects as World
 
@@ -79,11 +80,17 @@ update = do
 	mapM_ (\obj -> do
 			let oId = obj^.objId 
 			let Just oPos = world^.objectPosition oId
+			let mRot = world^.objectRotation oId
 
 			tiledMap <- get
 
 			-- update position
 			wLayerObject "ObjectLayer" (obj^.objName) . _Just . roPos .= oPos
+			case mRot of
+				Just rot -> 
+					wLayerObject "ObjectLayer" (obj^.objName) 
+						. _Just . roRotation .= rot
+				Nothing -> return ()
 
 			-- animation
 			let mTileName = world^?getAnimations. L.at oId._Just.animTileName
@@ -93,8 +100,8 @@ update = do
 				-- tileset of tile
 				tileMap <- use $ 
 					R.wRenderConfig . rcTiles
-				let Just (tilesetName, localTileId) = traceShow (tileName, tileMap) $
-					tileMap ^. L.at (tileName)
+				let Just (tilesetName, localTileId) = 
+					tileMap ^. L.at tileName
 
 				Just tsId <- use $ mapHashes . gameTilesets . L.at tilesetName
 

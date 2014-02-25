@@ -27,6 +27,8 @@ library
 
         Game.Game
 
+        Game.World.AI.Basic
+
         Game.Render.Render
         Game.Render.Map
         Game.Render.Camera

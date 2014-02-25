@@ -2,6 +2,7 @@
 
 module Main where
 
+import Debug.Trace
 import Game.World
 
 import Control.Monad.RWS
@@ -30,12 +31,18 @@ import Control.Concurrent.STM
 import Pipes as P
 import Pipes.Network.TCP
 import Pipes.Concurrent
+import Control.Lens
+import qualified Data.Set as Set
 import qualified Pipes.Binary as PB
 
 import Game.World.Common
+import Game.Game
+import Control.Monad.State
 import Data.Tiled
 
 import qualified Game.Input.Actions as A
+import Game.World.AI.Basic
+import Game.Network.Client
 
 type ProdDecoder a = (Monad m)	 
 	=> Producer B.ByteString m r
@@ -44,18 +51,7 @@ decodeAction :: ProdDecoder FromClientData
 decodeAction = PB.decodeMany
 
 
---stepWorld :: WorldWire () b -> WorldSession -> World -> WorldManager -> 
---	IO ((WorldWire () b, WorldSession), (WorldManager, WorldDelta), NominalDiffTime)
---stepWorld w' session' world' state' = do
---	-- update session
---	(dt, session) <- stepSession session'
 
---	-- run wires
---	((_, w), worldManager, worldDelta) <- runRWS (
---		stepWire w' dt (Right ())
---		) world' state'
-
---	return ((w, session), (worldManager, worldDelta), dtime dt)
 
 type FromClientData = (Float, Int, A.Action)
 type ClientData = ([(Int, A.Action)], Rational)
@@ -68,15 +64,13 @@ collect actions = do
 	else
 		collect (actions ++ [(pId, action)])
 
-produceWorld :: WorldSession ->
-	Pipe FromClientData ClientData IO ()
+--produceWorld :: WorldSession ->
+	--Pipe FromClientData ClientData IO ()
 produceWorld session' = do
 	--(t, action) <- P.await
 	actions <- collect []
 	(dt, session) <- lift $ stepSession session'
-	--let manager2 = worldManagerUpdate manager actions
 
-	--((w', session'), (manager', delta), dt) <- lift $ stepWorld w session world manager2
 
 	P.yield (actions, realToFrac . dtime $ dt)
 
@@ -90,9 +84,33 @@ produceWorld session' = do
 --	lift $ print p
 --	P.yield p
 
-game :: Input FromClientData -> Output C.ByteString -> IO ()
-game recvEvents output = do
+fakeClient game = do
+		(_, (actions, dt)) <- await
+		let manager2 = worldManagerUpdate (game^.gameWorldManager) actions
+
+		let ((actions1, actions2), newGame) = runState (do
+				gameWorldManager .= manager2
+				updateGame dt
+				world <- use gameLogicWorld 
+				worldDelta <- use gameLastDelta
+				manager <- use gameWorldManager
+
+				let A.InputActions aiInput1 = runAI 3 world worldDelta dt
+				let A.InputActions aiInput2 = runAI 4 world worldDelta dt
+				return (aiInput1, aiInput2)
+			) game
+
+		mapM_ (\a -> P.yield (0, 3, a)) $ Set.toList actions1 
+		mapM_ (\a -> P.yield (0, 4, a)) $ Set.toList actions2
+		fakeClient newGame
+
+runFakeClient input output game = 
+	void (decodeSteps (fromInput input)) >-> fakeClient game >-> toOutput output
+
+runGame :: Input FromClientData -> Output C.ByteString -> IO ()
+runGame recvEvents output = do
 	let session = clockSession_
+
 
 	let
 		worldProducer :: Pipe (Float, Int, A.Action) ClientData IO ()
@@ -115,6 +133,7 @@ main :: IO ()
 main = withSocketsDo $ do
 	(output1, input1) <- spawn Unbounded
 	(output2, input2) <- spawn Unbounded
+	(output3, input3) <- spawn Unbounded
 
 	(sendEvents1, recvEvents1) <- spawn Unbounded :: IO (Output FromClientData, Input FromClientData)
 	--(sendEvents2, recvEvents2) <- spawn Unbounded
@@ -124,13 +143,18 @@ main = withSocketsDo $ do
 
 	let recvEvents = recvEvents1
 	--let sendEvents = sens
-	let output = output1 Monoid.<> output2
+	let output = output1 Monoid.<> output2 Monoid.<> output3
 
 	_ <- async $ do
 		runEffect $ eventUpdate >-> toOutput sendEvents1
 		performGC
 
-	a1 <- async $ game recvEvents output
+	game <- newGame "test"
+
+	a1 <- async $ runGame recvEvents output
+	_ <- async $ do
+		runEffect $ runFakeClient input3 sendEvents1 game
+		performGC
 
 	serve HostIPv4 "5002" (connCb (numClient, sendEvents1, input1, input2))
 

@@ -24,7 +24,7 @@ data Action =
 	| ActionStopMove -- maybe needed for interpolation
 	| ActionPickup
 	| ActionActivate Direction
-	| ActionSpawnArrow
+	| ActionSpawnArrow Float Float
 	| ActionUpdateGameState
 	deriving (Show, Eq, Ord)
 
@@ -112,7 +112,10 @@ instance Binary Action where
 		put dir
 	put ActionPickup = put (3 :: Word8)
 	put ActionStopMove = put (4 :: Word8)
-	put ActionSpawnArrow = put (5 :: Word8)
+	put (ActionSpawnArrow x y) = do
+		put (5 :: Word8)
+		put x
+		put y
 	put ActionUpdateGameState = put (6 :: Word8)
 
 	get = do
@@ -131,8 +134,10 @@ instance Binary Action where
 				return ActionPickup	
 			4 -> 
 				return ActionStopMove
-			5 ->
-				return ActionSpawnArrow
+			5 -> do
+				x <- get
+				y <- get
+				return $ ActionSpawnArrow x y
 			6 -> 
 				return ActionUpdateGameState
 			_ -> error "Invalid value while decoding Action"

@@ -252,17 +252,14 @@ run :: Show b
   -> InputWire Int b 
   -> Demo ()
 run i session w = do
-    lift $ print "Run begin"
     win <- asks envWindow
 
     Just start <- liftIO GLFW.getTime
 
 
-    lift $ print "Render begin"
     -- render
     draw
 
-    lift $ print "Process events"
     liftIO $ do
         GLFW.swapBuffers win
         --GL.flush  -- not necessary, but someone recommended it
@@ -375,10 +372,9 @@ draw = do
 
   let cam = asks stateCam state
 
-  lift $ print "Client: Render"
-
-  lift $ Render.render win rc cam
-  lift $ print "Client: Render finished"
+  newCam <- lift $ Render.render win rc cam
+  modify $ \s -> s { stateCam = newCam }
+  modify $ \s -> s { stateInput = stateInput s >> inputSetCamera newCam }
 
   return ()
 

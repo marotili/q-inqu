@@ -12,6 +12,7 @@ module Game.World
 	, testwire
 	) where
 
+import Debug.Trace
 import Game.World.Lens
 import Control.Monad.RWS
 import Control.Monad.State
@@ -51,7 +52,7 @@ spawnArrow = spawn . thenDo (inhibit WireFinished)
 		spawn = proc playerId -> do	
 			(oId, playerPos, playerDir) <- step1 -< playerId
 			_ <- setup -< (oId, playerPos, playerDir, playerId)
-			_ <- spawnWire -< (oId, playerDir)
+			_ <- spawnWire -< (playerId, oId, playerDir)
 
 			returnA -< ()
 
@@ -61,15 +62,21 @@ spawnArrow = spawn . thenDo (inhibit WireFinished)
 			Just playerDir <- wLiftF (\pId -> view $ getOrientations . L.at pId) -< playerId
 			returnA -< (oId, playerPos, playerDir)
 
-		spawnWire = proc (oId, playerDir) -> do
-			let (dx, dy) = deltaFromOrientation playerDir
-			let wire = moveArrow (dx*400, dy*400)
+		spawnWire = proc (pId, oId, playerDir) -> do
+			--let (dx, dy) = deltaFromOrientation playerDir
+			(dx, dy) <- spawnArrowDirection -< pId
+			_ <- wLiftSetOnceR rotateObject -< (oId, if
+				dy > 0 
+					then acos dx
+					else -(acos dx)
+				)
+			let wire = traceShow (dx, dy, dx**2 + dy**2) $ moveArrow (dx*400, dy*400)
 			_ <- newObjectWireR -< (oId, wire)
 			returnA -< ()
 
 		setup = proc (oId, playerPos, playerDir, playerId) -> do
 			_ <- setPosOnceR -< (oId, playerPos)
-			_ <- animateR -< (oId, arrowAnimation playerDir)
+			_ <- animateR -< (oId, arrowAnimation East)
 			_ <- wLiftSetOnceR setBoundary -< (oId, arrowBoundary playerDir)
 			_ <- wLiftSetOnceR setIgnoreCollision -< (oId, playerId)
 			_ <- wLiftSetOnceR setIgnoreCollision -< (playerId, oId)
@@ -85,17 +92,17 @@ playerSpawnArrow = untilV spawnArrowEvent
 --swordTrackPlayer = 
 
 
-playerMovement :: ObjectWire PlayerId ()
-playerMovement = untilV movingDirectionE 
+--playerMovement :: ObjectWire PlayerId ()
+playerMovement baseSpeed = untilV movingDirectionE 
 	W.--> movePlayer
-	W.--> playerMovement
+	W.--> playerMovement baseSpeed
 	where
 		movePlayer = proc pId -> do
 			-- Direction of player
 			(dx, dy) <- movingDirectionR -< pId
 
 			-- move the player
-			_ <- moveR -< (pId, (-dx*300, dy*300))
+			_ <- moveR -< (pId, (-dx*baseSpeed, dy*baseSpeed))
 
 			-- set new orientation
 			let orientation = orientationFromDelta (-dx, dy)
@@ -109,17 +116,19 @@ playerMovement = untilV movingDirectionE
 playerWire :: ObjectWire ObjectId ()
 playerWire = proc pId -> do
 	_ <- playerSpawnArrow -< pId
-	_ <- playerMovement -< pId
+	_ <- playerMovement 300 -< pId
 	returnA -< ()
 
 dinoWire :: ObjectWire ObjectId ()
 dinoWire = proc pId -> do
 	_ <- animate (objectAnimation 3 North) -< pId
+	_ <- playerMovement 100 -< 3
 	returnA -< ()
 
 beeWire :: ObjectWire ObjectId ()
 beeWire = proc pId -> do
 	_ <- animate (objectAnimation 4 North) -< pId
+	_ <- playerMovement 400 -< 4
 	returnA -< ()
 
 testwire :: WorldWire a ()
@@ -127,8 +136,8 @@ testwire = proc input -> do
 	_ <- stepObjectWires -< input
 	_ <- once . newObjectWire 1 playerWire -< input
 	_ <- once . newObjectWire 2 playerWire -< input
-	--_ <- once . newObjectWire 3 dinoWire -< input
-	--_ <- once . newObjectWire 4 beeWire -< input
+	_ <- once . newObjectWire 3 dinoWire -< input
+	_ <- once . newObjectWire 4 beeWire -< input
 
 	returnA -< ()
 

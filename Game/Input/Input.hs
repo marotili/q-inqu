@@ -1,27 +1,28 @@
 {-# LANGUAGE Arrows #-}
 {-# OPTIONS -Wall #-}
 
-module Game.Input.Input 
-	(
-	-- * Input
-	  UserInput
-	, inputNew, inputKeyDown, inputKeyUp
-	, inputMouseButtonDown, inputMouseButtonUp
-	, inputUpdateMousePos
+module Game.Input.Input where
+	--(
+	---- * Input
+	--  UserInput
+	--, inputNew, inputKeyDown, inputKeyUp
+	--, inputMouseButtonDown, inputMouseButtonUp
+	--, inputUpdateMousePos
 
-	, keyDown, keyUp
-	, keyDownEvent, keyUpEvent
+	--, keyDown, keyUp
+	--, keyDownEvent, keyUpEvent
 
-	-- * Wires
-	, InputWire
-	, stepInput, userInput
+	---- * Wires
+	--, InputWire
+	--, stepInput, userInput
 
-	-- * Utils
-	, untilV
-	) where
+	---- * Utils
+	--, untilV
+	--) where
 
 import Prelude hiding ((.))
 import Control.Wire
+import GHC.Float
 
 -- for W.-->
 import qualified Control.Wire as W 
@@ -38,11 +39,14 @@ import Game.Input.Actions
 
 import Linear
 
+import Game.Render.Camera
+
 -- input data
 data UserInput = UserInput
   { inputKeys :: Set.Set GLFW.Key
   , inputMouseButtons :: Set.Set GLFW.MouseButton
   , inputMousePos :: (Double, Double)
+  , inputPlayerCamera :: Camera
   } deriving (Show)
 
 data InputMemory = InputMemory
@@ -58,10 +62,14 @@ inputNew = UserInput
   { inputKeys = Set.empty
   , inputMouseButtons = Set.empty
   , inputMousePos = (0, 0)
+  , inputPlayerCamera = newDefaultCamera 0 0
   }
 
 inputMemoryNew :: InputMemory
 inputMemoryNew = InputMemory {}
+
+inputSetCamera :: Camera -> State UserInput ()
+inputSetCamera cam = modify $ \i -> i { inputPlayerCamera = cam }
 
 inputKeyDown :: GLFW.Key -> State UserInput ()
 inputKeyDown k = modify $ \i -> i { inputKeys = Set.insert k (inputKeys i) }
@@ -184,5 +192,9 @@ moveAction = mkGenN $ \(V2 x y) ->
 
 spawnAction :: InputWire a (Event ())
 spawnAction = mkGenN $ \_ -> do
-	writer ((), newInputAction ActionSpawnArrow)
+	is <- ask 
+	let (mx, my) = inputMousePos is
+	let V2 x y = screenToOpenGLCoords (inputPlayerCamera is) 
+		(double2Float mx) (double2Float my)
+	writer ((), newInputAction (ActionSpawnArrow x y))
 	return (Right (Event ()), never)

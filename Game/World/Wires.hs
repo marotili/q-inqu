@@ -2,6 +2,7 @@
 module Game.World.Wires where
 
 import qualified Data.Map as Map
+import Debug.Trace
 import qualified Data.Set as Set
 import Game.World.Objects
 import qualified Game.World.Lens as World
@@ -21,6 +22,7 @@ import Game.World.Lens
 import Data.Maybe
 import qualified Game.Input.Actions as A
 import Prelude hiding ((.))
+import Linear
 import qualified Prelude as P
 
 --instance Par.MonadParallel (RWST World WorldDelta WorldManager IO)
@@ -165,7 +167,7 @@ spawnObject name = mkGenN $ \_ -> do
 	World.addObject oId (Object oId name)
 	return (Right (W.Event oId), never)
 
-removeObject :: WorldWire (ObjectId) (Event ())
+removeObject :: WorldWire ObjectId (Event ())
 removeObject = mkGenN $ \oId -> do
 	World.deleteObject oId
 	return (Right (W.Event ()), never)
@@ -202,13 +204,36 @@ while = W.when (\a ->
 --asLongAs = mkGenN $ \a -> do
 	--case a of
 		--Event x -> return (Right x, asLongAs)
+
+spawnArrowDirection :: WorldWire PlayerId (Float, Float)
+spawnArrowDirection = mkGenN $ \pId -> do
+	actions <- get >>= \wm -> return $ wm^.wmPlayerActions
+	if Map.member pId actions
+		then do
+			let (A.InputActions playerActions) = actions Map.! pId
+			let as = filter 
+				(\a -> case a of A.ActionSpawnArrow {} -> True; _ -> False)
+				$ Set.toList playerActions	
+			return $ if not (null as)
+				then do
+					let A.ActionSpawnArrow x y = head as
+					let V2 dx dy = normalize (V2 x (-y))
+					(Right (dx, dy), spawnArrowDirection)
+				else
+					(Right (0, 0), spawnArrowDirection)
+		else
+			return (Right (0, 0), spawnArrowDirection)
+
 spawnArrowEvent :: WorldWire PlayerId (Event ())
 spawnArrowEvent = mkGenN $ \pId -> do
 	actions <- get >>= \wm -> return $ wm^.wmPlayerActions
 	if Map.member pId actions
 		then do
 			let (A.InputActions playerActions) = actions Map.! pId
-			return $ if Set.member A.ActionSpawnArrow playerActions
+			let as = filter 
+				(\a -> case a of A.ActionSpawnArrow {} -> True; _ -> False)
+				$ Set.toList playerActions
+			return $ if not (null as)
 				then
 					(Right $ W.Event (), spawnArrowEvent)
 				else

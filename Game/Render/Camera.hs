@@ -33,13 +33,13 @@ data Projection = OrthogonalProjection
 	{ projectionMatrix :: M44 Float
 	, projectionWidth :: Float
 	, projectionHeight :: Float
-	}
+	} deriving (Show)
 
 data Camera = Camera 
 	{ cameraProjection :: Projection
 	, cameraPosition :: V3 Float 
 	, cameraOrientation :: Quaternion Float
-	}
+	} deriving (Show)
 
 cameraUpdatePosition :: Camera -> Float -> Float -> Camera
 cameraUpdatePosition cam x y = cam { cameraPosition = V3 x y (-1) }
@@ -55,6 +55,13 @@ screenToOpenGLCoords Camera { cameraProjection } x y = V2 2 (-2) * V2 ((x/w) - 0
 	where
 		w = projectionWidth cameraProjection
 		h = projectionHeight cameraProjection
+
+--screenToWorldCoords :: Camera -> Float -> Float -> V2 Float
+--screenToWorldCoords (cam@Camera { cameraPosition }) x y = v2*w v2*h
+--	where
+--		V2 vx vy = screenToOpenGLCoords cam x y
+--		w = projectionWidth cameraProjection
+--		h = projectionHeight cameraProjection
 
 cameraInverse :: Camera -> V4 Float -> V4 Float
 cameraInverse cam vec = (invViewM !*! invProjM) !* vec
