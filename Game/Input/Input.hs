@@ -1,4 +1,4 @@
-{-# LANGUAGE Arrows #-}
+{-# LANGUAGE Arrows, TemplateHaskell #-}
 {-# OPTIONS -Wall #-}
 
 module Game.Input.Input where
@@ -40,12 +40,44 @@ import Game.Input.Actions
 import Linear
 
 import Game.Render.Camera
+import Control.Lens
+
+data XCButtons = 
+	  XC'A | XC'B | XC'X | XC'Y
+	| XC'RB | XC'LB | XC'Home | XC'Back | XC'Start
+	| XC'LS | XC'RS
+	deriving (Show, Ord, Eq)
+
+buttons = [XC'A, XC'B, XC'X, XC'Y, XC'LB, XC'RB, XC'Back, XC'Start, XC'Home, XC'LS, XC'RS]
+makeSet ls = foldr (\(s, b) set -> if s == GLFW.JoystickButtonState'Pressed then Set.insert b set else set)
+	Set.empty $ zip ls buttons
+
+data XboxController = XboxController
+	{ _xcLeftTrigger :: Double
+	, _xcRightTrigger :: Double
+	, _xcLeftStick :: (Double, Double)
+	, _xcRightStick :: (Double, Double)
+	, _xcPad :: (Double, Double)
+	, _xcButtons :: Set.Set XCButtons
+	} deriving (Show)
+
+newXboxController = XboxController
+	{ _xcLeftTrigger = 0
+	, _xcRightTrigger = 0
+	, _xcLeftStick = (0, 0)
+	, _xcRightStick = (0, 0)
+	, _xcPad = (0, 0)
+	, _xcButtons = Set.empty
+	}
+
+makeLenses ''XboxController
 
 -- input data
 data UserInput = UserInput
   { inputKeys :: Set.Set GLFW.Key
   , inputMouseButtons :: Set.Set GLFW.MouseButton
   , inputMousePos :: (Double, Double)
+  , inputJoystick :: XboxController
   , inputPlayerCamera :: Camera
   } deriving (Show)
 
@@ -62,11 +94,15 @@ inputNew = UserInput
   { inputKeys = Set.empty
   , inputMouseButtons = Set.empty
   , inputMousePos = (0, 0)
+  , inputJoystick = newXboxController
   , inputPlayerCamera = newDefaultCamera 0 0
   }
 
 inputMemoryNew :: InputMemory
 inputMemoryNew = InputMemory {}
+
+inputUpdateController :: XboxController -> State UserInput ()
+inputUpdateController xc = modify $ \i -> i { inputJoystick = xc }
 
 inputSetCamera :: Camera -> State UserInput ()
 inputSetCamera cam = modify $ \i -> i { inputPlayerCamera = cam }
@@ -104,6 +140,11 @@ inputState cond = mkGenN $ \a -> do
     then (Right a, inputState cond)
     else (Left () , inputState cond)
 
+inputGet :: InputContext a -> InputWire b a
+inputGet f = mkGenN $ \a -> do
+  eventHappened <- f
+  return (Right eventHappened, inputGet f)
+
 keyDownEvent :: GLFW.Key -> InputWire a (Event a)
 keyDownEvent key = inputEvent (liftM (Set.member key . inputKeys) ask)
 
@@ -115,6 +156,12 @@ keyDown key = inputState (liftM (Set.member key . inputKeys) ask)
 
 keyUp :: GLFW.Key -> InputWire a a
 keyUp key = inputState (liftM (not . Set.member key . inputKeys) ask)
+
+buttonDownEvent :: XCButtons -> InputWire a (Event a)
+buttonDownEvent button = inputEvent (liftM (Set.member button . _xcButtons . inputJoystick) ask)
+
+buttonUpEvent :: XCButtons -> InputWire a (Event a)
+buttonUpEvent button = inputEvent (liftM (not . Set.member button . _xcButtons . inputJoystick) ask)
 
 stepInput ::  
 	   InputWire Int b 
@@ -146,6 +193,11 @@ movement = void (W.when (\(V2 dx dy) -> abs dx < 0.005 && abs dy < 0.005)) . lif
     W.--> moveAction . liftA2 (+) directionX directionY
     W.--> stopMoveAction W.--> movement
 
+directionController = inputGet (liftM (\is -> (\(dx, dy) -> V2 (double2Float dx) (double2Float dy)) $ inputJoystick is ^. xcLeftStick) ask)
+movementController = void (W.when (\(V2 dx dy) -> abs dx < 0.005 && abs dy < 0.005)) . directionController
+ 	W.--> moveAction . W.when (\(V2 dx dy) -> abs dx > 0.005 || abs dy > 0.005) . directionController
+    W.--> stopMoveAction W.--> movementController
+
 untilV :: (Monoid e, Monad m) => W.Wire s e m a (Event b) -> W.Wire s e m a ()
 untilV source = W.until . fmap(\e -> ((), e)) source
 
@@ -161,6 +213,12 @@ spawn = untilV (keyDownEvent GLFW.Key'Space)
 	W.--> waitOneUpdate -- We need a state update at this point
 	W.--> spawn
 
+spawnController :: InputWire a ()
+spawnController = untilV (buttonDownEvent XC'A)
+	W.--> for 0.5 . asSoonAs . spawnAction . once . buttonDownEvent XC'A
+	W.--> waitOneUpdate -- We need a state update at this point
+	W.--> spawnController
+
 waitOneUpdate :: InputWire a ()
 waitOneUpdate = mkGenN $ \_ ->
 	return (Right (), inhibit ())
@@ -168,7 +226,9 @@ waitOneUpdate = mkGenN $ \_ ->
 userInput :: InputWire a ((), ())
 userInput = proc input -> do
 	_ <- movement -< input
+	_ <- movementController -< input
 	_ <- spawn -< input
+	_ <- spawnController -< input
 	returnA -< ((), ())
 
 stopMoveAction :: InputWire a ()
@@ -196,5 +256,10 @@ spawnAction = mkGenN $ \_ -> do
 	let (mx, my) = inputMousePos is
 	let V2 x y = screenToOpenGLCoords (inputPlayerCamera is) 
 		(double2Float mx) (double2Float my)
-	writer ((), newInputAction (ActionSpawnArrow x y))
+
+	let (lsx, lsy) = inputJoystick is ^. xcLeftStick
+	if abs lsx > 0.1 || abs lsy > 0.1 then 
+		writer ((), newInputAction (ActionSpawnArrow (double2Float lsx) (double2Float lsy)))
+	else
+		writer ((), newInputAction (ActionSpawnArrow x y))
 	return (Right (Event ()), never)

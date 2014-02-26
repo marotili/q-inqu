@@ -214,7 +214,7 @@ updateGame dt = do
 	renderWorld <- use $ gameRenderWorld
 
 	let (newWire, (newManager, newDelta)) = gameStepWorld worldWire world oldManager dt
-	let newWorld = traceShow (newDelta^.wdCommon.wcDelta.wcCollisionEvents) $ G.applyDelta world newDelta
+	let newWorld = G.applyDelta world newDelta
 	let (newRenderWorld, newRenderables) = updateRender newDelta world newWorld renderWorld renderablesIn
 
 	gameRenderObjects .= newRenderables

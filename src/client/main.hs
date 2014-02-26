@@ -8,6 +8,7 @@ import Control.Concurrent.STM    (TQueue, TVar, newTVarIO, readTVar, writeTVar, 
 import Control.Monad.Reader
 import Control.Monad.RWS.Strict  (RWST, evalRWST, get, modify)
 import Data.List                 (intercalate)
+import Data.Maybe
 import qualified Control.Wire as W
 --import Control.Monoid
 import qualified Data.Set as Set
@@ -272,9 +273,25 @@ run i session w = do
 
     let userTime = case userTime2 of Just time -> realToFrac time; Nothing -> 0
 
+    (xl, yl, lt, xr, yr, rt, px, py, buttons) <- liftIO $ getJoystickData GLFW.Joystick'1
+
+    let xc = XboxController { _xcLeftTrigger = lt
+        , _xcRightTrigger = rt
+        , _xcLeftStick = (if abs xl < 0.3 then 0 else xl, if abs yl < 0.3 then 0 else yl)
+        , _xcRightStick = (if abs xr < 0.3 then 0 else xr, if abs yr < 0.3 then 0 else yr)
+        , _xcPad = (px, py)
+        , _xcButtons = makeSet buttons
+        }
+
+    liftIO $ print xc
+
+    modify $ \s -> s { stateInput = stateInput s >> inputUpdateController xc }
+
     -- user input
     let input = asks stateInput state -- maybe not threadsafe
+
     (actions@(InputActions as), session', w') <- liftIO $ stepInput w session input
+
     ac <- asks envActionChan
     let evaluatedActions = (userTime, actions)
     let stm = writeTQueue ac evaluatedActions
@@ -335,7 +352,8 @@ processEvent ev =
 
           modify $ \s -> s { stateInput = stateInput s >> inputUpdateMousePos (x, y) }
 
-      (EventKey win k _ ks _) -> do
+      (EventKey win k scancode ks mk) -> do
+          liftIO $ print (k, scancode, ks, mk)
           when (ks == GLFW.KeyState'Pressed) $ do
               -- Q, Esc: exit
               when (k == GLFW.Key'Escape) $
@@ -383,7 +401,7 @@ printInformation win = do
     version <- GLFW.getVersion
     versionString <- GLFW.getVersionString
     --monitorInfos <- runMaybeT getMonitorInfos
-    --joystickNames <- getJoystickNames
+    joystickNames <- getJoystickNames
     clientAPI <- GLFW.getWindowClientAPI win
     cv0 <- GLFW.getWindowContextVersionMajor win
     cv1 <- GLFW.getWindowContextVersionMinor win
@@ -405,10 +423,10 @@ printInformation win = do
         --nest 4 (
           --renderMonitorInfos monitorInfos
         --) $+$
-        --text "Joysticks:" $+$
-        --nest 4 (
-          --renderJoystickNames joystickNames
-        --) $+$
+        text "Joysticks:" $+$
+        nest 4 (
+          renderJoystickNames joystickNames
+        ) $+$
         text "OpenGL context:" $+$
         nest 4 (
           text "Client API:" <+> renderClientAPI clientAPI $+$
@@ -447,8 +465,8 @@ printInformation win = do
     --    rgb = int r <> text "x" <> int g <> text "x" <> int b
     --    hz = int rr <> text "Hz"
 
-    --renderJoystickNames pairs =
-    --    vcat $ map (\(js, name) -> text (show js) <+> text (show name)) pairs
+    renderJoystickNames pairs =
+        vcat $ map (\(js, name) -> text (show js) <+> text (show name)) pairs
 
     renderContextVersion v0 v1 v2 =
         hcat [int v0, text ".", int v1, text ".", int v2]
@@ -458,3 +476,39 @@ printInformation win = do
     renderForwardCompat = text . show
     renderDebug = text . show
     renderProfile = text . show
+
+getJoystickNames :: IO [(GLFW.Joystick, String)]
+getJoystickNames =
+    catMaybes `fmap` mapM getJoystick joysticks
+  where
+    getJoystick js =
+        fmap (maybe Nothing (\name -> Just (js, name)))
+             (GLFW.getJoystickName js)
+
+joysticks :: [GLFW.Joystick]
+joysticks =
+  [ GLFW.Joystick'1
+  , GLFW.Joystick'2
+  , GLFW.Joystick'3
+  , GLFW.Joystick'4
+  , GLFW.Joystick'5
+  , GLFW.Joystick'6
+  , GLFW.Joystick'7
+  , GLFW.Joystick'8
+  , GLFW.Joystick'9
+  , GLFW.Joystick'10
+  , GLFW.Joystick'11
+  , GLFW.Joystick'12
+  , GLFW.Joystick'13
+  , GLFW.Joystick'14
+  , GLFW.Joystick'15
+  , GLFW.Joystick'16
+  ]
+
+--getJoystickData :: GLFW.Joystick -> IO (Double, Double)
+getJoystickData js = do
+    maxes <- GLFW.getJoystickAxes js
+    Just buttons <- GLFW.getJoystickButtons js
+    return $ case maxes of
+      (Just (x:y:lt:xr:yr:rt:px:py:[])) -> (-x, -y, lt, xr, yr, rt, px, py, buttons)
+      _ -> (0, 0, 0, 0, 0, 0, 0, 0, [])
