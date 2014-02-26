@@ -101,12 +101,14 @@ data RenderObject = RenderObject
 	{ _roId :: ObjectId
 	, _roPos :: Position
 	, _roRotation :: Float
+	, _roOrigin :: Position
 	} deriving (Eq, Show)
 
 newRenderObject oId pos rotation = RenderObject
 	{ _roId = oId
 	, _roPos = pos
 	, _roRotation = rotation
+	, _roOrigin = (0, 0)
 	}
 
 data LayerType = TileLayerType | ObjectLayerType
@@ -452,19 +454,22 @@ wTileIds layerName = to get
 				getTileTileId tile = world^.wTileTileId tile
 
 
-wTilePos :: String -> Getter World [(Float, Float, Float)]
+wTilePos :: String -> Getter World [(Float, Float, Float, Float, Float)]
 wTilePos layerName = to get
 	where
 		get world = case layer of
 			TileLayer { _layerTiles } -> map (\(x, y) ->
 					( fromIntegral $ x * world^.mapTileWidth
 					, fromIntegral $ y * world^.mapTileHeight
+					, 0, 0
 					, 0
 					)
 				) $ Map.keys _layerTiles
 			ObjectLayer { _layerObjects } -> map (\obj -> 
 					( obj^.roPos._1
 					, obj^.roPos._2
+					, obj^.roOrigin._1
+					, obj^.roOrigin._2
 					, obj^.roRotation
 					)
 				) $ sortBy sortY $ Map.elems _layerObjects

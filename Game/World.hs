@@ -46,12 +46,39 @@ moveArrow direction = proc oId -> do
 			-< oId
 	returnA -< ()
 
+data Arrow = Arrow
+instance Spawnable Game.World.Arrow where
+	spawnPosition Arrow = proc playerId -> do
+			Just playerPos <- wLiftF (\pId -> view $ getPositions . L.at pId) -< playerId
+			returnA -< playerPos
+
+class Spawnable a where
+	spawnPosition :: a -> WorldWire PlayerId (Float, Float)
+	spawnRotation :: a -> WorldWire PlayerId Float
+
+	spawn :: a -> WorldWire PlayerId ()
+	spawn obj = proc spawnerId -> do
+		Event oId <- spawnObjectMakeName -< spawnerId
+		position <- spawnPosition obj -< spawnerId
+
+		_ <- setPosOnceR -< (oId, position)
+		--_ <- animateR -< (oId, startAnimation)
+		--_ <- wLiftSetOnceR setBoundary -< (oId, boundary)
+		--_ <- wLiftSetOnceR rotateObject -< (oId, angle)
+		returnA -< ()
+
+--ignore = proc (oId, playerId) -> do
+--	_ <- wLiftSetOnceR setIgnoreCollision -< (oId, playerId)
+--	_ <- wLiftSetOnceR setIgnoreCollision -< (playerId, oId)
+--	returnA -< ()
+
+
 spawnArrow :: ObjectWire PlayerId ()
 spawnArrow = spawn . thenDo (inhibit WireFinished)
 	where
 		spawn = proc playerId -> do	
 			(oId, playerPos, playerDir) <- step1 -< playerId
-			_ <- setup -< (oId, playerPos, playerDir, playerId)
+			_ <- setup -< (oId, playerId, playerPos, playerDir, playerId)
 			_ <- spawnWire -< (playerId, oId, playerDir)
 
 			returnA -< ()
@@ -70,14 +97,20 @@ spawnArrow = spawn . thenDo (inhibit WireFinished)
 					then acos dx
 					else -(acos dx)
 				)
-			let wire = traceShow (dx, dy, dx**2 + dy**2) $ moveArrow (dx*400, dy*400)
+			let wire = moveArrow (dx*400, dy*400)
 			_ <- newObjectWireR -< (oId, wire)
 			returnA -< ()
 
-		setup = proc (oId, playerPos, playerDir, playerId) -> do
+		setup = proc (oId, pId, playerPos, playerDir, playerId) -> do
+			(dx, dy) <- spawnArrowDirection -< pId
+			let rotation = if
+				dy > 0 
+					then acos dx
+					else -(acos dx)
+
 			_ <- setPosOnceR -< (oId, playerPos)
 			_ <- animateR -< (oId, arrowAnimation East)
-			_ <- wLiftSetOnceR setBoundary -< (oId, arrowBoundary playerDir)
+			_ <- wLiftSetOnceR setBoundary -< (oId, arrowData^.bdBoundary rotation)
 			_ <- wLiftSetOnceR setIgnoreCollision -< (oId, playerId)
 			_ <- wLiftSetOnceR setIgnoreCollision -< (playerId, oId)
 			returnA -< ()
@@ -106,10 +139,10 @@ playerMovement baseSpeed = untilV movingDirectionE
 
 			-- set new orientation
 			let orientation = orientationFromDelta (-dx, dy)
-			let anim = objectAnimation pId orientation
 			_ <- wLiftUpdateR setOrientation -< (pId, orientation)
 
 			-- animate the player
+			let anim = objectAnimation pId orientation
 			_ <- animateR -< (pId, anim)
 			returnA -< ()
 

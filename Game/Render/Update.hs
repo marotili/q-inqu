@@ -86,10 +86,16 @@ update = do
 
 			-- update position
 			wLayerObject "ObjectLayer" (obj^.objName) . _Just . roPos .= oPos
+			if oId == 0 || oId == 1 then
+				wLayerObject "ObjectLayer" (obj^.objName) . _Just . roOrigin .= (25, -70)
+				else return ()
 			case mRot of
-				Just rot -> 
+				Just rot -> do
 					wLayerObject "ObjectLayer" (obj^.objName) 
 						. _Just . roRotation .= rot
+
+					wLayerObject "ObjectLayer" (obj^.objName) 
+						 . _Just . roOrigin .= (8, -32)
 				Nothing -> return ()
 
 			-- animation

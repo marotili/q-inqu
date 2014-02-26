@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances, NamedFieldPuns, TemplateHaskell #-}
+{-# LANGUAGE FlexibleInstances, NamedFieldPuns, TemplateHaskell, Rank2Types #-}
 module Game.World.Objects where
 	--( 
 	--  ObjectId, ObjectIds, DoorId, DoorControllerId, SwitchId
@@ -70,23 +70,45 @@ instance Show Animation where
 instance Eq Animation where
 	a1 == a2 = (a1^.animId) == (a2^.animId)
 
+data BaseData = BaseData
+    { _bdOrigin :: (Float, Float)
+    , _bdBaseBoundary :: [(Float, Float)]
+    }
+makeLenses ''BaseData
+
+--bdPosition :: (Float, Float) -> Float -> Getter BaseData (Float, Float)
+bdBoundary :: Float -> Getter BaseData [(Float, Float)]
+bdBoundary rotation = to get
+    where
+        get bd = map (\(x, y) -> rotate rotation
+                ( x - (bd^.bdOrigin._1)
+                , y - (bd^.bdOrigin._2)
+                )
+            ) (bd^.bdBaseBoundary)
+
+        rotate a (x, y) = (cos a * x + sin a * y, - sin a * x + cos a * y)
+
 -- clockwise
 playerBoundary :: [(Float, Float)]
 playerBoundary =
-    [ (10, -90)
-    , (10, -60)
-    , (40, -60)
-    , (40, -90)
+    [ (-15, -20)
+    , (-15, 10)
+    , (15, 10)
+    , (15, -20)
     ]
 
-arrowBoundary :: Orientation -> [(Float, Float)]
-arrowBoundary West =
-    [ (8, -28-7)
-    , (8+21, -28)
-    , (8+21, -28)
-    , (8, -28-7)
+arrowData = BaseData
+    { _bdOrigin = (8, -32)
+    , _bdBaseBoundary = arrowBoundary
+    }
+
+arrowBoundary :: [(Float, Float)]
+arrowBoundary =
+    [ (49, -28-8)
+    , (55, -28)
+    , (55, -28)
+    , (49, -28-8)
     ]
-arrowBoundary _ = arrowBoundary West
 
 data Orientation = 
       North
@@ -174,4 +196,3 @@ objectAnimation playerId dir = a1
 
 arrowAnimation :: Orientation -> Animation
 arrowAnimation dir = let a1 = Animation 99 ("Arrow" ++ show dir) 999 a1 0 in a1
-

@@ -14,6 +14,7 @@ in int tileId;
 
 in vec2 pos;
 in float rotation;
+in vec2 origin;
 
 // uniform numTypes;
 uniform int numTileSets; // needed for dynamic lookup
@@ -125,14 +126,14 @@ void main()
 	}
 
 
-	vec2 center = vec2 (tileMeshCoords.x - tileSet.tileWidth/2.0, tileMeshCoords.y - tileSet.tileHeight/2.0);
+	vec2 center = vec2 (tileMeshCoords.x - origin.x, tileMeshCoords.y - origin.y);
 
 	vec2 newTileMeshCoords = vec2( 
 		center.x * cos (rotation) + center.y * sin (rotation),
 		center.x * (-sin (rotation)) + center.y * cos (rotation)
 		);
 
-	vec2 deCenter = vec2(newTileMeshCoords.x + tileSet.tileWidth/2.0, newTileMeshCoords.y + tileSet.tileHeight/2.0);
+	// vec2 deCenter = vec2(newTileMeshCoords.x + tileSet.tileWidth/2.0, newTileMeshCoords.y + tileSet.tileHeight/2.0);
 
 	texCoords = vec2(float(tx) / float(tileSet.imageWidth), 
 		float(ty) / float(tileSet.imageHeight));
@@ -141,7 +142,7 @@ void main()
 
 	// color_out = color_in;
     gl_Position = projection*view*vec4(vec3(newPos, 0) + 
-    	vec3(deCenter, 0.0), 1.0);
+    	vec3(newTileMeshCoords, 0.0), 1.0);
 
     // vec2 newPos2 = vec2(tileMeshCoords.x * 0.01, tileMeshCoords.y*0.01);
     // gl_Position = vec4(newPos2, 0, 1);

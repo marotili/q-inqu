@@ -72,6 +72,12 @@ compOrientation = Component
     , _compSet = wdCommon.wcDelta.wcOrientation
     }
 
+compCollisionEvent :: Component' (ObjectProp [ObjectId])
+compCollisionEvent = Component
+    { _compGet = wCommon.wcCollisionEvents
+    , _compSet = wdCommon.wcDelta.wcCollisionEvents
+    }
+
 type IngoredObjects = Set.Set ObjectId
 type ObjectIdTo a = ObjectProp a
 type ListOfChanges = Map.Map ObjectId (Maybe ObjectId)
@@ -217,3 +223,17 @@ setIgnoreCollision :: (MonadWriter WorldDelta m) => ObjectId -> ObjectId -> m ()
 setIgnoreCollision oId otherId = writeProp setCollisionFilters oId (Map.fromList [(otherId, Just otherId)])
 unsetIgnoreCollision :: (MonadWriter WorldDelta m) => ObjectId -> ObjectId -> m ()
 unsetIgnoreCollision oId otherId = writeProp setCollisionFilters oId (Map.fromList [(otherId, Nothing)])
+
+setCollisionEvents :: Set (ObjectProp [ObjectId])
+setCollisionEvents = _compSet compCollisionEvent
+getCollisionEvents :: Get (ObjectProp [ObjectId])
+getCollisionEvents = _compGet compCollisionEvent
+
+setCollisionEvent :: (MonadWriter WorldDelta m) => ObjectId -> ObjectId -> m ()
+setCollisionEvent oId otherId = writeProp setCollisionEvents oId [otherId]
+
+collisionEvent :: ObjectId -> Get [ObjectId]
+collisionEvent oId = to (\w -> fromMaybe [] $ w^.getCollisionEvents . at oId)
+
+collided :: ObjectId -> ObjectId -> Get Bool
+collided oId otherId = to (\w -> otherId `elem` (w^.collisionEvent oId))

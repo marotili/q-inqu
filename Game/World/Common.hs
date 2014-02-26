@@ -164,13 +164,14 @@ mergeCommonDelta wc2 = do
 		--foldr (\(k, v) -> Map.alter (alterPos v) k) positions $
 			--Map.toList (wc2^.wcPositions)
 
-	wcRotations %= Map.unionWith (mappend) (wc2^.wcRotations)
+	wcRotations %= Map.unionWith mappend (wc2^.wcRotations)
 
 	wcWires %= Map.unionWith (++) (wc2^.wcWires)
 	wcAnimations %= Map.union (wc2^.wcAnimations) -- left biased
 	wcBoundaries %= Map.union (wc2^.wcBoundaries)
 	wcStaticCollidable %= Set.union (wc2^.wcStaticCollidable)
 	wcOrientation %= Map.union (wc2^.wcOrientation)
+	wcCollisionEvents %= Map.unionWith (++) (wc2^.wcCollisionEvents)
 
 instance Monoid WorldCommonDelta where
     mempty = WorldCommonDelta wcEmpty

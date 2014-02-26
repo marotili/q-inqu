@@ -25,8 +25,11 @@ applyCommonDelta wd = do
 
 	wCommon.wcRotations %= \old -> Map.unionWith mappend old (wd^.wdCommon.wcDelta.wcRotations)
 
+
 	-- we drop all wires from the last state
 	wCommon.wcWires .= wd^.wdCommon.wcDelta.wcWires
+	-- we drop all events from last state
+	wCommon.wcCollisionEvents .= (wd^.wdCommon.wcDelta.wcCollisionEvents)
 
 	wCommon.wcOrientation %= Map.union (wd^.wdCommon.wcDelta.wcOrientation)
 

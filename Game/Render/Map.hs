@@ -55,8 +55,8 @@ data WorldRenderContext = WorldRenderContext
 	}
 
 makeLenses ''WorldRenderContext
-wPosData :: Getter [(Float, Float, Float)] (V.Vector Float)
-wPosData = to (\poss -> V.fromList $ concatMap (\(x, y, a) -> concat . take 6 . repeat $ [x, y, a, 0]) poss)
+wPosData :: Getter [(Float, Float, Float, Float, Float)] (V.Vector Float)
+wPosData = to (\poss -> V.fromList $ concatMap (\(x, y, ox, oy, a) -> concat . take 6 . repeat $ [x, y, ox, oy, a, 0, 0, 0]) poss)
 wTileData :: Getter [Int] (V.Vector Int32)
 wTileData = to (\ids -> V.fromList $ concatMap (\tId -> concat . take 6 . repeat $ [fromIntegral tId]) ids)
 
@@ -206,6 +206,7 @@ newWorldRenderContext world program = do
 			GL.bindVertexArrayObject $= (Just vao)	
 			GL.AttribLocation tileIdLoc <- GL.get $ GL.attribLocation program "tileId"
 			GL.AttribLocation posLoc <- GL.get $ GL.attribLocation program "pos"
+			GL.AttribLocation originLoc <- GL.get $ GL.attribLocation program "origin"
 			GL.AttribLocation rotationLoc <- GL.get $ GL.attribLocation program "rotation"
 
 			--print ("Locations", vao, layerBuf, posBuf, tileIdLoc, posLoc, rotationLoc)
@@ -216,11 +217,15 @@ newWorldRenderContext world program = do
 			GLRaw.glEnableVertexAttribArray tileIdLoc
 
 			GL.bindBuffer GL.ArrayBuffer $= Just posBuf
-			GLRaw.glVertexAttribPointer posLoc 2 GLRaw.gl_FLOAT 0 16 (nullPtr)
+			GLRaw.glVertexAttribPointer posLoc 2 GLRaw.gl_FLOAT 0 32 (nullPtr)
 			--GLRaw.glVertexAttribDivisor posLoc 3
 			GLRaw.glEnableVertexAttribArray posLoc
 
-			GLRaw.glVertexAttribPointer rotationLoc 1 GLRaw.gl_FLOAT 0 16 (plusPtr nullPtr 8)
+			GLRaw.glVertexAttribPointer originLoc 2 GLRaw.gl_FLOAT 0 32 (plusPtr nullPtr 8)
+			--GLRaw.glVertexAttribDivisor posLoc 3
+			GLRaw.glEnableVertexAttribArray originLoc
+
+			GLRaw.glVertexAttribPointer rotationLoc 1 GLRaw.gl_FLOAT 0 32 (plusPtr nullPtr 16)
 			--GLRaw.glVertexAttribDivisor rotationLoc 3
 			GLRaw.glEnableVertexAttribArray rotationLoc
 			return ()

@@ -31,7 +31,7 @@ keepDistanceAI mId = do
 
 	let (dx, dy) = (aix - px, aiy - py)
 
-	if traceShow (norm (V2 dx dy)) $ norm (V2 dx dy)  < 100 then
+	if norm (V2 dx dy)  < 100 then
 		writer ((), newInputAction $ newMoveAction (-dx) (-dy))
 	else
 		return ()

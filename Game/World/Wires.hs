@@ -121,8 +121,12 @@ _move ds oId (vx, vy) = do
 			let realCollisions = case mignore of
 				Just ignore ->	filter (\col -> not (Set.member col ignore)) collisions
 				Nothing -> collisions
-			Control.Monad.when (null realCollisions) $
-				World.moveObject oId (dx, dy)
+			if (null realCollisions) 
+				then
+					World.moveObject oId (dx, dy)
+				else
+					mapM_ (setCollisionEvent oId) realCollisions
+
 		else
 			World.moveObject oId (dx, dy)
 
