@@ -139,6 +139,9 @@
  <tileset firstgid="154" name="Sword" tilewidth="24" tileheight="96">
   <image source="source_files/Sword.png" width="24" height="96"/>
  </tileset>
+ <tileset firstgid="155" name="items" tilewidth="64" tileheight="64">
+  <image source="source_files/items.png" width="2048" height="2048"/>
+ </tileset>
  <layer name="Bottom" width="50" height="50">
   <data>
    <tile gid="13"/>

@@ -36,6 +36,18 @@ compObject = Component
     , _compSet = wdObjects
     }
 
+compUnit :: Component (ObjectProp Unit) (ModifyContainer UnitId Unit)
+compUnit = Component
+    { _compGet = wUnitManager.umUnits
+    , _compSet = wdUnitManager.umdUnits
+    }
+
+compItem :: Component (ObjectProp Item) (ModifyContainer ItemId Item)
+compItem = Component
+    { _compGet = wUnitManager.umItems
+    , _compSet = wdUnitManager.umdItems
+    }
+
 compPosition :: Component' (ObjectProp Position)
 compPosition = Component 
     { _compGet = wCommon.wcPositions
@@ -235,5 +247,16 @@ setCollisionEvent oId otherId = writeProp setCollisionEvents oId [otherId]
 collisionEvent :: ObjectId -> Get [ObjectId]
 collisionEvent oId = to (\w -> fromMaybe [] $ w^.getCollisionEvents . at oId)
 
-collided :: ObjectId -> ObjectId -> Get Bool
-collided oId otherId = to (\w -> otherId `elem` (w^.collisionEvent oId))
+--collided :: ObjectId -> ObjectId -> Get Bool
+--collided oId otherId = to (\w -> otherId `elem` (w^.collisionEvent oId))
+
+setItems :: Set (ModifyContainer ItemId Item)
+setItems = _compSet compItem
+getItems :: Get (ObjectProp Item)
+getItems = _compGet compItem
+
+setUnits :: Set (ModifyContainer UnitId Unit)
+setUnits = _compSet compUnit
+getUnits :: Get (ObjectProp Unit)
+getUnits = _compGet compUnit
+

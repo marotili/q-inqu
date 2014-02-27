@@ -6,8 +6,6 @@ module Game.World
 	, World, WorldManager, WorldDelta
 
 	-- * To remove
-	, applyDelta
-
 	--, newWorldFromTiled
 	, testwire
 	) where
@@ -55,16 +53,35 @@ instance Spawnable Game.World.Arrow where
 class Spawnable a where
 	spawnPosition :: a -> WorldWire PlayerId (Float, Float)
 	spawnRotation :: a -> WorldWire PlayerId Float
+	spawnRotation _ = pure 0
+	spawnWire :: a -> WorldWire PlayerId (WorldWire ObjectId ())
+
+	spawnIgnoreList :: a -> WorldWire PlayerId [ObjectId]
+	spawnIgnoreList _ = fmap (\pId -> [pId]) W.id
+	spawnIgnoreSpawner :: a -> WorldWire PlayerId Bool
+	spawnIgnoreSpawner _ = pure $ True
+	spawnBoundary :: a -> WorldWire PlayerId Boundary
+	spawnBoundary _ = pure []
 
 	spawn :: a -> WorldWire PlayerId ()
+
 	spawn obj = proc spawnerId -> do
 		Event oId <- spawnObjectMakeName -< spawnerId
 		position <- spawnPosition obj -< spawnerId
+		rotation <- spawnRotation obj -< spawnerId
+		ignoreList <- spawnIgnoreList obj -< spawnerId
+		ignoreSpawner <- spawnIgnoreSpawner obj -< spawnerId
+		boundary <- spawnBoundary obj -< spawnerId
+		wire <- spawnWire obj -< spawnerId
 
 		_ <- setPosOnceR -< (oId, position)
-		--_ <- animateR -< (oId, startAnimation)
-		--_ <- wLiftSetOnceR setBoundary -< (oId, boundary)
-		--_ <- wLiftSetOnceR rotateObject -< (oId, angle)
+		_ <- wLiftSetOnceR setBoundary -< (oId, boundary)
+		_ <- wLiftSetOnceR setIgnoreCollision -< (oId, head ignoreList) -- FIXME for all in list
+
+		_ <- wLiftSetOnceR setIgnoreCollision -< (if
+					ignoreSpawner then spawnerId else oId, oId)
+
+		_ <- newObjectWireR -< (oId, wire)
 		returnA -< ()
 
 --ignore = proc (oId, playerId) -> do
@@ -72,6 +89,24 @@ class Spawnable a where
 --	_ <- wLiftSetOnceR setIgnoreCollision -< (playerId, oId)
 --	returnA -< ()
 
+boltWire = proc boltId -> do
+	_ <- move (20, 20) . for 1 
+		W.--> untilV removeObject W.--> void exit
+			-< boltId
+	_ <- animate boltAnimation -< boltId
+	returnA -< ()
+
+instance Spawnable ItemInstance where
+	spawnPosition itemInstance = proc playerId -> do
+			Just playerPos <- wLiftF (\pId -> view $ getPositions . L.at pId) -< playerId
+			returnA -< playerPos
+
+	spawnWire itemInstance = proc playerId -> do
+		Just item <- wLift (view $ getItems . L.at (itemInstance ^. iiItemId)) -< playerId
+		name <- wLift (view $ getObjects . L.at (itemInstance ^. iiItemId) . _Just . objName) -< playerId
+		returnA -< case name of
+			"Bolt" -> boltWire
+			_ -> boltWire
 
 spawnArrow :: ObjectWire PlayerId ()
 spawnArrow = spawn . thenDo (inhibit WireFinished)

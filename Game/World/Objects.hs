@@ -196,3 +196,5 @@ objectAnimation playerId dir = a1
 
 arrowAnimation :: Orientation -> Animation
 arrowAnimation dir = let a1 = Animation 99 ("Arrow" ++ show dir) 999 a1 0 in a1
+
+boltAnimation = let a1 = Animation 100 "ItemBolt" 999 a1 0 in a1

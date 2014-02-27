@@ -140,6 +140,7 @@ newRenderConfig = execState (do
 		R.rcTiles . at "NoMatch" .= Just ("sewer_tileset", 40)
 		R.rcTiles . at "Wall" .= Just ("sewer_tileset", 41)
 
+		R.rcTiles . at "ItemBolt" .= Just ("items", 2)
 	) $ R.RenderConfig {} & R.rcTiles .~ Map.empty
 
 makeLenses ''Game
@@ -300,6 +301,8 @@ mkGameWorld tiledMap startPos genMap = do
 			_ <- wLiftSetOnce setBoundary G.playerBoundary -< p4Id
 
 			_ <- initWalls wallBoundaries -< input
+
+			itemId <- spawnObject "Bolt" -< input
 
 			returnA -< ()
 

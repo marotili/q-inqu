@@ -86,7 +86,7 @@ update = do
 
 			-- update position
 			wLayerObject "ObjectLayer" (obj^.objName) . _Just . roPos .= oPos
-			if oId == 0 || oId == 1 then
+			if oId == 1 || oId == 2 then
 				wLayerObject "ObjectLayer" (obj^.objName) . _Just . roOrigin .= (25, -70)
 				else return ()
 			case mRot of

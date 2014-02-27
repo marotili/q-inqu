@@ -135,6 +135,15 @@ move speed = mkGen $ \ds oId -> do
 	_move ds oId speed
 	return (Right (), move speed)
 
+--collisionEvent = mkGenN $ \oId -> do
+--	collisions <- getCollisionEvents . L.at oId
+--	if null collisions then
+--		return (Right W.NoEvent, collisionEvent)
+--	else
+--		return (Right (W.Event collisions), never)
+
+--collided = wLiftF (getCollisionEvents)
+
 setPosOnce :: (Float, Float) -> WorldWire ObjectId (Event ())
 setPosOnce = wLiftSetOnce World.moveObject
 setPosOnceR :: WorldWire (ObjectId, (Float, Float)) (Event ())

@@ -11,6 +11,7 @@ import Game.Collision
 import Control.Monad.State
 import Game.World.Common
 import Game.World.Lens
+import Data.Maybe
 
 applyCommonDelta :: WorldDelta -> State World ()
 applyCommonDelta wd = do
@@ -70,11 +71,27 @@ alterObjects Nothing _ = Nothing -- delte object
 alterObjects (Just v) _ = Just v -- add / update object
 
 applyObjectDelta :: WorldDelta -> State World ()
-applyObjectDelta wd =
+applyObjectDelta wd = do
+	let objectsToDelete = map fst . filter (isNothing . snd) $ Map.toList (wd^.wdObjects)
+	wCommon.wcPositions %= \old -> foldr Map.delete old objectsToDelete
+	wCommon.wcRotations %= \old -> foldr Map.delete old objectsToDelete
+	wCommon.wcPhysics %= \old -> foldr Map.delete old objectsToDelete
+	wCommon.wcAnimations %= \old -> foldr Map.delete old objectsToDelete
+	wCommon.wcBoundaries %= \old -> foldr Map.delete old objectsToDelete
+	wCommon.wcCollisionEvents %= \old -> foldr Map.delete old objectsToDelete
+	wCommon.wcWires %= \old -> foldr Map.delete old objectsToDelete
+	wCommon.wcOrientation %= \old -> foldr Map.delete old objectsToDelete
+	wCommon.wcStaticCollidable %= \old -> foldr Set.delete old objectsToDelete
+	wCommon.wcRealm %= \old -> foldr Map.delete old objectsToDelete
+
+	wUnitManager.umUnits %= \old -> foldr Map.delete old objectsToDelete
+	wUnitManager.umItems %= \old -> foldr Map.delete old objectsToDelete
+	wCollisionFilter %= \old -> foldr Map.delete old objectsToDelete
+	wCollisionManager %= \old -> foldr octreeRemoveObject old objectsToDelete
+
 	wObjects %= \objects -> 
 		foldr (\(k, v) -> Map.alter (alterObjects v) k) objects $
 			Map.toList (wd^.wdObjects)
-
 --alterColFilter Nothing _ -> Nothing
 --alterColFilter 
 
@@ -95,4 +112,5 @@ applyDelta w wd = execState (do
 		applyObjectDelta wd
 		applyCollisionFilterDelta wd
 		applyCommonDelta wd
+		applyUnitManagerDelta wd
 	) w

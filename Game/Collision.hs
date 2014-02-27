@@ -107,6 +107,12 @@ octreeAddStatics objects = do
 		octreeAddStatic object =
 			goStaticObjects %= Map.insert (object^.ooObjectId) object
 
+octreeRemoveObject :: ObjectId -> GameOctree -> GameOctree
+octreeRemoveObject oId oldOctree = oldOctree
+	& goUpdatableObjects %~ Map.delete oId
+	& goStaticObjects %~ Map.delete oId
+	& goNeedsUpdate .~ True
+
 octreeUpdate :: [(ObjectId, [(Float, Float)])] -> State GameOctree ()
 octreeUpdate [] = return ()
 octreeUpdate objects = do
