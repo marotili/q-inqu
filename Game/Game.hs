@@ -23,8 +23,8 @@ import qualified Data.Map as Map
 import qualified Control.Wire as W
 import qualified Control.Wire.Unsafe.Event as W
 
-import Control.Monad.State
-import Control.Monad.RWS
+import Control.Monad.State.Strict
+import Control.Monad.RWS.Strict
 
 import Game.World.Common
 
@@ -34,13 +34,13 @@ data Game = Game
 	{ _gameName :: String
 	, _gameTiled :: T.TiledMap
 	, _gamePlayerStartPos :: (Float, Float)
-	, _gameLogicWorld :: G.World
-	, _gameRenderWorld :: R.World
-	, _gameLastDelta :: G.WorldDelta
-	, _gameWorldManager :: G.WorldManager
-	, _gameRenderObjects :: [U.Renderable]
-	, _gameWire :: G.WorldWire () ()
-	, _gameGenMap :: Gen.GenMap
+	, _gameLogicWorld :: !G.World
+	, _gameRenderWorld :: !R.World
+	, _gameLastDelta :: !G.WorldDelta
+	, _gameWorldManager :: !G.WorldManager
+	, _gameRenderObjects :: ![U.Renderable]
+	, _gameWire :: !(G.WorldWire () ())
+	, _gameGenMap :: !Gen.GenMap
 	}
 
 newRenderConfig :: R.RenderConfig
@@ -141,7 +141,7 @@ newRenderConfig = execState (do
 		R.rcTiles . at "Wall" .= Just ("sewer_tileset", 41)
 
 		R.rcTiles . at "ItemBolt" .= Just ("items", 2)
-	) $ R.RenderConfig {} & R.rcTiles .~ Map.empty
+	) $ R.emptyConfig
 
 makeLenses ''Game
 

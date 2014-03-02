@@ -4,7 +4,7 @@ module Game.Render.World where
 import Data.List
 import qualified Data.Tiled as T
 import qualified Game.World.Import.Tiled as T
-import Control.Monad.State
+import Control.Monad.State.Strict
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Debug.Trace
@@ -17,8 +17,11 @@ type TileName = String
 type TilesetName = String
 
 data RenderConfig = RenderConfig
-	{ _rcTiles :: Map.Map TileName (TilesetName, Int)
+	{ _rcTiles :: !(Map.Map TileName (TilesetName, Int))
 	} deriving (Show, Eq)
+emptyConfig = RenderConfig
+	{ _rcTiles = Map.empty
+	}
 makeLenses ''RenderConfig
 
 type TilesetId = Int
@@ -33,19 +36,19 @@ type ObjectId = Int
 type Position = (Float, Float)
 
 data World = World
-	{ _mapWidth, _mapHeight :: Int
-	, _mapTileWidth, _mapTileHeight :: Int
-	, _mapTilesets :: Map.Map TilesetId Tileset
-	, _mapTsOffsets :: Map.Map TilesetId TileIdOffset
-	, _mapLayers :: Map.Map LayerId MapLayer
-	, _mapObjects :: Map.Map ObjectId Object 
-	, _mapHashes :: ObjHashes
+	{ _mapWidth, _mapHeight :: !Int
+	, _mapTileWidth, _mapTileHeight :: !Int
+	, _mapTilesets :: !(Map.Map TilesetId Tileset)
+	, _mapTsOffsets :: !(Map.Map TilesetId TileIdOffset)
+	, _mapLayers :: !(Map.Map LayerId MapLayer)
+	, _mapObjects :: !(Map.Map ObjectId Object)
+	, _mapHashes :: !(ObjHashes)
 	--, _mapUpdates :: MapUpdates
-	, _mapNextId :: Int
+	, _mapNextId :: !Int
 
-	, _mapUpdateLayers :: Set.Set LayerId
+	, _mapUpdateLayers :: !(Set.Set LayerId)
 	
-	, _wRenderConfig :: RenderConfig
+	, _wRenderConfig :: !RenderConfig
 	} deriving (Eq, Show)
 
 --data MapUpdates = MapUpdates
@@ -53,9 +56,9 @@ data World = World
 --	} deriving (Eq, Show)
 
 data ObjHashes = ObjHashes
-	{ _gameObjects :: Map.Map String ObjectId
-	, _hashLayers :: Map.Map String LayerId
-	, _gameTilesets :: Map.Map String TilesetId
+	{ _gameObjects :: !(Map.Map String ObjectId)
+	, _hashLayers :: !(Map.Map String LayerId)
+	, _gameTilesets :: !(Map.Map String TilesetId)
 	} deriving (Eq, Show)
 
 data TileType = 
@@ -73,7 +76,7 @@ data Tileset = Tileset
 	{ _tsTileWidth, _tsTileHeight :: Int
 	, _tsSpacing, _tsMargin :: Int
 	, _tsImage :: Image
-	, _tsTileTypes :: Map.Map LocalTileId TileType
+	, _tsTileTypes :: !(Map.Map LocalTileId TileType)
 	} deriving (Eq, Show)
 
 data Tile = Tile
@@ -115,10 +118,10 @@ data LayerType = TileLayerType | ObjectLayerType
 	deriving (Eq, Show)
 
 data MapLayer = TileLayer
-	{ _layerTiles :: Map.Map (Int, Int) Tile
+	{ _layerTiles :: !(Map.Map (Int, Int) Tile)
 	}
 	| ObjectLayer
-	{ _layerObjects :: Map.Map ObjectId RenderObject
+	{ _layerObjects :: !(Map.Map ObjectId RenderObject)
 	} 
 	deriving (Eq, Show)
 
@@ -144,6 +147,7 @@ newWorld = World
 	, _mapHashes = newHashes
 	, _mapNextId = 1
 	, _mapUpdateLayers = Set.empty
+	, _wRenderConfig = emptyConfig
 	}
 
 _wId :: State World Int
