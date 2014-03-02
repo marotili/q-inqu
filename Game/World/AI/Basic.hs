@@ -34,7 +34,7 @@ keepDistanceAI mId = do
 	if norm (V2 dx dy)  < 100 then
 		writer ((), newInputAction $ newMoveAction (-dx) (-dy))
 	else
-		return ()
+		writer ((), newInputAction $ ActionStopMove)
 
 runAI :: MonsterId -> World -> WorldDelta -> Rational -> InputActions
 runAI 3 w wd r = let (_, _, ia) = runRWS (followPlayer1AI 3) (w, wd, r) () in ia

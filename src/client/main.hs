@@ -273,19 +273,23 @@ run i session w = do
 
     let userTime = case userTime2 of Just time -> realToFrac time; Nothing -> 0
 
-    (xl, yl, lt, xr, yr, rt, px, py, buttons) <- liftIO $ getJoystickData GLFW.Joystick'1
+    joystick <- liftIO $ GLFW.getJoystickName GLFW.Joystick'1
+    case joystick of
+      Just _ -> do 
+        (xl, yl, lt, xr, yr, rt, px, py, buttons) <- liftIO $ getJoystickData GLFW.Joystick'1
 
-    let xc = XboxController { _xcLeftTrigger = lt
-        , _xcRightTrigger = rt
-        , _xcLeftStick = (if abs xl < 0.3 then 0 else xl, if abs yl < 0.3 then 0 else yl)
-        , _xcRightStick = (if abs xr < 0.3 then 0 else xr, if abs yr < 0.3 then 0 else yr)
-        , _xcPad = (px, py)
-        , _xcButtons = makeSet buttons
-        }
+        let xc = XboxController { _xcLeftTrigger = lt
+            , _xcRightTrigger = rt
+            , _xcLeftStick = (if abs xl < 0.3 then 0 else xl, if abs yl < 0.3 then 0 else yl)
+            , _xcRightStick = (if abs xr < 0.3 then 0 else xr, if abs yr < 0.3 then 0 else yr)
+            , _xcPad = (px, py)
+            , _xcButtons = makeSet buttons
+            }
 
-    liftIO $ print xc
+        liftIO $ print xc
 
-    modify $ \s -> s { stateInput = stateInput s >> inputUpdateController xc }
+        modify $ \s -> s { stateInput = stateInput s >> inputUpdateController xc }
+      Nothing -> return ()
 
     -- user input
     let input = asks stateInput state -- maybe not threadsafe
@@ -508,7 +512,10 @@ joysticks =
 --getJoystickData :: GLFW.Joystick -> IO (Double, Double)
 getJoystickData js = do
     maxes <- GLFW.getJoystickAxes js
+    print maxes
     Just buttons <- GLFW.getJoystickButtons js
+    print buttons
     return $ case maxes of
       (Just (x:y:lt:xr:yr:rt:px:py:[])) -> (-x, -y, lt, xr, yr, rt, px, py, buttons)
+      (Just (x:y:_)) -> (-x, -y, 0, 0, 0, 0, 0, 0, buttons)
       _ -> (0, 0, 0, 0, 0, 0, 0, 0, [])

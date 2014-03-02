@@ -259,7 +259,7 @@ spawnAction = mkGenN $ \_ -> do
 
 	let (lsx, lsy) = inputJoystick is ^. xcLeftStick
 	if abs lsx > 0.1 || abs lsy > 0.1 then 
-		writer ((), newInputAction (ActionSpawnArrow (double2Float lsx) (double2Float lsy)))
+		writer ((), newInputAction (ActionSpawnArrow (-double2Float lsx) (-double2Float lsy)))
 	else
 		writer ((), newInputAction (ActionSpawnArrow x y))
 	return (Right (Event ()), never)

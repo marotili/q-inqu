@@ -152,13 +152,13 @@ main = withSocketsDo $ do
 	game <- newGame "test"
 
 	a1 <- async $ runGame recvEvents output
-	_ <- async $ do
+	a2 <- async $ do
 		runEffect $ runFakeClient input3 sendEvents1 game
 		performGC
 
 	serve HostIPv4 "5002" (connCb (numClient, sendEvents1, input1, input2))
 
-	wait a1
+	mapM_ wait [a1, a2]
 
 	return ()
 

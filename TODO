@@ -1,15 +1,14 @@
 TODO
 ====
 
-- load tile data using vertex arrays instead of uniform buffers
+- use config files for game data
+	* speed, animations, level presets
+
+- rewrite octree to support boundary intersections
 
 - screenshake
 
-- Rendering (done)
-render front to back (order by y coordinate) per layer
-
 - Camera movement
-start with camera centralized on user (done for one player)
 the camera always stays in a certain range to the user
 
 - Camera cutscenes
@@ -56,8 +55,6 @@ sound (SDL 2.0)
 text (port harfbuzz and freetype-gl)
 
 - Tiled
-define gameplay elements in tiled using properties
-support for compression
 switch between maps
 
 - Server / Client
@@ -73,3 +70,10 @@ Done
 - fix timestep interval for game state updates 
 - * collect user actions. (FIXME what to do if move and stop are sent in one interval?)
 
+- load tile data using vertex arrays instead of uniform buffers
+
+- Rendering (done)
+render front to back (order by y coordinate) per layer
+
+- Camera movement
+start with camera centralized on user
