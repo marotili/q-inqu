@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, Rank2Types, NoMonomorphismRestriction #-}
+{-# LANGUAGE FlexibleContexts, Rank2Types, NoMonomorphismRestriction, BangPatterns #-}
 module Game.World.Delta where
 
 import qualified Data.Map as Map
@@ -8,10 +8,12 @@ import Control.Monad.Writer
 import Control.Monad.RWS
 --import Game.World.Types
 import Game.Collision
-import Control.Monad.State
+import Control.Monad.State.Strict
+import qualified Control.Monad.State as LS
 import Game.World.Common
 import Game.World.Lens
 import Data.Maybe
+import Data.List
 
 applyCommonDelta :: WorldDelta -> State World ()
 applyCommonDelta wd = do
@@ -61,7 +63,7 @@ applyCommonDelta wd = do
 
 		objUpdate = Set.toList $ Set.intersection objPosAndBoundary $ objNewBoundaries `Set.union` objNewPos 
 
-		objBoundaries = zip objUpdate [world2^.objectBoundary oId | oId <- objUpdate]
+		!objBoundaries = zip objUpdate [world2^.objectBoundary oId | oId <- objUpdate]
 
 	unless (null objBoundaries) $
 		wCollisionManager %= execState (octreeUpdate objBoundaries)
@@ -81,7 +83,7 @@ applyObjectDelta wd = do
 	wCommon.wcCollisionEvents %= \old -> foldr Map.delete old objectsToDelete
 	wCommon.wcWires %= \old -> foldr Map.delete old objectsToDelete
 	wCommon.wcOrientation %= \old -> foldr Map.delete old objectsToDelete
-	wCommon.wcStaticCollidable %= \old -> foldr Set.delete old objectsToDelete
+	wCommon.wcStaticCollidable %= \old -> foldl' (flip Set.delete) old objectsToDelete
 	wCommon.wcRealm %= \old -> foldr Map.delete old objectsToDelete
 
 	wUnitManager.umUnits %= \old -> foldr Map.delete old objectsToDelete

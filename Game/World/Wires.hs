@@ -1,18 +1,18 @@
-{-# LANGUAGE FlexibleContexts, Arrows, Rank2Types, FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts, Arrows, Rank2Types, FlexibleInstances, BangPatterns #-}
 module Game.World.Wires where
 
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import Debug.Trace
 import qualified Data.Set as Set
 import Game.World.Objects
 import qualified Game.World.Lens as World
-import Control.Monad.Writer
-import Control.Monad.RWS
+import Control.Monad.Writer.Strict
+import Control.Monad.RWS.Strict
 import Control.Lens 
 import qualified Control.Lens as L
 --import Game.World.Types
 import Game.Collision
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Control.Monad
 import Control.Wire
 import qualified Control.Wire as W
@@ -44,14 +44,14 @@ stepObjectWires = mkGen $ \ds _ -> do
 		stepObjectWire ds oId =
 			mapM_ (stepObjectW oId ds)
 
-		stepObjectW oId ds w = do
-			(mx, w') <- stepWire w ds (Right oId)
+		stepObjectW oId ds !w = do
+			(!mx, !w') <- stepWire w ds (Right oId)
 			case mx of
 				Right _ ->
-					World.addWire oId w'
+					w' `seq` World.addWire oId w'
 				Left i -> case i of
 					WireRunning ->
-						World.addWire oId w'
+						w' `seq` World.addWire oId w'
 					WireFinished ->
 						return ()
 
@@ -81,7 +81,7 @@ wLiftSetOnceVoid f = mkGenN $ \oId -> do
 wLiftF :: (a -> WorldContext b) -> WorldWire a b
 wLiftF f = mkGenN $ \a -> do
 	b <- f a
-	return (Right b, wLiftF f)
+	return $ b `seq` (Right b, wLiftF f)
 
 wLift :: WorldContext b -> WorldWire a b
 wLift a = wLiftF (const a)
@@ -90,7 +90,7 @@ wLiftM :: (a -> WorldContext (Maybe b)) -> WorldWire a b
 wLiftM f = mkGenN $ \a -> do
 	mb <- f a
 	case mb of
-		Just b -> return (Right b, wLiftM f)
+		Just b -> return $ b `seq` (Right b, wLiftM f)
 		Nothing -> return (Left WireRunning, wLiftM f)
 
 -- TODO: We should move the test into the state monad
@@ -107,7 +107,7 @@ collides oId (dx, dy) = do
 		octreeUpdate [(oId, newObjBoundary)]
 		octreeQueryObject oId
 		) cm
-	return collisions
+	return $ traceShow collisions collisions
 
 _move :: Timed NominalDiffTime () -> ObjectId -> (Float, Float) -> WorldContext ()
 _move ds oId (vx, vy) = do
@@ -172,7 +172,7 @@ newObjectWireR = newObjectWireR' newObjectWire
 	where
 		newObjectWireR' newObjectW = mkGen $ \ds (oId, w) -> do
 			(mx, w') <- stepWire (newObjectW oId w) ds (Right ())
-			return (mx, newObjectWireR' (\_ _ -> w'))
+			return $ mx `seq` (mx, newObjectWireR' (\_ _ -> w'))
 
 spawnObject :: String -> WorldWire a (Event ObjectId)
 spawnObject name = mkGenN $ \_ -> do
@@ -201,11 +201,11 @@ doOnce :: WorldWire a b -> WorldWire a (Event b)
 doOnce w = mkGen $ \ds a -> do
 	(mx, _) <- stepWire w ds (Right a)
 	return $ case mx of
-		Right b -> (Right (W.Event b), never)	
-		Left x -> (Left x, never)
+		Right b -> b `seq` (Right (W.Event b), never)	
+		Left x -> x `seq` (Left x, never)
 
 thenDo :: WorldWire a a -> WorldWire a a
-thenDo w = mkGenN $ \a -> return (Right a, w)
+thenDo w = mkGenN $ \a -> return $ a `seq` (Right a, w)
 
 while :: WorldWire (Event a) (Event a)
 while = W.when (\a ->
@@ -231,7 +231,7 @@ spawnArrowDirection = mkGenN $ \pId -> do
 				then do
 					let A.ActionSpawnArrow x y = head as
 					let V2 dx dy = normalize (V2 x (-y))
-					(Right (dx, dy), spawnArrowDirection)
+					dx `seq` dy `seq` (Right (dx, dy), spawnArrowDirection)
 				else
 					(Right (0, 0), spawnArrowDirection)
 		else
@@ -259,13 +259,13 @@ movingDirectionR = mkGenN $ \playerId -> do
 	wm <- get
 	if Map.member playerId (wm^.wmPlayerActions)
 		then do
-			let playerActions = asks _wmPlayerActions wm Map.! playerId
-			let direction = A.movingDirection playerActions
+			let !playerActions = asks _wmPlayerActions wm Map.! playerId
+			let !direction = A.movingDirection playerActions
 			case direction of
 				(0, 0) -> 
 					return (Left WireRunning, movingDirectionR)
 				_ -> 
-					return (Right direction, movingDirectionR)
+					return $ direction `seq` (Right direction, movingDirectionR)
 		else
 			return (Left WireRunning, movingDirectionR)
 
@@ -280,7 +280,7 @@ movingDirectionE = mkGenN $ \playerId -> do
 				(0, 0) ->
 					return (Right W.NoEvent, movingDirectionE)
 				_ ->
-					return (Right (W.Event direction), movingDirectionE)
+					return $ direction `seq` (Right (W.Event direction), movingDirectionE)
 		else
 			return (Right W.NoEvent, movingDirectionE)
 
@@ -292,7 +292,7 @@ animate anim = mkGen $ \ds oId -> do
 			let remaining = realToFrac $ anim^.animCurrentTime + dt - anim^.animTime
 			let next = (anim^.animNext) & animCurrentTime .~ 0
 			(mx, w') <- stepWire (animate next) (W.Timed (fromRational remaining) ()) (Right oId)
-			return (mx, w')
+			return $ mx `seq` (mx, w')
 		else do
 			let current = anim & animCurrentTime %~ (+) dt
 			World.setAnimation oId current
@@ -304,14 +304,14 @@ animateR = mkGen $ \ds (oId, animation) -> do
 	case mObjAnim of
 		Nothing -> do
 			(mx, _) <- stepWire (animate animation) ds (Right oId)
-			return (mx, animateR)
+			return $ mx `seq` (mx, animateR)
 		Just oAnim ->
 			if oAnim == animation 
 				then do
 					-- w' is is animate plus the updated animation
 					-- we can drop it since on the next invocation we pass the new state using wObjectName
 					(mx, _) <- stepWire (animate oAnim) ds (Right oId)
-					return (mx, animateR)
+					return $ mx `seq` (mx, animateR)
 				else do
 					(mx, _) <- stepWire (animate animation) ds (Right oId)
-					return (mx, animateR)
+					return $ mx `seq` (mx, animateR)

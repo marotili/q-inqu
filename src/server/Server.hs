@@ -1,11 +1,12 @@
-{-# LANGUAGE OverloadedStrings, RankNTypes #-}
+{-# LANGUAGE OverloadedStrings, RankNTypes, BangPatterns #-}
 
 module Main where
 
 import Debug.Trace
 import Game.World
+import System.Exit
 
-import Control.Monad.RWS
+import Control.Monad.RWS.Strict
 --import Control.Monad.Identity
 --import Control.Monad.Reader
 --import Control.Monad.Writer
@@ -37,7 +38,7 @@ import qualified Pipes.Binary as PB
 
 import Game.World.Common
 import Game.Game
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Data.Tiled
 
 import qualified Game.Input.Actions as A
@@ -66,16 +67,31 @@ collect actions = do
 
 --produceWorld :: WorldSession ->
 	--Pipe FromClientData ClientData IO ()
-produceWorld session' = do
+produceWorld session' lastDt total = do
 	--(t, action) <- P.await
 	actions <- collect []
 	(dt, session) <- lift $ stepSession session'
 
+	let time = dt
+	let 
+		finalTime :: Rational
+		finalTime = (realToFrac . dtime $ time) + lastDt
 
-	P.yield (actions, realToFrac . dtime $ dt)
 
-	produceWorld session
+	let steps = traceShow (realToFrac . dtime $ time) [16.0/1000 | _ <- [0..(floor (finalTime/16*1000) - 1)]]
+	let final = foldr (\_ time -> if time > 16/1000.0 then (time - 16/1000.0) else time) finalTime [0..floor (finalTime/16*1000)]
 
+	mapM_ (\time -> P.yield (actions, realToFrac time)) $ traceShow (steps, realToFrac final) steps
+	let total' = if length steps > 1 then
+		total + 1 else total
+	lift $ writeFile "time.log" (show total')
+	final' <- if final > 15/1000 then do
+		P.yield (actions, realToFrac final)
+		return 0
+	else
+		return final
+
+	traceShow ("step") $ produceWorld session final' total'
 --getDeltaTime (dt, deltaWorld, world) = dt
 --getWorld (dt, dWorld, world) = world
 
@@ -84,25 +100,26 @@ produceWorld session' = do
 --	lift $ print p
 --	P.yield p
 
-fakeClient game = do
+fakeClient !game = do
 		(_, (actions, dt)) <- await
-		let manager2 = worldManagerUpdate (game^.gameWorldManager) actions
+		let !manager2 = worldManagerUpdate (game^.gameWorldManager) actions
 
-		let ((actions1, actions2), newGame) = runState (do
+		let ((!actions1, !actions2), !newGame) = runState (do
 				gameWorldManager .= manager2
-				updateGame dt
+				--updateGame dt
+				updateOnlyGame dt
 				world <- use gameLogicWorld 
 				worldDelta <- use gameLastDelta
 				manager <- use gameWorldManager
 
-				let A.InputActions aiInput1 = runAI 3 world worldDelta dt
-				let A.InputActions aiInput2 = runAI 4 world worldDelta dt
+				let !(A.InputActions aiInput1) = runAI 3 world worldDelta dt
+				let !(A.InputActions aiInput2) = runAI 4 world worldDelta dt
 				return (aiInput1, aiInput2)
 			) game
 
 		mapM_ (\a -> P.yield (0, 3, a)) $ Set.toList actions1 
 		mapM_ (\a -> P.yield (0, 4, a)) $ Set.toList actions2
-		fakeClient newGame
+		newGame `seq` fakeClient newGame
 
 runFakeClient input output game = 
 	void (decodeSteps (fromInput input)) >-> fakeClient game >-> toOutput output
@@ -114,7 +131,7 @@ runGame recvEvents output = do
 
 	let
 		worldProducer :: Pipe (Float, Int, A.Action) ClientData IO ()
-		worldProducer = produceWorld session
+		worldProducer = produceWorld session (0::Rational) 0
 
 		--eventProducer :: Producer (Float, A.Action) IO ()
 		eventProducer = P.for (fromInput recvEvents) P.yield
@@ -123,11 +140,15 @@ runGame recvEvents output = do
 			>-> toOutput output
 	performGC
 
-eventUpdate :: Producer (Float, Int, A.Action) IO ()
-eventUpdate = do
+--eventUpdate :: Producer (Float, Int, A.Action) IO ()
+eventUpdate n = do
 	P.yield (0, -1, A.ActionUpdateGameState)
+	let n' = if n > 10 then 0 else n + 1
+	if n' == 0 then return ()
+		--lift $ performGC
+		else return ()
 	lift $ threadDelay (1000000 `div` 60)
-	eventUpdate
+	eventUpdate n'
  
 main :: IO ()
 main = withSocketsDo $ do
@@ -146,7 +167,7 @@ main = withSocketsDo $ do
 	let output = output1 Monoid.<> output2 Monoid.<> output3
 
 	_ <- async $ do
-		runEffect $ eventUpdate >-> toOutput sendEvents1
+		runEffect $ eventUpdate 0 >-> toOutput sendEvents1
 		performGC
 
 	game <- newGame "test"
@@ -156,9 +177,11 @@ main = withSocketsDo $ do
 		runEffect $ runFakeClient input3 sendEvents1 game
 		performGC
 
-	serve HostIPv4 "5002" (connCb (numClient, sendEvents1, input1, input2))
+	_ <- async $ do
+		serve HostIPv4 "5002" (connCb (numClient, sendEvents1, input1, input2))
 
-	mapM_ wait [a1, a2]
+	threadDelay (1000000*25)
+	exitSuccess
 
 	return ()
 

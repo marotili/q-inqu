@@ -4,15 +4,18 @@ module Game.Collision where
 -- * Note: we query using the maximum boundary diameter of all objects
 -- *  so adding one big object may slow down the query
 
-import qualified Data.Octree as O
+--import qualified Data.Octree as O
+import Debug.Trace
+import qualified Data.SpacePart.QuadTree as SP
+import qualified Data.SpacePart.AABB as SP
 import Data.Octree (Vector3(..), Octree)
 import Data.Maybe
 import GHC.Float
 import Control.Monad
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Control.Lens
 import Game.World.Objects
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.List
 
@@ -21,6 +24,7 @@ data Boundary = Boundary
 	{ _boundaryOrigin :: Vector3
 	, _boundarySize :: Vector3
 	} deriving (Show)
+
 
 newBoundary :: Boundary
 newBoundary = Boundary (Vector3 0 0 0) (Vector3 0 0 0)
@@ -64,8 +68,8 @@ data GameOctree = GameOctree
 	{ _goMaxDiameter :: Double
 	, _goStaticObjects :: Map.Map ObjectId OctreeObject
 	, _goUpdatableObjects :: Map.Map ObjectId OctreeObject
-	, _goStaticOctree :: Octree OctreeObject
-	, _goCachedOctree :: Octree OctreeObject
+	, _goStaticOctree :: SP.QuadTree OctreeObject
+	, _goCachedOctree :: SP.QuadTree OctreeObject
 	, _goNeedsUpdate :: Bool
 	}-- deriving (Show)
 
@@ -74,13 +78,51 @@ makeLenses ''RealBoundary
 makeLenses ''OctreeObject
 makeLenses ''GameOctree
 
+boundaries_intersect b1 b2 = 
+		   ox1 + w1 > ox2
+		&& ox2 + w2 > ox1
+		&& oy1 + h1 > oy2
+		&& oy2 + h2 > oy1
+	where
+		Vector3 ox1 oy1 _ = b1^.boundaryOrigin
+		Vector3 w1 h1 _ = b1^.boundarySize
+		Vector3 ox2 oy2 _ = b2^.boundaryOrigin
+		Vector3 w2 h2 _ = b2^.boundarySize
+instance SP.HasBoundary Boundary where
+	--boundary_points boundary = 
+	--	[ (boundary^.boundaryOrigin._1, boundary^.boundaryOrigin._2)
+	--	, (boundary^.boundaryOrigin._1, boundary^.boundaryOrigin._2 + max (boundary^.boundarySize._1) (boundary^.boundarySize._2))
+	--	, (boundary^.boundaryOrigin._1 + max (boundary^.boundarySize._1) (boundary^.boundarySize._2), boundary^.boundaryOrigin._2 + max (boundary^.boundarySize._1) (boundary^.boundarySize._2))
+	--	, (boundary^.boundaryOrigin._1 + max (boundary^.boundarySize._1) (boundary^.boundarySize._2), boundary^.boundaryOrigin._2)
+	--	]
+	boundary_extents boundary = ((ox, oy)
+		, (ox + max w h, oy + max w h)
+		)
+		where
+			Vector3 ox oy _ = (boundary^.boundaryOrigin)
+			Vector3 w h _ = (boundary^.boundarySize)
+	boundary_square boundary = SP.Boundary (ox, oy) (max w h)
+		where
+			Vector3 ox oy _ = (boundary^.boundaryOrigin)
+			Vector3 w h _ = (boundary^.boundarySize)
+
+octreeObjectPoints :: Getter OctreeObject OctreeObject
+octreeObjectPoints = to points
+	where
+		points octreeObject = octreeObject
+
+instance SP.HasBoundary OctreeObject where
+	--boundary_points obj = boundary_points (obj^.ooBoundary)
+	boundary_extents obj = SP.boundary_extents (obj^.ooBoundary)
+	boundary_square obj = SP.boundary_square (obj^.ooBoundary)
+
 newOctree :: GameOctree
 newOctree = GameOctree
 	{ _goMaxDiameter = 0
 	, _goStaticObjects = Map.empty
 	, _goUpdatableObjects = Map.empty
-	, _goStaticOctree = O.fromList []
-	, _goCachedOctree = O.fromList []
+	, _goStaticOctree = SP.empty 
+	, _goCachedOctree = SP.empty
 	, _goNeedsUpdate = False
 	}
 
@@ -94,9 +136,8 @@ instance Show GameOctree where
 octreeAddStatics :: [(ObjectId, (Float, Float), (Float, Float))] -> State GameOctree ()
 octreeAddStatics [] = return ()
 octreeAddStatics objects = do
-	goMaxDiameter %= max (fromJust (octreeObjects^.maxBoundaryDiameter))
 	mapM_ octreeAddStatic octreeObjects
-	goStaticOctree %= \static -> foldr O.insert static (octreeObjects^.folded.octreeObjectPoints)
+	goStaticOctree %= \static -> foldr SP.insert static (octreeObjects^..traverse.octreeObjectPoints)
 	static <- use goStaticOctree
 	goCachedOctree .= static
 	goNeedsUpdate .= True
@@ -112,6 +153,7 @@ octreeRemoveObject oId oldOctree = oldOctree
 	& goUpdatableObjects %~ Map.delete oId
 	& goStaticObjects %~ Map.delete oId
 	& goNeedsUpdate .~ True
+	--xrn--e
 
 octreeUpdate :: [(ObjectId, [(Float, Float)])] -> State GameOctree ()
 octreeUpdate [] = return ()
@@ -120,59 +162,42 @@ octreeUpdate objects = do
 	goUpdatableObjects %= \m -> foldr (\obj -> -- update or insert
 			Map.insert (obj^.ooObjectId) obj) 
 		m octreeObjects
-	goMaxDiameter %= max (octreeObjects^?!maxBoundaryDiameter._Just) -- eta reduce: max new current
 	where
 		octreeObjects :: [OctreeObject]
 		octreeObjects = map (uncurry octreeObjectFromPoints) objects
 
 octreeQueryObject :: ObjectId -> State GameOctree [ObjectId]
 octreeQueryObject oId = do 
-	needUpdate <- use goNeedsUpdate
-	Control.Monad.when needUpdate $ do
-		objs <- use goUpdatableObjects
-		let updateObjects = map snd $ Map.toList objs
-		staticOctree <- use goStaticOctree
-		goCachedOctree .= foldr O.insert staticOctree (updateObjects^.folded.octreeObjectPoints)
-		goNeedsUpdate .= False
+	--needUpdate <- traceShow ("needs update") $ use goNeedsUpdate
+	--Control.Monad.when needUpdate $ do
+	--	objs <- use goUpdatableObjects
+	--	let updateObjects = map snd $ Map.toList objs
+	--	staticOctree <- traceShow (updateObjects^..traverse.to (\o -> SP.boundary_extents o)) $ use goStaticOctree
+	--	traceShow ("insert") $ goCachedOctree .= foldr (\oo -> traceShow "ins0" (SP.insert oo)) staticOctree (updateObjects^..traverse.octreeObjectPoints)
+	--	goNeedsUpdate .= False
 
 	queryObject' <- use goUpdatableObjects -- . at oId)
 	let Just queryObject = queryObject'^.at oId
-	queryRange <- use goMaxDiameter
-	let points = queryObject^..octreeObjectPoints.traverse._1
-	octree <- use goCachedOctree 
+	----let points = queryObject^..octreeObjectPoints.traverse._1
+	--let bound = SP.boundary_square queryObject
+	--octree <- use goCachedOctree 
+	--let results = traceShow ("query") $ SP.query bound octree
 
-	-- we query using the boundary points, so the range is half the diameter
-	let collisionPoints = foldr (\obj l ->
-		O.withinRange octree (queryRange/2.0) obj ++ l) [] points
+	--return $ filter (/= oId) $ map (^.ooObjectId) $ traceShow (results) results
 
-	let 
-		otherObjects :: [OctreeObject]
-		otherObjects = filter (\o -> o^.ooObjectId /= oId) $ map snd collisionPoints
+	statics <- use goStaticObjects
+	objs <- use goUpdatableObjects
 
-		queryConvexHull :: [(Double, Double)]
-		queryConvexHull = map (\(Vector3 x y _) -> (x, y)) $ queryObject^.ooRealBoundary.rbLines
+	let intersections = filter (\obj -> obj^.ooObjectId /= oId && (obj^.ooBoundary) `boundaries_intersect` (queryObject^.ooBoundary)) 
+		$ map snd $ Map.toList statics ++ Map.toList objs
 
-		otherObjectHulls :: [[Vector3]]
-		otherObjectHulls = otherObjects^..traverse.ooRealBoundary.rbLines
-		otherObjectsConvexHull :: [[(Double, Double)]]
-		otherObjectsConvexHull = (map.map) (\(Vector3 x y _) -> (x, y)) otherObjectHulls
+	let searchBoundaryPoints = (queryObject^..ooRealBoundary.rbLines.traverse.vectorXY)
 
-		--queryObjectInOther :: Bool
-		--queryObjectInOther = any (\point -> any (pointInConvexHull point) otherObjectsConvexHull) queryConvexHull
-		--otherInQueryObject :: Bool
-		--otherInQueryObject = any (any (`pointInConvexHull` queryConvexHull)) otherObjectsConvexHull
+	let realIntersections = filter (\obj ->
+			all (\p -> pointInConvexHull p (obj^..ooRealBoundary.rbLines.traverse.vectorXY)) searchBoundaryPoints
+		) intersections
 
-		-- any point of query object in hull
-		queryPointInHull hull = any (\point -> pointInConvexHull point hull) queryConvexHull
-		hullPointInQueryPoint hull = any (\point -> pointInConvexHull point queryConvexHull) hull
-
-		collisions = foldl' (\s (obj, hull) -> if let 
-				!pih = queryPointInHull hull
-				!hpiqp = hullPointInQueryPoint hull
-				in pih || hpiqp
-			then (++) [obj] s else (++) [] s) [] $ zip otherObjects otherObjectsConvexHull
-
-	return $ Set.toList . Set.fromList $ map _ooObjectId collisions
+	return $ map (^.ooObjectId) realIntersections
 
 
 objectLines :: [(Float, Float)] -> [((Float, Float), (Float, Float))]
@@ -191,37 +216,30 @@ pointInConvexHull (px, py) convexHullLines = isInside
 testCollision :: [ObjectId]
 testCollision = evalState (do
 		octreeAddStatics 
-			[ (0, (0, 0), (1, 1))
-			, (1, (1, 0), (1, 1))
-			, (2, (2, 0), (1, 1))
-			, (3, (3, 0), (1, 1))
+			[
 			]
 		octreeUpdate 
-			[ (4, [(0, 1.5), (1, 1.5)])
-			, (5, [(0.05, 0.95), (1, 1.5)]) -- does work
-			, (6, [(0, 0.95), (1, 1.5)]) -- does not work
+			[ (0, [(35.0, -220.0), (65.0, -190.0)])
+			, (1, [(185.0, -70.0), (215.0, -40.0)])
+			, (2, [(184.241058, -170.252975), (214.241058, -140.252975)])
+			, (3, [(185.0, -270.0), (215.0, -240.0)])
+			, (4, [(936.0, -960.0), (940.0, -956.0)])
+			, (5, [(0.0, -960.0), (24.0, -24.0)])
+			, (6, [(0.0, -24.0), (960.0, -48.0)])
+			, (7, [(24.0, -960.0), (48.0, -48.0)])
+			, (5, [(0.05, 0.95), (1, 1)]) -- does work
+			, (6, [(0, 0.95), (1, 1)]) -- does not work
 			]
 
-		octreeQueryObject 6
+		octreeQueryObject 2
 	) newOctree
 	
-_boundaryDiameter :: Boundary -> Double
-_boundaryDiameter b = O.dist (b^.boundaryOrigin) (b^.boundaryOrigin + b^.boundarySize)
-boundaryDiameter :: Getter Boundary Double
-boundaryDiameter = to _boundaryDiameter
+--_boundaryDiameter :: Boundary -> Double
+----_boundaryDiameter b = O.dist (b^.boundaryOrigin) (b^.boundaryOrigin + b^.boundarySize)
+--boundaryDiameter :: Getter Boundary Double
+--boundaryDiameter = to _boundaryDiameter
 
-octreeObjectPoints :: Getter OctreeObject [(Vector3, OctreeObject)]
-octreeObjectPoints = to points
-	where
-		points octreeObject = zip
-			[ Vector3 ox oy 0
-			, Vector3 ox (oy + dy) 0
-			, Vector3 (ox + dx) (oy + dy) 0
-			, Vector3 (ox + dx) oy 0
-			] $ repeat octreeObject
-			where
-				Vector3 ox oy _ = octreeObject^.ooBoundary.boundaryOrigin
-				Vector3 dx dy _ = octreeObject^.ooBoundary.boundarySize
+
 
 -- creates a boundary that is axis aligned (the real boundary too)
 -- used for tiles etc.
@@ -264,7 +282,3 @@ octreeObjectFromPoints oId points = newOctreeObject
 		-- Note: xs and ys were converted to doubles (we can't use points)
 		realBoundary = newRealBoundary & rbLines
 			.~ map (\(x, y) -> Vector3 x y 0) (zip xs ys)
-
-maxBoundaryDiameter :: Getter [OctreeObject] (Maybe Double)
-maxBoundaryDiameter = to $ 
-	maximumOf (traversed.ooBoundary.boundaryDiameter) -- octreeObjects

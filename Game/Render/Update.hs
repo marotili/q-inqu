@@ -2,8 +2,8 @@ module Game.Render.Update where
 
 import Debug.Trace
 import Game.World.Lens
-import Control.Monad.RWS
-import Control.Monad.State
+import Control.Monad.RWS.Strict
+import Control.Monad.State.Strict
 import Data.Maybe
 import Game.Input.Input
 

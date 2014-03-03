@@ -3,15 +3,15 @@ module Game.World.Common where
 
 import Data.Maybe
 import Game.World.Objects
-import Control.Monad.RWS
+import Control.Monad.RWS.Strict
 import qualified Control.Wire as W
 import qualified Game.Collision as C
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Control.Lens
 import Game.Input.Actions
 import qualified Game.Input.Actions as A
-import Control.Monad.State
+import Control.Monad.State.Strict
 import qualified Control.Monad as CM
 
 type ObjectProp a = Map.Map ObjectId a
@@ -41,7 +41,7 @@ type WorldWire a b = WorldWireS WireControl a b
 type WorldSession = W.Session IO (W.Timed W.NominalDiffTime ())
 
 data Realm = Realm
-	{ _realmName :: String
+	{ _realmName :: !String
 	}
 
 --type TrackerId = ObjectId
@@ -59,20 +59,20 @@ instance Monoid Float where
 
 
 data WorldCommon = WorldCommon
-	{ _wcPositions :: ObjectProp Position
-	, _wcRotations :: ObjectProp Rotation
-	, _wcPhysics :: ObjectProp Physics
-	, _wcAnimations :: ObjectProp Animation
+	{ _wcPositions :: !(ObjectProp Position)
+	, _wcRotations :: !(ObjectProp Rotation)
+	, _wcPhysics :: !(ObjectProp Physics)
+	, _wcAnimations :: !(ObjectProp Animation)
 
-	, _wcBoundaries :: ObjectProp Boundary
+	, _wcBoundaries :: !(ObjectProp Boundary)
 
 	-- list of objects hit by owning object
-	, _wcCollisionEvents :: ObjectProp [ObjectId]
+	, _wcCollisionEvents :: !(ObjectProp [ObjectId])
 
-	, _wcWires :: ObjectProp [ObjectWire ObjectId ()]
-	, _wcOrientation :: ObjectProp Orientation
-	, _wcStaticCollidable :: ObjectType
-	, _wcRealm :: ObjectProp Realm
+	, _wcWires :: !(ObjectProp [ObjectWire ObjectId ()])
+	, _wcOrientation :: !(ObjectProp Orientation)
+	, _wcStaticCollidable :: !ObjectType
+	, _wcRealm :: !(ObjectProp Realm)
 	-- | The tracking wires are applied after the delta has been applied
 	-- | worldNew = applyDelta world delta
 	-- | trackDelta = runTrackWires worldNew
@@ -91,10 +91,10 @@ instance Show WorldCommon where
 
 
 data WorldDelta = WorldDelta
-	{ _wdCommon :: WorldCommonDelta
-	, _wdUnitManager :: UnitManagerDelta
-	, _wdObjects :: ObjectProp (Maybe Object) -- add or delete objects
-	, _wdCollisionFilter :: ObjectProp (Map.Map ObjectId (Maybe ObjectId))
+	{ _wdCommon :: !WorldCommonDelta
+	, _wdUnitManager :: !UnitManagerDelta
+	, _wdObjects :: !(ObjectProp (Maybe Object)) -- add or delete objects
+	, _wdCollisionFilter :: !(ObjectProp (Map.Map ObjectId (Maybe ObjectId)))
 	} deriving (Show)
 
 data World = World
@@ -110,8 +110,8 @@ data World = World
     } deriving (Show)
 
 data WorldManager = WorldManager
-	{ _wmNextObjectId :: ObjectId
-	, _wmPlayerActions :: Map.Map PlayerId InputActions
+	{ _wmNextObjectId :: !ObjectId
+	, _wmPlayerActions :: !(Map.Map PlayerId InputActions)
 	} deriving (Show, Eq)
 
 wcEmpty :: WorldCommon
@@ -157,25 +157,25 @@ type ItemId = Int
 type UnitId = Int
 type ItemInstanceId = ItemId
 -- | helper container
-data Modify a = ModifySet a | ModifyUnset deriving (Show)
+data Modify a = ModifySet !a | ModifyUnset deriving (Show)
 type ModifyContainer k a = Map.Map k (Modify a)
 
 data UnitManagerDelta = UnitManagerDelta
-    { _umdUnits :: ModifyContainer UnitId Unit
-    , _umdItems :: ModifyContainer ItemId Item
+    { _umdUnits :: !(ModifyContainer UnitId Unit)
+    , _umdItems :: !(ModifyContainer ItemId Item)
     } deriving (Show)
 
 data UnitManager = UnitManager
-    { _umUnits :: ObjectProp Unit
-    , _umItems :: ObjectProp Item
+    { _umUnits :: !(ObjectProp Unit)
+    , _umItems :: !(ObjectProp Item)
     } deriving (Show)
 newUnitManager = UnitManager
     { _umUnits = Map.empty
     , _umItems = Map.empty
     }
 data UnitHealth = UnitHealth
-    { _uhMax :: Int
-    , _uhCurrent :: Int
+    { _uhMax :: !Int
+    , _uhCurrent :: !Int
     } deriving (Show)
 
 data Condition = 
@@ -185,32 +185,32 @@ data Condition =
     deriving (Show, Eq)
 
 data Unit = Unit
-    { _unitId :: UnitId
-    , _unitHealth :: UnitHealth
-    , _unitEquipment :: Equipment
-    , _unitInventory :: Inventory
-    , _unitAbilities :: Map.Map AbilitySlot Ability
-    , _unitConditions :: Set.Set Condition
+    { _unitId :: !UnitId
+    , _unitHealth :: !UnitHealth
+    , _unitEquipment :: !Equipment
+    , _unitInventory :: !Inventory
+    , _unitAbilities :: !(Map.Map AbilitySlot Ability)
+    , _unitConditions :: !(Set.Set Condition)
     } deriving (Show)
 
 type AbilitySlot = Int
 data Ability = AbilityPush
-    { _abilityBaseRange :: Int
-    , _abilityBaseForce :: Int
-    , _abilityBaseEffect :: WorldWire UnitId ()
+    { _abilityBaseRange :: !Int
+    , _abilityBaseForce :: !Int
+    , _abilityBaseEffect :: !(WorldWire UnitId ())
     }
 instance Show Ability where
 	show a = "Ability"
 
 data Equipment = Equipment
-    { equipmentSlots :: Map.Map EquipmentSlot (Maybe ItemInstance)
+    { equipmentSlots :: !(Map.Map EquipmentSlot (Maybe ItemInstance))
     } deriving (Show)
 
 type InventoryIndex = Int
 
 data Inventory = Inventory
-    { _invItemInstances :: Map.Map InventoryIndex ItemInstance
-    , _invMaxItems :: Int
+    { _invItemInstances :: !(Map.Map InventoryIndex ItemInstance)
+    , _invMaxItems :: !Int
     } deriving (Show)
 
 data EquipmentSlot =
@@ -219,14 +219,14 @@ data EquipmentSlot =
     deriving (Show)
 
 data Item = EquipmentItem
-    { _itemId :: ItemId
+    { _itemId :: !ItemId
     } | InventoryItem
-    { _itemId :: ItemId
+    { _itemId :: !ItemId
     } deriving (Show)
 
 data ItemInstance = ItemInstance
-    { _iiItemInstanceId :: ItemInstanceId
-    , _iiItemId :: ItemId
+    { _iiItemInstanceId :: !ItemInstanceId
+    , _iiItemId :: !ItemId
     } deriving (Show)
 
 makeLenses ''UnitManager
