@@ -8,7 +8,7 @@ module Game.Network.Client
 import Game.World
 import Game.Game
 
-import Control.Monad.RWS
+import Control.Monad.RWS.Strict
 
 --import Control.Wire
 import qualified Control.Wire as W
@@ -20,7 +20,7 @@ import Pipes.Concurrent
 import Pipes.Binary
 import qualified Game.Input.Actions as A
 import Game.Render
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Game.Render.Map
 import Data.Tiled
 import Control.Concurrent.STM ( TVar, readTVar, writeTVar)
@@ -69,5 +69,7 @@ consumeClientWorld renderContextVar game = do
 		writeTVar renderContextVar (rc 
 				& rcWorldRenderContext.wrcWorld .~ (newGame^.gameRenderWorld)
 			)
+
+	--lift $ performGC
 
 	consumeClientWorld renderContextVar newGame

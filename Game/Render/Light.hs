@@ -141,7 +141,6 @@ newLightContext = do
 	uploadLights lightsBuffer lights
 
 	program <- setupShaders "shader.light.vert" "shader.light.frag"
-	_ <- uniformInfo program
 
 	return LightContext
 		{ _lcVao = vao

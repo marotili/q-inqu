@@ -273,23 +273,19 @@ run i session w = do
 
     let userTime = case userTime2 of Just time -> realToFrac time; Nothing -> 0
 
-    joystick <- liftIO $ GLFW.getJoystickName GLFW.Joystick'1
-    case joystick of
-      Just _ -> do 
-        (xl, yl, lt, xr, yr, rt, px, py, buttons) <- liftIO $ getJoystickData GLFW.Joystick'1
+    --(xl, yl, lt, xr, yr, rt, px, py, buttons) <- liftIO $ getJoystickData GLFW.Joystick'1
 
-        let xc = XboxController { _xcLeftTrigger = lt
-            , _xcRightTrigger = rt
-            , _xcLeftStick = (if abs xl < 0.3 then 0 else xl, if abs yl < 0.3 then 0 else yl)
-            , _xcRightStick = (if abs xr < 0.3 then 0 else xr, if abs yr < 0.3 then 0 else yr)
-            , _xcPad = (px, py)
-            , _xcButtons = makeSet buttons
-            }
+    --let xc = XboxController { _xcLeftTrigger = lt
+    --    , _xcRightTrigger = rt
+    --    , _xcLeftStick = (if abs xl < 0.3 then 0 else xl, if abs yl < 0.3 then 0 else yl)
+    --    , _xcRightStick = (if abs xr < 0.3 then 0 else xr, if abs yr < 0.3 then 0 else yr)
+    --    , _xcPad = (px, py)
+    --    , _xcButtons = makeSet buttons
+    --    }
 
-        liftIO $ print xc
+    --liftIO $ print xc
 
-        modify $ \s -> s { stateInput = stateInput s >> inputUpdateController xc }
-      Nothing -> return ()
+    --modify $ \s -> s { stateInput = stateInput s >> inputUpdateController xc }
 
     -- user input
     let input = asks stateInput state -- maybe not threadsafe
