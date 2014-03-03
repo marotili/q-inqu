@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, Rank2Types, NoMonomorphismRestriction #-}
+{-# LANGUAGE FlexibleContexts, Rank2Types, NoMonomorphismRestriction, BangPatterns #-}
 module Game.World.Delta where
 
 import qualified Data.Map as Map
@@ -63,10 +63,10 @@ applyCommonDelta wd = do
 
 		objUpdate = Set.toList $ Set.intersection objPosAndBoundary $ objNewBoundaries `Set.union` objNewPos 
 
-		objBoundaries = zip objUpdate [world2^.objectBoundary oId | oId <- objUpdate]
+		!objBoundaries = zip objUpdate [world2^.objectBoundary oId | oId <- objUpdate]
 
 	unless (null objBoundaries) $
-		wCollisionManager %= LS.execState (octreeUpdate objBoundaries)
+		wCollisionManager %= execState (octreeUpdate objBoundaries)
 
 alterObjects :: Maybe a -> Maybe a -> Maybe a
 alterObjects Nothing _ = Nothing -- delte object

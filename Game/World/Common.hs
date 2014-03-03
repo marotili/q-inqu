@@ -6,7 +6,7 @@ import Game.World.Objects
 import Control.Monad.RWS.Strict
 import qualified Control.Wire as W
 import qualified Game.Collision as C
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Control.Lens
 import Game.Input.Actions
@@ -41,7 +41,7 @@ type WorldWire a b = WorldWireS WireControl a b
 type WorldSession = W.Session IO (W.Timed W.NominalDiffTime ())
 
 data Realm = Realm
-	{ _realmName :: String
+	{ _realmName :: !String
 	}
 
 --type TrackerId = ObjectId
@@ -110,7 +110,7 @@ data World = World
     } deriving (Show)
 
 data WorldManager = WorldManager
-	{ _wmNextObjectId :: ObjectId
+	{ _wmNextObjectId :: !ObjectId
 	, _wmPlayerActions :: !(Map.Map PlayerId InputActions)
 	} deriving (Show, Eq)
 
@@ -157,7 +157,7 @@ type ItemId = Int
 type UnitId = Int
 type ItemInstanceId = ItemId
 -- | helper container
-data Modify a = ModifySet a | ModifyUnset deriving (Show)
+data Modify a = ModifySet !a | ModifyUnset deriving (Show)
 type ModifyContainer k a = Map.Map k (Modify a)
 
 data UnitManagerDelta = UnitManagerDelta
@@ -174,8 +174,8 @@ newUnitManager = UnitManager
     , _umItems = Map.empty
     }
 data UnitHealth = UnitHealth
-    { _uhMax :: Int
-    , _uhCurrent :: Int
+    { _uhMax :: !Int
+    , _uhCurrent :: !Int
     } deriving (Show)
 
 data Condition = 
@@ -185,32 +185,32 @@ data Condition =
     deriving (Show, Eq)
 
 data Unit = Unit
-    { _unitId :: UnitId
-    , _unitHealth :: UnitHealth
-    , _unitEquipment :: Equipment
-    , _unitInventory :: Inventory
-    , _unitAbilities :: Map.Map AbilitySlot Ability
-    , _unitConditions :: Set.Set Condition
+    { _unitId :: !UnitId
+    , _unitHealth :: !UnitHealth
+    , _unitEquipment :: !Equipment
+    , _unitInventory :: !Inventory
+    , _unitAbilities :: !(Map.Map AbilitySlot Ability)
+    , _unitConditions :: !(Set.Set Condition)
     } deriving (Show)
 
 type AbilitySlot = Int
 data Ability = AbilityPush
-    { _abilityBaseRange :: Int
-    , _abilityBaseForce :: Int
-    , _abilityBaseEffect :: WorldWire UnitId ()
+    { _abilityBaseRange :: !Int
+    , _abilityBaseForce :: !Int
+    , _abilityBaseEffect :: !(WorldWire UnitId ())
     }
 instance Show Ability where
 	show a = "Ability"
 
 data Equipment = Equipment
-    { equipmentSlots :: Map.Map EquipmentSlot (Maybe ItemInstance)
+    { equipmentSlots :: !(Map.Map EquipmentSlot (Maybe ItemInstance))
     } deriving (Show)
 
 type InventoryIndex = Int
 
 data Inventory = Inventory
-    { _invItemInstances :: Map.Map InventoryIndex ItemInstance
-    , _invMaxItems :: Int
+    { _invItemInstances :: !(Map.Map InventoryIndex ItemInstance)
+    , _invMaxItems :: !Int
     } deriving (Show)
 
 data EquipmentSlot =
@@ -219,14 +219,14 @@ data EquipmentSlot =
     deriving (Show)
 
 data Item = EquipmentItem
-    { _itemId :: ItemId
+    { _itemId :: !ItemId
     } | InventoryItem
-    { _itemId :: ItemId
+    { _itemId :: !ItemId
     } deriving (Show)
 
 data ItemInstance = ItemInstance
-    { _iiItemInstanceId :: ItemInstanceId
-    , _iiItemId :: ItemId
+    { _iiItemInstanceId :: !ItemInstanceId
+    , _iiItemId :: !ItemId
     } deriving (Show)
 
 makeLenses ''UnitManager

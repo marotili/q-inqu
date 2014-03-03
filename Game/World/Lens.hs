@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts, Rank2Types, NoMonomorphismRestriction #-}
 module Game.World.Lens where
 
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Control.Lens
 import Game.World.Objects
