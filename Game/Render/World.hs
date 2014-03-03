@@ -5,7 +5,7 @@ import Data.List
 import qualified Data.Tiled as T
 import qualified Game.World.Import.Tiled as T
 import Control.Monad.State.Strict
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Debug.Trace
 
@@ -67,26 +67,26 @@ data TileType =
 	deriving (Eq, Show)
 
 data Image = Image
-	{ _iSource :: FilePath
-	, _iWidth, _iHeight :: Int
+	{ _iSource :: !FilePath
+	, _iWidth, _iHeight :: !Int
 	} deriving (Eq, Show)
 
 
 data Tileset = Tileset
-	{ _tsTileWidth, _tsTileHeight :: Int
-	, _tsSpacing, _tsMargin :: Int
-	, _tsImage :: Image
+	{ _tsTileWidth, _tsTileHeight :: !Int
+	, _tsSpacing, _tsMargin :: !Int
+	, _tsImage :: !Image
 	, _tsTileTypes :: !(Map.Map LocalTileId TileType)
 	} deriving (Eq, Show)
 
 data Tile = Tile
-	{ _tileTsId :: TilesetId
-	, _tileLocalId :: LocalTileId
+	{ _tileTsId :: !TilesetId
+	, _tileLocalId :: !LocalTileId
 	} deriving (Eq, Show)
 
 data Object = Object
-	{ _objTsId :: TilesetId
-	, _objLocalId :: LocalTileId
+	{ _objTsId :: !TilesetId
+	, _objLocalId :: !LocalTileId
 	} deriving (Eq, Show)
 
 newObject ts lid = Object
@@ -101,10 +101,10 @@ newTile ts lid = Tile
 
 
 data RenderObject = RenderObject
-	{ _roId :: ObjectId
-	, _roPos :: Position
-	, _roRotation :: Float
-	, _roOrigin :: Position
+	{ _roId :: !ObjectId
+	, _roPos :: !Position
+	, _roRotation :: !Float
+	, _roOrigin :: !Position
 	} deriving (Eq, Show)
 
 newRenderObject oId pos rotation = RenderObject

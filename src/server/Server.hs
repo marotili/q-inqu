@@ -1,9 +1,10 @@
-{-# LANGUAGE OverloadedStrings, RankNTypes #-}
+{-# LANGUAGE OverloadedStrings, RankNTypes, BangPatterns #-}
 
 module Main where
 
 import Debug.Trace
 import Game.World
+import System.Exit
 
 import Control.Monad.RWS.Strict
 --import Control.Monad.Identity
@@ -99,25 +100,26 @@ produceWorld session' lastDt total = do
 --	lift $ print p
 --	P.yield p
 
-fakeClient game = do
+fakeClient !game = do
 		(_, (actions, dt)) <- await
-		let manager2 = worldManagerUpdate (game^.gameWorldManager) actions
+		let !manager2 = worldManagerUpdate (game^.gameWorldManager) actions
 
-		let ((actions1, actions2), newGame) = runState (do
+		let ((!actions1, !actions2), !newGame) = runState (do
 				gameWorldManager .= manager2
-				updateGame dt
+				--updateGame dt
+				updateOnlyGame dt
 				world <- use gameLogicWorld 
 				worldDelta <- use gameLastDelta
 				manager <- use gameWorldManager
 
-				let A.InputActions aiInput1 = runAI 3 world worldDelta dt
-				let A.InputActions aiInput2 = runAI 4 world worldDelta dt
+				let !(A.InputActions aiInput1) = runAI 3 world worldDelta dt
+				let !(A.InputActions aiInput2) = runAI 4 world worldDelta dt
 				return (aiInput1, aiInput2)
 			) game
 
 		mapM_ (\a -> P.yield (0, 3, a)) $ Set.toList actions1 
 		mapM_ (\a -> P.yield (0, 4, a)) $ Set.toList actions2
-		fakeClient newGame
+		newGame `seq` fakeClient newGame
 
 runFakeClient input output game = 
 	void (decodeSteps (fromInput input)) >-> fakeClient game >-> toOutput output
@@ -175,9 +177,12 @@ main = withSocketsDo $ do
 		runEffect $ runFakeClient input3 sendEvents1 game
 		performGC
 
-	serve HostIPv4 "5002" (connCb (numClient, sendEvents1, input1, input2))
+	_ <- async $ do
+		serve HostIPv4 "5002" (connCb (numClient, sendEvents1, input1, input2))
 
-	wait a1
+	threadDelay (1000000*25)
+	exitSuccess
+	--wait a1
 
 	return ()
 

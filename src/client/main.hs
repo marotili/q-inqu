@@ -26,7 +26,7 @@ import Game.Render.Map
 import qualified Game.Render.Map as RMap
 import Game.Render.Camera
 
-import qualified Control.Monad.State as S
+import qualified Control.Monad.State.Strict as S
 
 import Game.Network.Client
 

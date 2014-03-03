@@ -12,10 +12,10 @@ import Data.Octree (Vector3(..), Octree)
 import Data.Maybe
 import GHC.Float
 import Control.Monad
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Control.Lens
 import Game.World.Objects
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.List
 

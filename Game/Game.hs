@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, Arrows #-}
+{-# LANGUAGE TemplateHaskell, Arrows, BangPatterns #-}
 module Game.Game where
 
 import Control.Lens
@@ -31,9 +31,9 @@ import Game.World.Common
 import Control.Arrow
 
 data Game = Game
-	{ _gameName :: String
-	, _gameTiled :: T.TiledMap
-	, _gamePlayerStartPos :: (Float, Float)
+	{ _gameName :: !String
+	, _gameTiled :: !T.TiledMap
+	, _gamePlayerStartPos :: !(Float, Float)
 	, _gameLogicWorld :: !G.World
 	, _gameRenderWorld :: !R.World
 	, _gameLastDelta :: !G.WorldDelta
@@ -174,7 +174,7 @@ gameStepWorld ::
 	-> WorldManager 
 	-> Rational 
 	-> (WorldWire () b, (WorldManager, WorldDelta))
-gameStepWorld w' world' state' dt' = (newWire, (worldManager, worldDelta))
+gameStepWorld w' world' state' dt' = newWire `seq` worldManager `seq` worldDelta `seq` (newWire, (worldManager, worldDelta))
 	where
 		dt = W.Timed (fromRational dt') ()
 	-- run wires
@@ -186,24 +186,41 @@ gameStepWorld w' world' state' dt' = (newWire, (worldManager, worldDelta))
 		--tracking = world'^.wCommon.wcTrack
 
 --updateRender :: G.WorldDelta -> G.World -> G.World -> R.World -> (R.World, [U.Renderable])
-updateRender delta oldWorld newWorld renderWorld renderablesIn = (renderWorld3, newRenderablesDeleted ++ newRenderables)
+updateRender delta oldWorld newWorld renderWorld renderablesIn = 
+		let x = newRenderablesDeleted ++ newRenderables
+		in x `seq` (renderWorld3, x)
 	where
 		-- remove objects from renderer
-		(_, renderWorld2', removeRenderables) = runRWS (do
+		(_, !renderWorld2', !removeRenderables) = runRWS (do
 				U.removeRenderObjects
 			) (oldWorld, delta, renderablesIn) renderWorld
 
-		newRenderablesDeleted = Set.toList $ Set.difference (Set.fromList renderablesIn) (Set.fromList removeRenderables)
+		!newRenderablesDeleted = Set.toList $ Set.difference (Set.fromList renderablesIn) (Set.fromList removeRenderables)
 
 		-- add objects to renderer
-		(_, renderWorld2, newRenderables) = runRWS (do
+		(_, !renderWorld2, !newRenderables) = runRWS (do
 				--updateTiled
 				U.newRenderObjects
 			) (newWorld, delta, newRenderablesDeleted) renderWorld2'
 
 		-- update render objects
-		(_, renderWorld3, _) = runRWS U.update
+		(_, !renderWorld3, _) = runRWS U.update
 			(newWorld, delta, newRenderablesDeleted ++ newRenderables) renderWorld2
+
+updateOnlyGame :: Rational -> State Game ()
+updateOnlyGame dt = do
+	game <- get
+	world <- use $ gameLogicWorld
+	worldWire <- use $ gameWire
+	oldManager <- use $ gameWorldManager
+
+	let (!newWire, (!newManager, !newDelta)) = gameStepWorld worldWire world oldManager dt
+	let !newWorld = G.applyDelta world newDelta
+
+	gameLogicWorld .= newWorld
+	gameLastDelta .= newDelta
+	gameWorldManager .= newManager
+	gameWire .= newWire
 
 updateGame :: Rational -> State Game ()
 updateGame dt = do
@@ -214,9 +231,9 @@ updateGame dt = do
 	oldManager <- use $ gameWorldManager
 	renderWorld <- use $ gameRenderWorld
 
-	let (newWire, (newManager, newDelta)) = gameStepWorld worldWire world oldManager dt
-	let newWorld = G.applyDelta world newDelta
-	let (newRenderWorld, newRenderables) = updateRender newDelta world newWorld renderWorld renderablesIn
+	let (!newWire, (!newManager, !newDelta)) = gameStepWorld worldWire world oldManager dt
+	let !newWorld = G.applyDelta world newDelta
+	let (!newRenderWorld, !newRenderables) = updateRender newDelta world newWorld renderWorld renderablesIn
 
 	gameRenderObjects .= newRenderables
 	gameRenderWorld .= newRenderWorld
