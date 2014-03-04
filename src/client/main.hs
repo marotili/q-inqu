@@ -508,7 +508,10 @@ joysticks =
 --getJoystickData :: GLFW.Joystick -> IO (Double, Double)
 getJoystickData js = do
     maxes <- GLFW.getJoystickAxes js
+    print maxes
     Just buttons <- GLFW.getJoystickButtons js
+    print buttons
     return $ case maxes of
       (Just (x:y:lt:xr:yr:rt:px:py:[])) -> (-x, -y, lt, xr, yr, rt, px, py, buttons)
+      (Just (x:y:_)) -> (-x, -y, 0, 0, 0, 0, 0, 0, buttons)
       _ -> (0, 0, 0, 0, 0, 0, 0, 0, [])

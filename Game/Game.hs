@@ -140,7 +140,7 @@ newRenderConfig = execState (do
 		R.rcTiles . at "NoMatch" .= Just ("sewer_tileset", 40)
 		R.rcTiles . at "Wall" .= Just ("sewer_tileset", 41)
 
-		R.rcTiles . at "ItemBolt" .= Just ("items", 2)
+		--R.rcTiles . at "ItemBolt" .= Just ("items", 2)
 	) $ R.emptyConfig
 
 makeLenses ''Game

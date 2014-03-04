@@ -173,16 +173,14 @@ main = withSocketsDo $ do
 	game <- newGame "test"
 
 	a1 <- async $ runGame recvEvents output
-	_ <- async $ do
+	a2 <- async $ do
 		runEffect $ runFakeClient input3 sendEvents1 game
 		performGC
 
 	_ <- async $ do
 		serve HostIPv4 "5002" (connCb (numClient, sendEvents1, input1, input2))
 
-	threadDelay (1000000*25)
-	exitSuccess
-	--wait a1
+	mapM_ wait [a1, a2]
 
 	return ()
 
