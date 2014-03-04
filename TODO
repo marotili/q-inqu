@@ -1,6 +1,13 @@
 TODO
 ====
 
+- config files for game
+	* animations time
+	* tileset definitions
+
+- text rendering
+- write user input to file for replays / testing
+
 - load tile data using vertex arrays instead of uniform buffers
 
 - screenshake
