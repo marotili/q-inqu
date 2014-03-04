@@ -55,6 +55,8 @@ stepObjectWires = mkGen $ \ds _ -> do
 					WireFinished ->
 						return ()
 
+
+
 exit :: WorldWire a a
 exit = inhibit WireFinished
 
