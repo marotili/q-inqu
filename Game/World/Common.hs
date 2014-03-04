@@ -28,7 +28,7 @@ type WorldContext = DebugWorldContext
 type DebugWireS s a b = W.Wire (W.Timed W.NominalDiffTime ()) s DebugWorldContext a b
 type DebugWire a b = DebugWireS () a b
 
-data WireControl = WireRunning | WireFinished
+data WireControl = WireRunning | WireFinished deriving (Show)
 instance Monoid WireControl where
 	mempty = WireFinished
 	mappend WireFinished _ = WireFinished
