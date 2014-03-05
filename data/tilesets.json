@@ -1,0 +1,15 @@
+{
+	"tileset": {
+		"name" : "wolf",
+		"filename": "wolf.png",
+		"base_directory" : "monsters",
+		"data": [
+			  { "filename":"1.png", "size":96 }
+			, { "filename":"1b.png", "size":96 }
+			, { "filename":"2.png", "size":96 }
+			, { "filename":"3.png", "size":96 }
+			, { "filename":"3b.png", "size":96 }
+			, { "filename":"4.png", "size":96 }
+		]
+	}
+}

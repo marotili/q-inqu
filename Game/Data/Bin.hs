@@ -14,9 +14,12 @@ data Rect = Rect
 	, _rectHeight :: Int
 	} deriving (Show, Eq)
 
+newRect rId w h = Rect rId w h
+
 data Atlas = Atlas
 	{ _atlasRects :: Map.Map RectId Position
 	} deriving (Show)
+
 
 data PackTree =
 	  PackHorizontalNode PackTree PackTree
@@ -57,6 +60,11 @@ packTree = let
 		get n@(PackLeafEmpty _ _ _ _) = n : []
 		get n@(PackLeafRect _ _ _) = n : []
 	in to get
+
+atlasFromTree pt = Atlas $ foldr (\pt m -> case pt of
+		PackLeafRect rId w h -> Map.insert rId (w, h) m
+		_ -> m
+	) Map.empty (pt^.packTree)
 
 foldTree :: Rect -> PackTree -> Maybe PackTree
 foldTree rect pt = unOne $ foldl (\mo tree -> case tree of
