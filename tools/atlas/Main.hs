@@ -1,13 +1,18 @@
-{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings, TemplateHaskell, FlexibleInstances #-}
 module Main where
 
 import Data.Maybe
+import Debug.Trace
 import Game.Data.Bin
 import Control.Lens
+import qualified Control.Lens as L
 import Data.Aeson
+import Data.Aeson.Encode.Pretty
+import qualified Data.Aeson as A
 import Data.List
 import Control.Applicative
 import Control.Monad
+import Control.Monad.State
 import qualified Data.Text as T
 import qualified Data.ByteString.Lazy as B
 import Graphics.ImageMagick.MagickWand
@@ -16,52 +21,9 @@ import qualified Filesystem.Path as FP
 import qualified Filesystem.Path.CurrentOS as FP
 import Text.Regex
 import Control.Monad.Trans.Resource
-
-
-data TileSetData = TileSetData
-	{ _tsdFilename :: FP.FilePath
-	, _tsdSize :: Int
-	} deriving (Show)
-
---newtype TileSetDataList = [TileSetData]
-
-data TileSet = TileSet
-	{ _tsName :: T.Text
-	, _tsFilename :: FP.FilePath
-	, _tsBaseDirectory :: FP.FilePath
-	, _tsData :: [TileSetData]
-	} deriving (Show)
-
-data TileSets = TileSets
-	{ _tileSet :: TileSet
-	} deriving (Show)
-
-makeLenses ''TileSetData
-makeLenses ''TileSet
-makeLenses ''TileSets
-
-instance FromJSON TileSets where
-	parseJSON (Object v) = TileSets <$>
-		v .: "tileset"
-	parseJSON _ = mzero
-
-instance FromJSON TileSet where
-	parseJSON (Object v) = TileSet <$>
-		v .: "name" <*>
-		v .: "filename" <*> 
-		v .: "base_directory" <*>
-		v .: "data"
-	parseJSON _ = mzero
-
-instance FromJSON TileSetData where
-	parseJSON (Object v) = TileSetData <$>
-		v .: "filename" <*>
-		v .: "size"
-	parseJSON _ = mzero
-
-instance FromJSON FP.FilePath where
-	parseJSON (String v) = return $ FP.fromText v
-	parseJSON _ = mzero
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+import Game.Data.Tileset
 
 readConfig = do
 	fileData <- B.readFile "data/tilesets.json" 
@@ -69,43 +31,11 @@ readConfig = do
 	print p
 	return p
 
-findOffset :: String -> (Int, Int)
-findOffset str = case matches of
-		Just [l, r] -> (read l, read r)
-		_ -> (0, 0)
-	where
-		r = mkRegex "Origin geometry: \\+([0-9]+)\\+([0-9]+)"
-		matches = matchRegex r str
-
-fillBin :: Bin -> [Rect] -> Maybe PackTree
-fillBin _ [] = Nothing
-
-fillBin bin rects = 
-	let 
-		(first:sortedRects) = sort rects
-		Just treeRoot = mkRoot first bin
-
-		finalTree = foldr (\rect mtree -> mtree >>= \tree -> updateTree rect tree mtree) (Just treeRoot) sortedRects
-	in finalTree
-
-mkRects :: [(Int, Int)] -> [Rect]
-mkRects sizes = rects
-	where
-		rects = map (\((w, h), rId) -> newRect rId w h) $ zip sizes [0..]
-
-getOffsets :: Bin -> [(Int, Int)] -> [(Int, Int)]
-getOffsets bin sizes = let
-		rects = mkRects sizes
-		tree = fromJust $ fillBin bin rects
-		atlas = atlasFromTree tree
-	in
-		map (\rect -> fromJust $ atlas^.atlasRects . at (rect^.rectId)) rects
-
 trim tileSet = do
-	s <- withMagickWandGenesis $ do
+	(sizes, offsets, trimOffsets) <- withMagickWandGenesis $ do
 		(rks, wands) <- fmap unzip $ sequence [magickWand | _ <- [0..numTiles-1]]
-		sizes <- mapM (\(tsData, wand) -> do
-				readImage wand $ FP.fromText "data" </> (tileSet^.tsBaseDirectory) </> (tsData^.tsdFilename)
+		(sizes, trimOffsets) <- fmap unzip $ mapM (\(tsData, wand) -> do
+				readImage wand $ FP.fromText "data" </> (tileSet^.tscBaseDirectory) </> (tsData^.tsdFilename)
 				trimImage wand 10
 				str <- identifyImage wand
 
@@ -119,8 +49,8 @@ trim tileSet = do
 				resizeImage wand bWidth bSize lanczosFilter 1
 				finalWidth <- getImageWidth wand
 
-				return (finalWidth, bSize)
-			) $ zip (tileSet^.tsData) wands
+				return ((finalWidth, bSize), offset)
+			) $ zip (tileSet^.tscData) wands
 
 		let rectOffsets = getOffsets (Bin 1024 1024) sizes
 
@@ -135,18 +65,34 @@ trim tileSet = do
 				release pk
 			) $ zip3 rectOffsets rks wands
 
-		writeImage w (Just "data/monsters/compiled/test.png")
+		writeImage w (Just "data/monsters/compiled/tileset.png")
 
-		return sizes
-	print s
+		return (sizes, rectOffsets, trimOffsets)
+
+	let ts' = foldr (\(tsData, size, trimOffset, offset) ts -> (tsData 
+			& tsdFinalSize .~ size
+			& tsdBaseOffset .~ trimOffset
+			& tsdPosition .~ offset)
+			: ts)
+		[] $ zip4 (tileSet^.tscData) sizes trimOffsets offsets
+
+	return ts'
 
 	where
-		numTiles = length $ tileSet^.tsData
+		numTiles = length $ tileSet^.tscData
 
 main = do
 	Right p <- readConfig
 
-	trim (p^.tileSet)
+	p' <- foldM (\root ts -> do
+			ts' <- trim ts
+			let r = foldr (\tile root' ->
+					root' & rootTiles . at (tile^.tsdName) L..~ Just tile
+				) root ts'
+			return r
+		) p $ p^.getCompiledTileSets
+
+	B.writeFile "tileset_compiled.json" (encodePretty p')
 
 
 	--scaleImages (p^.tileSet)
@@ -186,19 +132,19 @@ main = do
 	--print l
 
 
-scaleImages tileSet =
-	mapM_ (\tsData -> do
-		withMagickWandGenesis $ do
-			(_, w) <- magickWand
-			scaleImage w tsData
-		) (tileSet^.tsData)
-	where
-		baseDir = tileSet^.tsBaseDirectory
-		scaleImage w tsData = do
-			readImage w $ FP.fromText "data" </> baseDir </> (tsData^.tsdFilename)
-			width <- getImageWidth w
-			height <- getImageWidth w
-			resizeImage w (tsData^.tsdSize) (tsData^.tsdSize) lanczosFilter 1
-			writeImages w ("data" </> baseDir </> "compiled" </> (tsData^.tsdFilename)) True
-			--clearMagickWand w
-	
+--scaleImages tileSet =
+--	mapM_ (\tsData -> do
+--		withMagickWandGenesis $ do
+--			(_, w) <- magickWand
+--			scaleImage w tsData
+--		) (tileSet^.tsData)
+--	where
+--		baseDir = tileSet^.tsBaseDirectory
+--		scaleImage w tsData = do
+--			readImage w $ FP.fromText "data" </> baseDir </> (tsData^.tsdFilename)
+--			width <- getImageWidth w
+--			height <- getImageWidth w
+--			resizeImage w (tsData^.tsdSize) (tsData^.tsdSize) lanczosFilter 1
+--			writeImages w ("data" </> baseDir </> "compiled" </> (tsData^.tsdFilename)) True
+--			--clearMagickWand w
+--	

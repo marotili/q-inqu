@@ -42,6 +42,7 @@ newRenderContext playerId game = do
 	program <- setupShaders "shader.vert" "shader.frag"
 	_ <- uniformInfo program
 	wrc <- newWorldRenderContext nWorld program
+	print "ui"
 	uirc <- newWorldRenderContext uiWorld program
 	lc <- newLightContext
 

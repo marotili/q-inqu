@@ -50,8 +50,14 @@ makeLenses ''Atlas
 makeLenses ''Bin
 
 instance Ord Rect where
-	r1 <= r2 = if r1^.rectWidth <= r2^.rectWidth then
-		True else False
+	r1 `compare` r2 
+		| r1^.rectHeight < r2^.rectHeight = LT
+		| r1^.rectHeight > r2^.rectHeight = GT
+		| r1^.rectWidth < r2^.rectWidth = LT
+		| r2^.rectWidth > r2^.rectWidth = GT
+		| otherwise = EQ
+
+				
 
 packTree :: Getter PackTree [PackTree]
 packTree = let
@@ -78,19 +84,30 @@ foldTree rect pt = unOne $ foldl (\mo tree -> case tree of
 updateTree :: Rect -> PackTree -> Maybe PackTree -> Maybe PackTree
 updateTree rect n@(PackHorizontalNode l r) _ = case updateTree rect l (Just n) of 
 	Nothing -> case updateTree rect r (Just n) of
-		Nothing -> Just n
+		Nothing -> Nothing
 		Just r' -> Just $ PackHorizontalNode l r'
 	Just l' -> Just $ PackHorizontalNode l' r
 
 updateTree rect n@(PackVerticalNode l r) _ = case updateTree rect l (Just n) of 
 	Nothing -> case updateTree rect r (Just n) of
-		Nothing -> Just n
+		Nothing -> Nothing
 		Just r' -> Just $ PackVerticalNode l r'
 	Just l' -> Just $ PackVerticalNode l' r
 
 updateTree rect n@(PackLeafEmpty w h x y) (Just (PackVerticalNode _ _)) = 
 	if rect^.rectWidth <= w && rect^.rectHeight <= h 
-		then Just $ PackHorizontalNode (
+		then if (w - rect^.rectWidth == 0) then
+			if (h - rect^.rectHeight == 0) then
+				Just $ PackLeafRect (rect^.rectId) x y
+			else Just $ PackHorizontalNode (
+					(PackLeafRect (rect^.rectId) x y)
+				) 
+				(PackLeafEmpty w (h - rect^.rectHeight) x (y + rect^.rectHeight))
+		else if (h - rect^.rectHeight == 0) then
+				Just $ PackVerticalNode
+					(PackLeafRect (rect^.rectId) x y)
+					(PackLeafEmpty (w - rect^.rectWidth) (rect^.rectHeight) (x + rect^.rectWidth) y)
+			else Just $ PackHorizontalNode (
 				PackVerticalNode
 					(PackLeafRect (rect^.rectId) x y)
 					(PackLeafEmpty (w - rect^.rectWidth) (rect^.rectHeight) (x + rect^.rectWidth) y)
@@ -100,12 +117,27 @@ updateTree rect n@(PackLeafEmpty w h x y) (Just (PackVerticalNode _ _)) =
 
 updateTree rect n@(PackLeafEmpty w h x y) (Just (PackHorizontalNode _ _)) = 
 	if rect^.rectWidth <= w && rect^.rectHeight <= h 
-		then Just $ PackVerticalNode (
-				PackHorizontalNode
+		then if (w - rect^.rectWidth == 0) then
+			if (h - rect^.rectHeight == 0) then
+				Just $ PackLeafRect (rect^.rectId) x y	
+			else
+				Just $ PackHorizontalNode
 					(PackLeafRect (rect^.rectId) x y)
 					(PackLeafEmpty (rect^.rectWidth) (h - rect^.rectHeight) x (y + rect^.rectHeight))
-				) 
-				(PackLeafEmpty (w - rect^.rectWidth) h (x + rect^.rectWidth) y)
+		else
+			if (h - rect^.rectHeight == 0) then
+				Just $ PackVerticalNode
+					(PackLeafRect (rect^.rectId) x y)
+					(PackLeafEmpty (w - rect^.rectWidth) h (x + rect^.rectWidth) y)
+			else
+				Just $ PackVerticalNode (
+					PackHorizontalNode
+						(PackLeafRect (rect^.rectId) x y)
+						(PackLeafEmpty (rect^.rectWidth) (h - rect^.rectHeight) x (y + rect^.rectHeight))
+					) 
+					(PackLeafEmpty (w - rect^.rectWidth) h (x + rect^.rectWidth) y)
+
+
 		else Nothing
 
 updateTree _ _ _ = Nothing

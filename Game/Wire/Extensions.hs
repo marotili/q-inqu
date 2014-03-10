@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Game.Wire.Extensions 
 	( fullFor
 	) where
@@ -5,10 +6,10 @@ module Game.Wire.Extensions
 import Control.Wire
 
 -- | Run the passed wire for the full time
-fullFor :: (Monad m, HasTime t s) 
+fullFor :: (Fractional t, Monoid e, Monad m, HasTime t (Timed NominalDiffTime ())) 
 	=> t 
-	-> Wire s e m a b 
-	-> Wire s e m a b
+	-> Wire (Timed NominalDiffTime ()) e m a b 
+	-> Wire (Timed NominalDiffTime ()) e m a b
 fullFor x w = mkGen $ \ds a -> do
 	let x' = x - realToFrac (dtime ds)
 	let ds' = if x' <= 0 
@@ -21,7 +22,7 @@ fullFor x w = mkGen $ \ds a -> do
 		then
 			(mx, mkEmpty)
 		else
-			(mx, saveFor x' w')
+			(mx, fullFor x' w')
 
 --fullAfter x w = mkGen $ \ds a -> do
 --	let x' = x - realToFrac (dtime ds)

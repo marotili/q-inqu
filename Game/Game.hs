@@ -151,9 +151,13 @@ newGame name = do
 	let genMap = Gen.mkGenWorld
 	(oldWorld, newWorld, delta, manager) <- mkGameWorld tiledMap (50, -200) genMap
 	--print delta 
-	let renderWorld = mkRenderWorld tiledMap delta genMap
+
+	complexTileset <- R.load 
+
+	let renderWorld = mkRenderWorld tiledMap delta genMap complexTileset
 	let (newRenderWorld, newRenderables) = 
 		updateRender delta oldWorld newWorld renderWorld []
+
 	let game = Game
 		{ _gameName = name
 		, _gameTiled = tiledMap
@@ -244,17 +248,28 @@ updateGame dt = do
 
 	return ()
 
-mkRenderWorld :: T.TiledMap -> G.WorldDelta -> Gen.GenMap -> R.World
-mkRenderWorld tiledMap delta genMap = nWorld
+mkRenderWorld :: T.TiledMap -> G.WorldDelta -> Gen.GenMap -> R.LoadTileset -> R.World
+mkRenderWorld tiledMap delta genMap complexTileset = nWorld
 	where	
 		renderWorld = R.loadMapFromTiled tiledMap
 			& R.wRenderConfig .~ newRenderConfig
 
-		nWorld = 
-			R.wUpdate (do
+		nWorld = let w1 = 
+				R.wUpdate (do
+					R.loadComplexTilesets complexTileset
+				) renderWorld
+			in R.wUpdate (do
+
+				--R.wComplexTileset "Monsters" .= (Just $ R.newComplexTileset)
+
 				R.wLayer "BottomLayer" .= (Just $ R.newLayer R.TileLayerType)
 				R.wLayer "ObjectLayer" .= (Just $ R.newLayer R.ObjectLayerType)
+				R.wLayer "CObjectLayer" .= (Just $ R.newLayer R.ComplexLayerType)
 				R.wLayer "TopLayer" .= (Just $ R.newLayer R.TileLayerType)
+
+				--R.wObject "test" .= (Just $ R.newObject )
+				Just objId <- use $ R.wObjectId "WolfFrontWalk1"
+				R.wLayerObject "CObjectLayer" "WolfFrontWalk1" .= (Just $ R.newRenderObject (objId) (100, 100) 0)
 
 				mapM_ (\((x, y), tileType) -> do
 						tile <- use $ R.wTile (show tileType) -- TODO: change show to getter
@@ -267,7 +282,7 @@ mkRenderWorld tiledMap delta genMap = nWorld
 						R.wLayerTile (Gen.tileLayer genMap (x, y)) (x, -y) .= (Just tile)
 					) (Map.toList $ genMap^.Gen.mapCompiledCells)
 
-			) renderWorld
+			) w1 -- renderWorld
 
 --mkGameWorld :: Game -> IO (G.World, Delta, WorldManager)
 mkGameWorld tiledMap startPos genMap = do

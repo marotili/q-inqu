@@ -1,0 +1,144 @@
+{
+    "tileset": [
+        {
+            "imageHeight": 1024,
+            "data": [
+                {
+                    "height": 96,
+                    "width": 50,
+                    "tileId": "FWTBackStand",
+                    "offset_x": 0,
+                    "offset_y": 192
+                },
+                {
+                    "height": 96,
+                    "width": 52,
+                    "tileId": "FWTBackWalk1",
+                    "offset_x": 0,
+                    "offset_y": 96
+                },
+                {
+                    "height": 96,
+                    "width": 61,
+                    "tileId": "FWTFrontAttack",
+                    "offset_x": 930,
+                    "offset_y": 0
+                },
+                {
+                    "height": 96,
+                    "width": 49,
+                    "tileId": "FWTFrontStand",
+                    "offset_x": 881,
+                    "offset_y": 0
+                },
+                {
+                    "height": 96,
+                    "width": 50,
+                    "tileId": "FWTFrontWalk1",
+                    "offset_x": 831,
+                    "offset_y": 0
+                },
+                {
+                    "height": 96,
+                    "width": 49,
+                    "tileId": "FWTFrontWalk2",
+                    "offset_x": 782,
+                    "offset_y": 0
+                },
+                {
+                    "height": 96,
+                    "width": 55,
+                    "tileId": "FWTLeftAttack1",
+                    "offset_x": 727,
+                    "offset_y": 0
+                },
+                {
+                    "height": 96,
+                    "width": 55,
+                    "tileId": "FWTLeftStand",
+                    "offset_x": 672,
+                    "offset_y": 0
+                },
+                {
+                    "height": 96,
+                    "width": 59,
+                    "tileId": "FWTLeftWalk1",
+                    "offset_x": 613,
+                    "offset_y": 0
+                },
+                {
+                    "height": 96,
+                    "width": 59,
+                    "tileId": "FWTLeftWalk2",
+                    "offset_x": 554,
+                    "offset_y": 0
+                },
+                {
+                    "height": 16,
+                    "width": 16,
+                    "tileId": "FWTProjectile",
+                    "offset_x": 991,
+                    "offset_y": 0
+                },
+                {
+                    "height": 96,
+                    "width": 52,
+                    "tileId": "FwTBackWalk2",
+                    "offset_x": 502,
+                    "offset_y": 0
+                },
+                {
+                    "height": 96,
+                    "width": 61,
+                    "tileId": "WolfFrontAttack1",
+                    "offset_x": 441,
+                    "offset_y": 0
+                },
+                {
+                    "height": 96,
+                    "width": 67,
+                    "tileId": "WolfFrontWalk1",
+                    "offset_x": 374,
+                    "offset_y": 0
+                },
+                {
+                    "height": 96,
+                    "width": 111,
+                    "tileId": "WolfLeftAttack1",
+                    "offset_x": 263,
+                    "offset_y": 0
+                },
+                {
+                    "height": 96,
+                    "width": 61,
+                    "tileId": "WolfStandFront",
+                    "offset_x": 202,
+                    "offset_y": 0
+                },
+                {
+                    "height": 96,
+                    "width": 96,
+                    "tileId": "WolfStandLeft",
+                    "offset_x": 106,
+                    "offset_y": 0
+                },
+                {
+                    "height": 96,
+                    "width": 106,
+                    "tileId": "WolfWalk1Left",
+                    "offset_x": 0,
+                    "offset_y": 0
+                }
+            ],
+            "imageWidth": 1024,
+            "name": "monsters",
+            "base_directory": "data/monsters/compiled",
+            "filename": "monsters.png"
+        }
+    ],
+    "objects": {
+        "Wolf": {
+            "name": "Wolf"
+        }
+    }
+}

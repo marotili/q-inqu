@@ -78,10 +78,10 @@ produceWorld session' lastDt total = do
 		finalTime = (realToFrac . dtime $ time) + lastDt
 
 
-	let steps = traceShow (realToFrac . dtime $ time) [16.0/1000 | _ <- [0..(floor (finalTime/16*1000) - 1)]]
+	let steps = [16.0/1000 | _ <- [0..(floor (finalTime/16*1000) - 1)]]
 	let final = foldr (\_ time -> if time > 16/1000.0 then (time - 16/1000.0) else time) finalTime [0..floor (finalTime/16*1000)]
 
-	mapM_ (\time -> P.yield (actions, realToFrac time)) $ traceShow (steps, realToFrac final) steps
+	mapM_ (\time -> P.yield (actions, realToFrac time)) $ steps
 	let total' = if length steps > 1 then
 		total + 1 else total
 	lift $ writeFile "time.log" (show total')
@@ -91,7 +91,7 @@ produceWorld session' lastDt total = do
 	else
 		return final
 
-	traceShow ("step") $ produceWorld session final' total'
+	produceWorld session final' total'
 --getDeltaTime (dt, deltaWorld, world) = dt
 --getWorld (dt, dWorld, world) = world
 

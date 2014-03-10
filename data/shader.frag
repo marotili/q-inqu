@@ -15,6 +15,8 @@ uniform sampler2D Texture7;
 uniform sampler2D Texture8;
 uniform sampler2D Texture9;
 uniform sampler2D Texture10;
+uniform sampler2D Texture11;
+uniform sampler2D Texture12;
 
 
 void main()
@@ -49,6 +51,15 @@ void main()
 			break;
 		case 9:
 			color = texture(Texture9, texCoords);
+			break;
+		case 10:
+			color = texture(Texture10, texCoords);
+			break;
+		case 11:
+			color = texture(Texture11, texCoords);
+			break;
+		case 12:
+			color = texture(Texture12, texCoords);
 			break;
 		default:
 			color = vec4(0, 0, 0, 1);

@@ -109,7 +109,7 @@ collides oId (dx, dy) = do
 		octreeUpdate [(oId, newObjBoundary)]
 		octreeQueryObject oId
 		) cm
-	return $ traceShow collisions collisions
+	return collisions
 
 _move :: Timed NominalDiffTime () -> ObjectId -> (Float, Float) -> WorldContext ()
 _move ds oId (vx, vy) = do

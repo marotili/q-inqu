@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, Rank2Types, NamedFieldPuns #-}
+{-# LANGUAGE OverloadedStrings, TypeSynonymInstances, FlexibleInstances, TemplateHaskell, Rank2Types, NamedFieldPuns #-}
 module Game.Render.World where
 
 import Data.List
@@ -8,6 +8,13 @@ import Control.Monad.State.Strict
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Debug.Trace
+import qualified Filesystem.Path.CurrentOS as FP
+import qualified Data.Aeson as A
+import qualified Filesystem.Path as FP
+import qualified Data.Text as T
+import qualified Data.ByteString.Lazy as B
+
+import qualified Game.Data.Tileset as TS
 
 import Control.Lens
 
@@ -39,6 +46,7 @@ data World = World
 	{ _mapWidth, _mapHeight :: !Int
 	, _mapTileWidth, _mapTileHeight :: !Int
 	, _mapTilesets :: !(Map.Map TilesetId Tileset)
+	, _mapComplexTilesets :: !(Map.Map TilesetId ComplexTileset)
 	, _mapTsOffsets :: !(Map.Map TilesetId TileIdOffset)
 	, _mapLayers :: !(Map.Map LayerId MapLayer)
 	, _mapObjects :: !(Map.Map ObjectId Object)
@@ -71,6 +79,17 @@ data Image = Image
 	, _iWidth, _iHeight :: !Int
 	} deriving (Eq, Show)
 
+data ComplexTileset = ComplexTileset
+	{ _ctsImage :: !Image
+	, _ctsImageSize :: !(Int, Int)
+	, _ctsTiles :: !(Map.Map LocalTileId CtsData)
+	, _ctsNextLocalId :: LocalTileId
+	} deriving (Eq, Show)
+
+data CtsData = CtsData
+	{ _ctsdPos :: !(Int, Int)
+	, _ctsdSize :: !(Int, Int)
+	} deriving (Eq, Show)
 
 data Tileset = Tileset
 	{ _tsTileWidth, _tsTileHeight :: !Int
@@ -99,7 +118,6 @@ newTile ts lid = Tile
 	, _tileLocalId = lid
 	}
 
-
 data RenderObject = RenderObject
 	{ _roId :: !ObjectId
 	, _roPos :: !Position
@@ -114,7 +132,7 @@ newRenderObject oId pos rotation = RenderObject
 	, _roOrigin = (0, 0)
 	}
 
-data LayerType = TileLayerType | ObjectLayerType
+data LayerType = TileLayerType | ObjectLayerType | ComplexLayerType
 	deriving (Eq, Show)
 
 data MapLayer = TileLayer
@@ -122,7 +140,10 @@ data MapLayer = TileLayer
 	}
 	| ObjectLayer
 	{ _layerObjects :: !(Map.Map ObjectId RenderObject)
-	} 
+	}
+	| ComplexObjectLayer
+	{ _layerObjects :: !(Map.Map ObjectId RenderObject)
+	}
 	deriving (Eq, Show)
 
 makeLenses ''World
@@ -133,6 +154,8 @@ makeLenses ''RenderObject
 makeLenses ''Tile
 makeLenses ''Image
 makeLenses ''ObjHashes
+makeLenses ''ComplexTileset
+makeLenses ''CtsData
 
 newWorld :: World
 newWorld = World
@@ -141,6 +164,7 @@ newWorld = World
 	, _mapTileWidth = 0
 	, _mapTileHeight = 0
 	, _mapTilesets = Map.empty
+	, _mapComplexTilesets = Map.empty
 	, _mapTsOffsets = Map.empty
 	, _mapLayers = Map.empty
 	, _mapObjects = Map.empty
@@ -185,6 +209,23 @@ wTile name = to get
 
 			Just tsId = world ^. mapHashes . gameTilesets . at tilesetName
 
+wComplexTileset :: String -> Lens' World (Maybe ComplexTileset)
+wComplexTileset name = lens get set
+	where
+		get world =
+			let mtsId = world^.mapHashes.gameTilesets.at name
+			in mtsId >>= \tsId -> world^.mapComplexTilesets . at tsId
+		set world mts = case mts of
+			Just ts -> wUpdate (do
+					existingTilesets <- use $ mapHashes . gameTilesets
+					if not (Map.member name existingTilesets) then
+						wAddComplexTileset name
+						else return ()
+					Just tsId <- use $ mapHashes.gameTilesets.at name
+					mapComplexTilesets.at tsId .= Just ts
+				) world
+			Nothing -> wUpdate (wRemoveComplexTileset name) world
+
 wTileset :: String -> Lens' World (Maybe Tileset)
 wTileset name = lens get set
 	where
@@ -202,6 +243,18 @@ wTileset name = lens get set
 				) world
 			Nothing -> wUpdate (wRemoveTileset name) world
 
+wAddComplexTile :: String -> String -> (Int, Int) -> (Int, Int) -> State World ()
+wAddComplexTile tilesetName objName tilePos tileSize = do
+	Just tsId <- use $ mapHashes . gameTilesets . at tilesetName
+	Just ts <- use $ mapComplexTilesets . at tsId
+	let nextId = ts^.ctsNextLocalId
+	mapComplexTilesets . at tsId . _Just . ctsNextLocalId += 1
+	mapComplexTilesets . at tsId . _Just . ctsTiles . at nextId .= (Just $ CtsData tilePos tileSize)
+
+	oId <- _wId
+	mapObjects . at oId .= (Just $ newObject tsId nextId)
+	mapHashes . gameObjects . at objName .= Just oId
+
 wAddObject :: String -> State World ()
 wAddObject name = do
 	oId <- _wId	
@@ -218,6 +271,10 @@ wRemoveObject name = do
 	--	if (layer^.
 	--		mapLayers.at lId 
 	--	) $ mapLayers.itraversed
+
+wObjectId name = to get
+	where
+		get world = world^.mapHashes.gameObjects.at name
 
 wObject :: String -> Lens' World (Maybe Object)
 wObject name = lens get set
@@ -239,7 +296,9 @@ wObject name = lens get set
 wLayerTile :: String -> (Int, Int) -> Lens' World (Maybe Tile)
 wLayerTile layerName (x, y) = lens get set
 	where
-		get world = world^?!wLayer layerName._Just._layerTile (x, y)
+		get world = case world^?wLayer layerName._Just._layerTile (x, y) of
+			Just a -> a
+			Nothing -> error "failed to find layer tile of layer"
 		set world mro = let 
 				Just lId = world^.mapHashes.hashLayers.at layerName
 			in world 
@@ -250,7 +309,9 @@ wLayerObject :: String -> String -> Lens' World (Maybe RenderObject)
 wLayerObject layerName objName = lens get set
 	where
 		get world = let Just oId = world^.mapHashes.gameObjects.at objName
-			in world^?!wLayer layerName._Just._layerObject oId
+			in case world^?wLayer layerName._Just._layerObject oId of
+				Just a -> a
+				Nothing -> error "failed to find layer object"
 
 		set world mro = let 
 				Just oId = world^.mapHashes.gameObjects.at objName
@@ -275,10 +336,29 @@ _layerObject oId = lens get set
 	where 
 		get ml = case ml of
 			ObjectLayer {_layerObjects } -> _layerObjects^.at oId
+			ComplexObjectLayer { _layerObjects } -> _layerObjects^.at oId
 			otherwise -> Nothing
 		set ml mro = case ml of
 			ol@ObjectLayer { _layerObjects } -> ol & layerObjects . at oId .~ mro
+			ol@ComplexObjectLayer { _layerObjects } -> ol & layerObjects . at oId .~ mro
 			otherwise -> ml 
+
+wAddComplexTileset :: String -> State World ()
+wAddComplexTileset name = do
+	tsId <- _wId
+	mapComplexTilesets . at tsId .= Just (newComplexTileset newImage)
+	tsTilesets <- use mapComplexTilesets
+	-- tiled starts with offset 1
+	--let newOffset = 1 + (sum $ map ((^.tsNumTiles) . snd) $ Map.toList tsTilesets)
+	--mapTsOffsets . at tsId .= Just newOffset
+	mapHashes . gameTilesets . at name .= Just tsId
+
+wRemoveComplexTileset :: String -> State World ()
+wRemoveComplexTileset name = do
+	Just tsId <- use $ mapHashes.gameTilesets.at name
+	mapComplexTilesets . at tsId .= Nothing
+	mapHashes.gameTilesets.at name .= Nothing
+	-- list of offsets
 
 wAddTileset :: String -> State World ()
 wAddTileset name = do
@@ -329,6 +409,16 @@ wLayer name = lens get set
 						Just lId <- use $ mapHashes . hashLayers . at name
 						mapLayers . at lId .= Just layer
 					) world
+
+				ComplexObjectLayer {} -> wUpdate (do
+						existingLayers <- use $ mapHashes . hashLayers
+						if not (Map.member name existingLayers) then
+							wAddLayer ComplexLayerType name
+							else return ()
+
+						Just lId <- use $ mapHashes . hashLayers . at name
+						mapLayers . at lId .= Just layer
+					) world
 			Nothing -> wUpdate (wRemoveLayer name) world
 
 wAddLayer :: LayerType -> String -> State World ()
@@ -358,6 +448,14 @@ newImage = Image
 	{ _iSource = ""
 	, _iWidth = 0
 	, _iHeight = 0
+	}
+
+newComplexTileset :: Image -> ComplexTileset
+newComplexTileset image = ComplexTileset
+	{ _ctsImage = image
+	, _ctsImageSize = (image^.iWidth, image^.iHeight)
+	, _ctsTiles = Map.empty
+	, _ctsNextLocalId = 0
 	}
 
 newTileset :: Tileset
@@ -406,6 +504,9 @@ newLayer TileLayerType = TileLayer
 newLayer ObjectLayerType = ObjectLayer
 	{ _layerObjects = Map.empty
 	}
+newLayer ComplexLayerType = ComplexObjectLayer
+	{ _layerObjects = Map.empty
+	}
 
 wImages :: Getter World [(TilesetId, Image)]
 wImages = to (\w -> map (\(tId, ts) -> (tId, ts^.tsImage)) $ Map.toList (w^.mapTilesets))
@@ -420,15 +521,22 @@ wGetTile tsName (x, y) = to get
 				Just offset = world^.mapTsOffsets.at tsId
 
 wObjTileId :: Object -> Getter World TileId
-wObjTileId obj = to (\world -> (world^?!mapTsOffsets.at (obj^.objTsId)._Just) + (obj^.objLocalId))
+wObjTileId obj = to get
+	where
+		get world = let Just offset = world^.mapTsOffsets.at (obj^.objTsId) in
+			offset + (obj^.objLocalId)
 
-wTileTileId tile = to (\world -> (world^?!mapTsOffsets.at (tile^.tileTsId)._Just) + (tile^.tileLocalId))
+wTileTileId tile = to get
+	where
+		get world = let Just offset = world^.mapTsOffsets.at (tile^.tileTsId) 
+			in offset + (tile^.tileLocalId)
 
 wLayerNumObjects :: String -> Getter World Int
 wLayerNumObjects layerName = to get
 	where get world = case layer of
 				TileLayer { _layerTiles } -> Map.size _layerTiles
 				ObjectLayer { _layerObjects } -> Map.size _layerObjects
+				ComplexObjectLayer { _layerObjects } -> Map.size _layerObjects
 			where
 				Just lId = world^.mapHashes.hashLayers.at layerName
 				Just layer = world^.mapLayers.at lId
@@ -447,16 +555,56 @@ wTileIds layerName = to get
 		get world = case layer of
 				TileLayer { _layerTiles } -> map getTileTileId $ Map.elems _layerTiles
 				ObjectLayer { _layerObjects } -> map getObjectTileId $ sortBy sortY $ Map.elems _layerObjects
+				ComplexObjectLayer { _layerObjects } -> map (const 0) $ sortBy sortY $ Map.elems _layerObjects
 			where
 				Just lId = world^.mapHashes.hashLayers.at layerName
 				Just layer = world^.mapLayers.at lId
 
 				getObjectTileId ro = 
-					let obj = (world^?!mapObjects.at (ro^.roId)._Just)
+					let Just obj = (world^.mapObjects.at (ro^.roId))
 					in (world^.wObjTileId obj)
 
 				getTileTileId tile = world^.wTileTileId tile
 
+wIsComplexLayer layerId = to get
+	where
+		get world =
+			let Just layer = world^.mapLayers.at layerId
+			in case layer of ComplexObjectLayer {} -> True; _ -> False
+
+wTileMesh :: String -> Getter World [(Float, Float, Float, Float, Float, Float, Int)]
+wTileMesh layerName = to get
+	where
+		get world = case layer of
+			ComplexObjectLayer { _layerObjects } -> map (\objId ->
+					let 
+						Just obj = world^.mapObjects.at (objId)
+						Just ts = traceShow (obj) $ world^.mapComplexTilesets.at (obj^.objTsId)
+						Just pos = ts^?ctsTiles.at (obj^.objLocalId) . _Just . ctsdPos
+						Just size = ts^?ctsTiles.at (obj^.objLocalId) . _Just . ctsdSize
+						imgSize = ts^.ctsImageSize
+						sx = fromIntegral $ size^._1
+						sy = fromIntegral $ size^._2
+						px = fromIntegral $ pos^._1
+						py = fromIntegral $ pos^._2
+						imgW = fromIntegral $ imgSize^._1
+						imgH = fromIntegral $ imgSize^._2
+					in
+						(px, py, sx, sy, imgW, imgH, obj^.objTsId)
+				) $ map fst $ sortBy sortY2 $ Map.toList _layerObjects
+			_ -> []
+			where
+				Just lId = world^.mapHashes.hashLayers.at layerName
+				Just layer = world^.mapLayers.at lId
+
+-- | TODO remove this
+sortY2 :: (ObjectId, RenderObject) -> (ObjectId, RenderObject) -> Ordering
+sortY2 ro1 ro2  
+	| y >= y2 = LT -- -y <= -y2
+	| otherwise = GT
+	where
+		(x, y) = ro1^._2.roPos 
+		(x2, y2) = ro2^._2.roPos
 
 wTilePos :: String -> Getter World [(Float, Float, Float, Float, Float)]
 wTilePos layerName = to get
@@ -470,6 +618,14 @@ wTilePos layerName = to get
 					)
 				) $ Map.keys _layerTiles
 			ObjectLayer { _layerObjects } -> map (\obj -> 
+					( obj^.roPos._1
+					, obj^.roPos._2
+					, obj^.roOrigin._1
+					, obj^.roOrigin._2
+					, obj^.roRotation
+					)
+				) $ sortBy sortY $ Map.elems _layerObjects
+			ComplexObjectLayer { _layerObjects } -> map (\obj -> 
 					( obj^.roPos._1
 					, obj^.roPos._2
 					, obj^.roOrigin._1
@@ -504,6 +660,7 @@ shallowEqual w1 w2 = w && h && tw && th && ts && tsOff && ml && obj && hashs
 				objs = Map.keys (h1^.gameObjects) == Map.keys (h2^.gameObjects)
 				lys = Map.keys (h1^.hashLayers) == Map.keys (h2^.hashLayers)
 
+
 loadMapFromTiled :: T.TiledMap -> World
 loadMapFromTiled tiledMap = wUpdate (do
 		wSize .= (tiledMap^.T.mapWidth, tiledMap^.T.mapHeight)
@@ -528,4 +685,51 @@ loadMapFromTiled tiledMap = wUpdate (do
 					prop^._1 =="type" && prop^._2 == "Wall"
 				) properties
 			) (ts^.T.tsTileProperties)
+
+instance A.FromJSON (State World ()) where
+	parseJSON (A.Object v) = do
+		tileSets <- v A..: "tileset"
+		foldM loadTileSet (return ()) tileSets
+
+		where
+			loadTileSet worldState (A.Object v) = do
+				tsName <- v A..: "name"
+				tsFilename <- v A..: "filename"
+				tsBaseDir <- v A..: "base_directory"
+				tsImageWidth <- v A..: "imageWidth"
+				tsImageHeight <- v A..: "imageHeight"
+				tsTiles <- v A..: "data"
+
+				let Right filename = (FP.toText $ tsBaseDir FP.</> tsFilename)
+				let newWorldState = do
+					wComplexTileset (tsName) .= (Just $ newComplexTileset $ 
+						newImage
+							& iSource .~ (T.unpack filename)
+							& iWidth .~ tsImageWidth
+							& iHeight .~ tsImageHeight
+						)
+
+				newWorldState' <- foldM (loadTiles tsName) newWorldState tsTiles
+				return (worldState >> newWorldState')
+
+			loadTiles name worldState (A.Object v) = do
+				width <- v A..: "width"
+				height <- v A..: "height"			
+				posX <- v A..: "offset_x"
+				posY <- v A..: "offset_y"
+				tileName <- v A..: "tileId"
+
+				return $ traceShow tileName $ worldState >> do
+					wAddComplexTile name tileName (posX, posY) (width, height)
+
+
+type LoadTileset = B.ByteString
+load :: IO B.ByteString
+load = do
+	B.readFile "tileset_compiled.json" 
+
+loadComplexTilesets :: B.ByteString -> State World ()
+loadComplexTilesets input = do
+	let Right updateWorld = A.eitherDecode input :: (Either String (State World ()))
+	updateWorld
 

@@ -16,8 +16,15 @@ in vec2 pos;
 in float rotation;
 in vec2 origin;
 
+// complex
+in vec2 mesh;
+in vec2 myTexCoords;
+in int thisIsImage;
+
 // uniform numTypes;
 uniform int numTileSets; // needed for dynamic lookup
+
+uniform int isComplex = 0;
 
 // // Type
 // layout(std140) uniform LayerData {
@@ -66,6 +73,25 @@ layout(std140) uniform TileSets {
 
 void main()
 {
+	if (isComplex > 0) {
+		vec2 tileMeshCoords = mesh;
+		texCoords = myTexCoords; 
+
+		vec2 center = vec2 (tileMeshCoords.x - origin.x, tileMeshCoords.y - origin.y);
+
+		vec2 newTileMeshCoords = vec2( 
+			center.x * cos (rotation) + center.y * sin (rotation),
+			center.x * (-sin (rotation)) + center.y * cos (rotation)
+			);
+		vec2 newPos = pos;
+
+		// color_out = color_in;
+	    gl_Position = projection*view*vec4(vec3(newPos, 0) + 
+	    	vec3(newTileMeshCoords, 0.0), 1.0);
+
+	    image = thisIsImage;
+	} else {
+
 	int tileGid = tileId;
 
 	// if (tileGid == 0) {
@@ -150,4 +176,5 @@ void main()
     // debug[instanceID*6+gl_VertexID] = gl_Position;
     texCoords = texCoords;
     image = tileSet.tilesetImage;
+	}
 }

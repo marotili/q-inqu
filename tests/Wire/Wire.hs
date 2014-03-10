@@ -8,6 +8,7 @@ import Control.Concurrent
 import Control.Wire
 
 import Game.World.Wires
+import Game.Wire.Extensions
 
 testLoadMap :: Test
 testLoadMap = TestCase (do
@@ -16,7 +17,7 @@ testLoadMap = TestCase (do
 	)
 
 testWire :: Wire (Timed NominalDiffTime ()) () IO Float NominalDiffTime
-testWire = saveFor 2 (time)
+testWire = fullFor 2 (time)
 
 gameLoop session w = do
 	(dt, session') <- stepSession session
