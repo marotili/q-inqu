@@ -74,6 +74,11 @@ newRenderObjects = do
 					writer ((), [obj])
 		) $ zip3 newObjects' objectTileNames objectPoss
 
+data RenderableGameObject = RenderableGameObject
+	{ rgoInit :: Renderer ()
+	, rgoUpdate :: Renderer ()
+	}
+
 update :: Renderer ()
 update = do
 	(world, _, renderables) <- ask
@@ -106,13 +111,20 @@ update = do
 				-- tileset of tile
 				tileMap <- use $ 
 					R.wRenderConfig . rcTiles
+
 				let Just (tilesetName, localTileId) = 
 					tileMap ^. L.at tileName
 
-				Just tsId <- use $ mapHashes . gameTilesets . L.at tilesetName
-
-				wObject (obj^.objName)._Just.objTsId .= tsId
-				wObject (obj^.objName)._Just.objLocalId .= localTileId
+				case tileMap ^. L.at tileName of
+					Just (tilesetName, localTileId) -> do
+						Just tsId <- use $ mapHashes . gameTilesets . L.at tilesetName
+						wObject (obj^.objName)._Just.objTsId .= tsId
+						wObject (obj^.objName)._Just.objLocalId .= localTileId
+					Nothing -> return ()
+					--Nothing -> do
+					--	Just (tsId, localTileId) <- use $ mapHashes . gamePrefabs . L.at tileName
+					--	wObject (obj^.objName)._Just.objTsId .= tsId
+					--	wObject (obj^.objName)._Just.objLocalId .= localTileId
 				)
 		) renderables
 

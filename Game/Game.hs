@@ -7,6 +7,7 @@ import qualified Game.Render.World as R
 
 import qualified Game.World.Common as G
 import qualified Game.World.Objects as G
+import qualified Game.World.ObjectData as G
 import qualified Game.World.Delta as G
 import qualified Game.World as G
 import qualified Game.Render.Update as U
@@ -268,8 +269,8 @@ mkRenderWorld tiledMap delta genMap complexTileset = nWorld
 				R.wLayer "TopLayer" .= (Just $ R.newLayer R.TileLayerType)
 
 				--R.wObject "test" .= (Just $ R.newObject )
-				Just objId <- use $ R.wObjectId "WolfFrontWalk1"
-				R.wLayerObject "CObjectLayer" "WolfFrontWalk1" .= (Just $ R.newRenderObject (objId) (100, 100) 0)
+				objId <- R.wObjectFromPrefab "WolfFrontWalk1" "Wolf1"
+				R.wLayerObject "CObjectLayer" "Wolf1" .= (Just $ R.newRenderObject (objId) (100, 100) 0)
 
 				mapM_ (\((x, y), tileType) -> do
 						tile <- use $ R.wTile (show tileType) -- TODO: change show to getter

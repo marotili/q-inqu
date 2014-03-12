@@ -10,6 +10,7 @@ module Game.World
 	, testwire
 	) where
 
+import Game.World.ObjectData
 import Debug.Trace
 import Game.World.Lens
 import Control.Monad.RWS

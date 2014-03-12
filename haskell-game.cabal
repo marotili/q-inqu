@@ -45,6 +45,7 @@ library
         Game.World.Types
         Game.World.Import.Tiled
         Game.World.Objects
+        Game.World.ObjectData
         Game.World.Delta
         Game.World.Common
         Game.World.Wires

@@ -18,7 +18,8 @@ import qualified Game.Data.Tileset as TS
 
 import Control.Lens
 
--- | 
+-- | TODO: there is a lot of state inside the lens
+-- |   maybe we should remove the lens and keep the state
 
 type TileName = String
 type TilesetName = String
@@ -65,6 +66,7 @@ data World = World
 
 data ObjHashes = ObjHashes
 	{ _gameObjects :: !(Map.Map String ObjectId)
+	, _gamePrefabs :: !(Map.Map String (TilesetId, LocalTileId))
 	, _hashLayers :: !(Map.Map String LayerId)
 	, _gameTilesets :: !(Map.Map String TilesetId)
 	} deriving (Eq, Show)
@@ -251,9 +253,16 @@ wAddComplexTile tilesetName objName tilePos tileSize = do
 	mapComplexTilesets . at tsId . _Just . ctsNextLocalId += 1
 	mapComplexTilesets . at tsId . _Just . ctsTiles . at nextId .= (Just $ CtsData tilePos tileSize)
 
-	oId <- _wId
-	mapObjects . at oId .= (Just $ newObject tsId nextId)
-	mapHashes . gameObjects . at objName .= Just oId
+	--oId <- _wId
+	--mapObjects . at oId .= (Just $ newObject tsId nextId)
+	mapHashes . gamePrefabs . at objName .= Just (tsId, nextId)
+
+wObjectFromPrefab :: String -> String -> State World ObjectId
+wObjectFromPrefab prefabName objName = do
+	Just (tsId, localId) <- use $ mapHashes . gamePrefabs . at objName
+	wObject objName .= (Just $ newObject tsId localId)
+	Just oId <- use $ mapHashes . gameObjects . at objName
+	return oId
 
 wAddObject :: String -> State World ()
 wAddObject name = do
@@ -441,6 +450,7 @@ newHashes = ObjHashes
 	{ _gameObjects = Map.empty
 	, _hashLayers = Map.empty
 	, _gameTilesets = Map.empty
+	, _gamePrefabs = Map.empty
 	}
 
 newImage :: Image
