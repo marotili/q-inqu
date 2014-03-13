@@ -15,7 +15,6 @@ import Control.Monad
 import Control.Monad.State
 import qualified Data.Text as T
 import qualified Data.ByteString.Lazy as B
-import Graphics.ImageMagick.MagickWand
 import Filesystem.Path
 import qualified Filesystem.Path as FP
 import qualified Filesystem.Path.CurrentOS as FP

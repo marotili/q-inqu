@@ -259,7 +259,9 @@ wAddComplexTile tilesetName objName tilePos tileSize = do
 
 wObjectFromPrefab :: String -> String -> State World ObjectId
 wObjectFromPrefab prefabName objName = do
-	Just (tsId, localId) <- use $ mapHashes . gamePrefabs . at objName
+	prefabs <- use $ mapHashes . gamePrefabs
+	Just (tsId, localId) <- use $ mapHashes . gamePrefabs . at prefabName
+
 	wObject objName .= (Just $ newObject tsId localId)
 	Just oId <- use $ mapHashes . gameObjects . at objName
 	return oId
@@ -589,7 +591,7 @@ wTileMesh layerName = to get
 			ComplexObjectLayer { _layerObjects } -> map (\objId ->
 					let 
 						Just obj = world^.mapObjects.at (objId)
-						Just ts = traceShow (obj) $ world^.mapComplexTilesets.at (obj^.objTsId)
+						Just ts = world^.mapComplexTilesets.at (obj^.objTsId)
 						Just pos = ts^?ctsTiles.at (obj^.objLocalId) . _Just . ctsdPos
 						Just size = ts^?ctsTiles.at (obj^.objLocalId) . _Just . ctsdSize
 						imgSize = ts^.ctsImageSize
@@ -729,7 +731,7 @@ instance A.FromJSON (State World ()) where
 				posY <- v A..: "offset_y"
 				tileName <- v A..: "tileId"
 
-				return $ traceShow tileName $ worldState >> do
+				return $ worldState >> do
 					wAddComplexTile name tileName (posX, posY) (width, height)
 
 
