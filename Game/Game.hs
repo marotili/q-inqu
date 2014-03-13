@@ -269,7 +269,7 @@ mkRenderWorld tiledMap delta genMap complexTileset = nWorld
 				R.wLayer "TopLayer" .= (Just $ R.newLayer R.TileLayerType)
 
 				--R.wObject "test" .= (Just $ R.newObject )
-				objId <- R.wObjectFromPrefab "WolfFrontWalk1" "Wolf1"
+				objId <- R.wObjectFromPrefab "GoldCoin" "Wolf1"
 				R.wLayerObject "CObjectLayer" "Wolf1" .= (Just $ R.newRenderObject (objId) (100, 100) 0)
 
 				mapM_ (\((x, y), tileType) -> do

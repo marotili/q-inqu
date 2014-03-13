@@ -79,7 +79,7 @@ render window rc cam = do
 
 	let world = rc^.rcWorldRenderContext.wrcWorld
 
-	let Just (x, y) = world^?wLayerObject "ObjectLayer" ("Player" ++ show (rc^.rcPlayerId))._Just.roPos
+	let Just (x, y) = world^?wLayerObject "CObjectLayer" ("Player" ++ show (rc^.rcPlayerId))._Just.roPos
 	let newCam = cameraUpdatePosition cam (-x) (-y)
 
 	let newRc = rc -- & rcLightContext.lcLights._head.lightPosition .~ (-x, y)

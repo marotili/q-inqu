@@ -65,8 +65,8 @@ data WorldRenderContext = WorldRenderContext
 	}
 
 makeLenses ''WorldRenderContext
-wPosData :: Getter [(Float, Float, Float, Float, Float)] (V.Vector Float)
-wPosData = to (\poss -> V.fromList $ concatMap (\(x, y, ox, oy, a) -> concat . take 6 . repeat $ [x, y, ox, oy, a, 0, 0, 0]) poss)
+wPosData :: Getter [(Float, Float, Float, Float, Float)] (V.Vector Word32)
+wPosData = to (\poss -> V.fromList $ concatMap (\(x, y, ox, oy, a) -> concat . take 6 . repeat . map floatToWord $ [x, y, ox, oy, a, 0, 0, 0]) poss)
 wTileData :: Getter [Int] (V.Vector Int32)
 wTileData = to (\ids -> V.fromList $ concatMap (\tId -> concat . take 6 . repeat $ [fromIntegral tId]) ids)
 
@@ -93,7 +93,7 @@ wMeshData wrc = to (\meshs -> V.fromList $ concatMap
 			, sx, sy, tx1, ty0, imgId, zero, zero, zero
 			, zero, sy, tx0, ty0, imgId, zero, zero, zero
 			, zero, zero, tx0, ty1, imgId, zero, zero, zero
-			] in traceShow (length x) x
+			] in x
 		) meshs
 	) 
 
@@ -143,13 +143,15 @@ updateWorldRenderContext wrc = do
 		let Just layerBuf = wrc^.wrcLayerSSBs.at layerId
 		let Just posBuf = wrc^.wrcPosSSBs.at layerId 
 		let Just elementBuf = wrc^.wrcElements.at layerId
-		--print (wrc^.wrcWorld.R.wTileIds layerName.wTileData)
-		--print (wrc^.wrcWorld.R.wTilePos layerName.wPosData)
-		updateNewFromVec GL.UniformBuffer layerBuf 
+		let Just meshBuf = wrc^.wrcMeshSSBs.at layerId
+
+		updateNewFromVec GL.ArrayBuffer layerBuf 
 			(wrc^.wrcWorld.R.wTileIds layerName.wTileData)
-		updateNewFromVec GL.UniformBuffer posBuf 
+		updateNewFromVec GL.ArrayBuffer posBuf 
 			(wrc^.wrcWorld.R.wTilePos layerName.wPosData)
-		uploadFromVec 0 GL.ElementArrayBuffer elementBuf 
+		updateNewFromVec GL.ArrayBuffer meshBuf
+			(wrc^.wrcWorld.R.wTileMesh layerName.wMeshData wrc)
+		updateNewFromVec GL.ElementArrayBuffer elementBuf 
 			(wElementData (wrc^.wrcWorld) layerName)
 		) (Set.toList $ wrc^.wrcWorld.R.mapUpdateLayers)
 
@@ -206,20 +208,14 @@ newWorldRenderContext world program = do
 			let Just posBuf = wrc^.wrcPosSSBs.at layerId
 			let Just meshBuf = wrc^.wrcMeshSSBs. at layerId
 			let Just elementBuf = wrc^.wrcElements.at layerId
-			--print (world^.R.wTileIds layerName.wTileData)
-			--print (world^.R.wTilePos layerName.wPosData)
-			--print $ wElementData (wrc^.wrcWorld) layerName
+			
 			uploadFromVec 0 GL.ArrayBuffer layerBuf (world^.R.wTileIds layerName.wTileData)
 			uploadFromVec 0 GL.ArrayBuffer posBuf (world^.R.wTilePos layerName.wPosData)
 			uploadFromVec 0 GL.ArrayBuffer meshBuf (world^.R.wTileMesh layerName.wMeshData wrc)
 			uploadFromVec 0 GL.ElementArrayBuffer elementBuf (wElementData (wrc^.wrcWorld) layerName)
 
-			if (wrc^.wrcWorld^.R.wIsComplexLayer layerId) then do
-				print (world^.R.wTileMesh layerName.wMeshData wrc)
-				else return ()
 		) (Map.keys $ world^.R.mapLayers)
 
-	print $ world^.R.mapTilesets
 	-- per image stuff
 	mapM_ (\tsId -> do
 		let Just i = wrc^?wrcTextures.at tsId._Just._1
@@ -236,10 +232,6 @@ newWorldRenderContext world program = do
 		-- Make it the "currently bound 2D texture"
 		GL.textureBinding GL.Texture2D $= Just texObject
 		logGL "newWorldRenderContext: textureBinding"
-
-		print (image, i, texObject)
-
-		--print (i, image)
 
 		pngImage <- P.readPng (image^.R.iSource)
 		case pngImage of
@@ -286,7 +278,7 @@ newWorldRenderContext world program = do
 			--print ("Locations", vao, layerBuf, posBuf, tileIdLoc, posLoc, rotationLoc)
 
 			GL.bindBuffer GL.ArrayBuffer $= Just layerBuf
-			GLRaw.glVertexAttribIPointer tileIdLoc 1 GLRaw.gl_INT 4 (nullPtr)
+			GLRaw.glVertexAttribIPointer tileIdLoc 1 GLRaw.gl_INT 0 (nullPtr)
 			--GLRaw.glVertexAttribDivisor tileIdLoc 3
 			when (not isComplexLayer) $
 				GLRaw.glEnableVertexAttribArray tileIdLoc
@@ -302,7 +294,10 @@ newWorldRenderContext world program = do
 
 			GLRaw.glVertexAttribPointer rotationLoc 1 GLRaw.gl_FLOAT 0 32 (plusPtr nullPtr 16)
 			--GLRaw.glVertexAttribDivisor rotationLoc 3
+
 			GLRaw.glEnableVertexAttribArray rotationLoc
+
+			print (posLoc, originLoc, rotationLoc, tileIdLoc)
 
 			alloca $ \ptr -> do
 				GLRaw.glGetIntegerv GLRaw.gl_MAX_VERTEX_ATTRIBS ptr
@@ -320,9 +315,6 @@ newWorldRenderContext world program = do
 			GLRaw.glVertexAttribIPointer imageIn 1 GLRaw.gl_INT 32 (plusPtr nullPtr 16)
 			--GLRaw.glVertexAttribDivisor rotationLoc 3
 
-			print (isComplexLayer, 
-				texCoordsIn, mesh, imageIn, tileIdLoc, posLoc, originLoc, rotationLoc,
-				plusPtr nullPtr 8)
 			when (isComplexLayer) $ do
 				GLRaw.glEnableVertexAttribArray mesh
 				GLRaw.glEnableVertexAttribArray texCoordsIn
@@ -364,7 +356,6 @@ renderWorldRenderContext program wrc = do
 	GL.uniform numTilesets $= (GL.Index1 (fromIntegral $ Map.size (world^.R.mapTilesets)) :: GL.Index1 GL.GLint)
 	logGL "renderWorldRenderContext: uniform numTilesets"
 
-
 	--print "bind tilesets"
 	tilesetIndex <- GL.getUniformBlockIndex program "TileSets"
 	logGL "renderWorldRenderContext: getUniformBlockIndex"
@@ -375,7 +366,6 @@ renderWorldRenderContext program wrc = do
 
 	isComplex <- GL.get $ GL.uniformLocation program "isComplex"
 
-	--print (tilesetIndex, numTilesets)
 	--print $ Map.size (world^.R.mapTilesets)
 
 	mapM_ (\i -> do
@@ -386,7 +376,7 @@ renderWorldRenderContext program wrc = do
 		) [0..Map.size (wrc^.wrcTextures)-1]
 
 	mapM_ (\(layerName, layerId) -> do
-		if (wrc^.wrcWorld^.R.wIsComplexLayer layerId) then
+		if (wrc^.wrcWorld.R.wIsComplexLayer layerId) then
 			GL.uniform isComplex $= GL.Index1 (1 :: GL.GLint)
 			else GL.uniform isComplex $= GL.Index1 (0 :: GL.GLint)
 

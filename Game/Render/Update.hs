@@ -49,7 +49,7 @@ removeRenderObjects = do
 			let Just obj = world^.wObjects.L.at objId
 			-- FIXME
 			-- order of deletion is important
-			wLayerObject "ObjectLayer" (obj^.objName) .= Nothing
+			wLayerObject "CObjectLayer" (obj^.objName) .= Nothing
 			wObject (obj^.objName) .= Nothing
 			mapHashes.gameObjects.L.at (obj^.objName) .= Nothing
 			writer ((), [obj])
@@ -67,11 +67,10 @@ newRenderObjects = do
 			-- only objects with a position are renderable
 			Control.Monad.when (isJust pos && isJust tileName
 				) $ do
-					wObject (obj^.objName) .= (Just $ R.newObject 4 0)
-					Just objId <- use $ mapHashes . gameObjects . L.at (obj^.objName)
-					wLayerObject "ObjectLayer" (obj^.objName) .= (Just $
+					objId <- wObjectFromPrefab "Player1" (obj^.objName)
+					wLayerObject "CObjectLayer" (obj^.objName) .= (Just $
 						newRenderObject objId (0, 0) 0)
-					writer ((), [obj])
+					traceShow (objId, obj^.objName) $ writer ((), [obj])
 		) $ zip3 newObjects' objectTileNames objectPoss
 
 data RenderableGameObject = RenderableGameObject
@@ -90,42 +89,42 @@ update = do
 			tiledMap <- get
 
 			-- update position
-			wLayerObject "ObjectLayer" (obj^.objName) . _Just . roPos .= oPos
+			wLayerObject "CObjectLayer" (obj^.objName) . _Just . roPos .= oPos
 			if oId == 1 || oId == 2 then
-				wLayerObject "ObjectLayer" (obj^.objName) . _Just . roOrigin .= (25, -70)
+				wLayerObject "CObjectLayer" (obj^.objName) . _Just . roOrigin .= (25, -70)
 				else return ()
 			case mRot of
 				Just rot -> do
-					wLayerObject "ObjectLayer" (obj^.objName) 
+					wLayerObject "CObjectLayer" (obj^.objName) 
 						. _Just . roRotation .= rot
 
-					wLayerObject "ObjectLayer" (obj^.objName) 
+					wLayerObject "CObjectLayer" (obj^.objName) 
 						 . _Just . roOrigin .= (8, -32)
 				Nothing -> return ()
 
 			-- animation
-			let mTileName = world^?getAnimations. L.at oId._Just.animTileName
+			--let mTileName = world^?getAnimations. L.at oId._Just.animTileName
 
 			-- update tile
-			whenMaybeDo mTileName (\tileName -> do
-				-- tileset of tile
-				tileMap <- use $ 
-					R.wRenderConfig . rcTiles
+			--whenMaybeDo mTileName (\tileName -> do
+			--	-- tileset of tile
+			--	tileMap <- use $ 
+			--		R.wRenderConfig . rcTiles
 
-				let Just (tilesetName, localTileId) = 
-					tileMap ^. L.at tileName
+			--	let Just (tilesetName, localTileId) = 
+			--		tileMap ^. L.at tileName
 
-				case tileMap ^. L.at tileName of
-					Just (tilesetName, localTileId) -> do
-						Just tsId <- use $ mapHashes . gameTilesets . L.at tilesetName
-						wObject (obj^.objName)._Just.objTsId .= tsId
-						wObject (obj^.objName)._Just.objLocalId .= localTileId
-					Nothing -> return ()
-					--Nothing -> do
-					--	Just (tsId, localTileId) <- use $ mapHashes . gamePrefabs . L.at tileName
-					--	wObject (obj^.objName)._Just.objTsId .= tsId
-					--	wObject (obj^.objName)._Just.objLocalId .= localTileId
-				)
+			--	--case tileMap ^. L.at tileName of
+			--	--	Just (tilesetName, localTileId) -> do
+			--	--		--Just tsId <- use $ mapHashes . gameTilesets . L.at tilesetName
+			--	--		--wObject (obj^.objName)._Just.objTsId .= tsId
+			--	--		--wObject (obj^.objName)._Just.objLocalId .= localTileId
+			--	--	Nothing -> return ()
+			--		--Nothing -> do
+			--		--	Just (tsId, localTileId) <- use $ mapHashes . gamePrefabs . L.at tileName
+			--		--	wObject (obj^.objName)._Just.objTsId .= tsId
+			--		--	wObject (obj^.objName)._Just.objLocalId .= localTileId
+			--	)
 		) renderables
 
 type Renderable = World.Object

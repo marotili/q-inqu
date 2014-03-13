@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, TypeSynonymInstances, FlexibleInstances, TemplateHaskell, Rank2Types, NamedFieldPuns #-}
+{-# LANGUAGE FlexibleContexts, OverloadedStrings, TypeSynonymInstances, FlexibleInstances, TemplateHaskell, Rank2Types, NamedFieldPuns #-}
 module Game.Render.World where
 
 import Data.List
@@ -257,7 +257,7 @@ wAddComplexTile tilesetName objName tilePos tileSize = do
 	--mapObjects . at oId .= (Just $ newObject tsId nextId)
 	mapHashes . gamePrefabs . at objName .= Just (tsId, nextId)
 
-wObjectFromPrefab :: String -> String -> State World ObjectId
+wObjectFromPrefab :: (MonadState World m) => String -> String -> m ObjectId
 wObjectFromPrefab prefabName objName = do
 	prefabs <- use $ mapHashes . gamePrefabs
 	Just (tsId, localId) <- use $ mapHashes . gamePrefabs . at prefabName
@@ -328,7 +328,7 @@ wLayerObject layerName objName = lens get set
 				Just oId = world^.mapHashes.gameObjects.at objName
 				Just lId = world^.mapHashes.hashLayers.at layerName
 			in world 
-				& wLayer layerName._Just._layerObject oId .~ mro
+				& wLayer layerName._Just._layerObject oId .~ mro -- | can delete
 				& mapUpdateLayers %~ Set.insert lId
 
 _layerTile :: (Int, Int) -> Lens' MapLayer (Maybe Tile)
