@@ -22,7 +22,6 @@ import qualified Data.Tiled as T
 import Data.Tiled
 import Game.World.Import.Tiled
 
-
 import Game.World.Delta
 import Game.World.Wires
 import Game.World.Lens
@@ -86,7 +85,8 @@ update = do
 			let Just oPos = world^.objectPosition oId
 			let mRot = world^.objectRotation oId
 
-			tiledMap <- get
+			tiledMap <- traceShow (obj^.objName) get
+
 
 			-- update position
 			wLayerObject "CObjectLayer" (obj^.objName) . _Just . roPos .= oPos

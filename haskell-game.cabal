@@ -40,6 +40,9 @@ library
         
         Game.Collision 
 
+        Game.World.Unit
+        Game.World.UnitWires
+        
         Game.World
         Game.World.Visibility
         Game.World.Types
@@ -103,7 +106,7 @@ library
         regex-compat >= 0.95.1,
         aeson-pretty >= 0.7.0.2,
         data-binary-ieee754 == 0.4.4
-    ghc-options: -rtsopts -threaded -fprof-auto
+    ghc-options: -rtsopts -threaded -fprof-auto -Wall
 
 -- TODO remove netwire dependency
 executable server
@@ -131,7 +134,7 @@ executable server
         binary >= 0.7 && < 0.8,
         parallel,
         Octree >= 0.5 && < 0.6
-    ghc-options: -rtsopts -threaded -fprof-auto
+    ghc-options: -rtsopts -threaded -fprof-auto -Wall
     main-is: Server.hs
 
 executable tests
@@ -143,7 +146,7 @@ executable tests
         cell,
         HUnit,
         lens
-    ghc-options: -rtsopts -threaded -fprof-auto
+    ghc-options: -rtsopts -threaded -fprof-auto -Wall
 
 executable wireTests
     default-language: Haskell2010
@@ -155,7 +158,7 @@ executable wireTests
         cell,
         HUnit,
         lens
-    ghc-options: -rtsopts -threaded -fprof-auto
+    ghc-options: -rtsopts -threaded -fprof-auto -Wall
 
 
 executable atlas
@@ -209,6 +212,6 @@ executable client
         pretty >= 1.1 && < 1.2,
         Octree >= 0.5 && < 0.6
 
-  ghc-options: -rtsopts -threaded -fprof-auto
+  ghc-options: -rtsopts -threaded -fprof-auto -Wall
   main-is: main.hs
 

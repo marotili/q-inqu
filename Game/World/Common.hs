@@ -182,7 +182,7 @@ data Condition =
       ConditionStunned
     | ConditionDamageImmunity
     | ConditionEffectImmunity
-    deriving (Show, Eq)
+    deriving (Show, Eq, Ord)
 
 data Unit = Unit
     { _unitId :: !UnitId
