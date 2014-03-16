@@ -41,7 +41,6 @@ library
         Game.Collision 
 
         Game.World.Unit
-        Game.World.UnitWires
         
         Game.World
         Game.World.Visibility

@@ -65,7 +65,7 @@ trim tileSet = do
 				release pk
 			) $ zip3 rectOffsets rks wands
 
-		writeImage w (Just "data/monsters/compiled/tileset.png")
+		writeImage w (Just $ "data" </> (tileSet^.tscBaseDirectory) </> "compiled/tileset.png")
 
 		return (sizes, rectOffsets, trimOffsets)
 

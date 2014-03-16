@@ -1,16 +1,66 @@
 {
-	"tileset": [{
-		"name" : "player",
-		"filename": "player.png",
-		"base_directory" : "images",
+	"tileset": [
+		{ "name": "player"
+		, "filename": "player.png"
+		, "base_directory": "images"
+		, "source_data": []
+		, "derived_data": []
+		},
+		{
+		"name" : "monsters",
+		"filename": "monsters.png",
+		"base_directory" : "monsters",
 		"source_data": [
-			  { "tileId":"Player1", "filename":"player.png", "size":96 }
-			, { "tileId":"GoldCoin", "filename":"gold.png", "size":24 }
+			  { "tileId":"WolfStandFront", "filename":"wolf/1.png", "size":96 }
+			, { "tileId":"WolfFrontWalk1", "filename":"wolf/1b.png", "size":96 }
+			, { "tileId":"WolfFrontAttack1", "filename":"wolf/2.png", "size":96 }
+			, { "tileId":"WolfStandLeft", "filename":"wolf/3.png", "size":96 }
+			, { "tileId":"WolfWalk1Left", "filename":"wolf/3b.png", "size":96 }
+			, { "tileId":"WolfLeftAttack1", "filename":"wolf/4.png", "size":96 }
+			, { "tileId":"FWTProjectile", "filename":"feuerwarzenteufel/1.png", "size":16 }
+			, { "tileId":"FWTFrontStand", "filename":"feuerwarzenteufel/2.png", "size":96 }
+			, { "tileId":"FWTFrontAttack", "filename":"feuerwarzenteufel/3.png", "size":96 }
+			, { "tileId":"FWTFrontWalk1", "filename":"feuerwarzenteufel/4.png", "size":96 }
+			, { "tileId":"FWTFrontWalk2", "filename":"feuerwarzenteufel/5.png", "size":96 }
+			, { "tileId":"FWTLeftStand", "filename":"feuerwarzenteufel/6.png", "size":96 }
+			, { "tileId":"FWTLeftAttack1", "filename":"feuerwarzenteufel/7.png", "size":96 }
+			, { "tileId":"FWTLeftWalk1", "filename":"feuerwarzenteufel/8.png", "size":96 }
+			, { "tileId":"FWTLeftWalk2", "filename":"feuerwarzenteufel/9.png", "size":96 }
+			, { "tileId":"FWTBackStand", "filename":"feuerwarzenteufel/a.png", "size":96 }
+			, { "tileId":"FWTBackWalk1", "filename":"feuerwarzenteufel/a1.png", "size":96 }
+			, { "tileId":"FwTBackWalk2", "filename":"feuerwarzenteufel/a2.png", "size":96 }
 		],
 		"derived_data" : [
+			{ "tileId": "WolfStandRight"
+			, "sourceId": "WolfStandLeft"
+			, "transform": "flipHorizontal" 
+			},
+			{ "tileId": "WolfRightWalk1"
+			, "sourceId": "WolfWalk1Left"
+			, "transform": "flipHorizontal"
+			},
+			{ "tileId": "WolfRightAttack1"
+			, "sourceId": "WolfLeftAttack1"
+			, "transform": "flipHorizontal"
+			},
+			{ "tileId": "FWTRightStand"
+			, "sourceId": "FWTLeftStand"
+			, "transform": "flipHorizontal"
+			},
+			{ "tileId": "FWTRightAttack1"
+			, "sourceId": "FWTLeftAttack1"
+			, "transform": "flipHorizontal"
+			},
+			{ "tileId": "FWTRightWalk1"
+			, "sourceId": "FWTLeftWalk1"
+			, "transform": "flipHorizontal"
+			},
+			{ "tileId": "FWTRightWalk2"
+			, "sourceId": "FWTLeftWalk2"
+			, "transform": "flipHorizontal"
+			}			
 		]
-	}
-	],
+	}],
 
 	"objects": [
 		{ "objectId": "Wolf"
@@ -23,5 +73,30 @@
 	],
 
 	"objectAnimations": [
+		{ "objectId": "Wolf"
+		, "animationId": "Walk"
+		, "sequence": [
+			{ "direction": "Left"
+			, "data": [
+				{ "tileId": "WolfStandLeft"
+				, "time": 100
+				},
+				{ "tileId": "WolfWalk1Left"
+				, "time": 100
+				}
+				]
+			}]
+		},
+		{ "objectId": "Wolf"
+		, "animationId": "DefaultAttack"
+		, "sequence": [
+			{ "direction": "Left"
+			, "data": [
+				{ "tileId": "WolfLeftAttack1"
+				, "time": 200
+				}
+				]
+			}]
+		}
 	]
 }

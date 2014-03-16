@@ -66,7 +66,7 @@ newRenderObjects = do
 			-- only objects with a position are renderable
 			Control.Monad.when (isJust pos && isJust tileName
 				) $ do
-					objId <- wObjectFromPrefab "Player1" (obj^.objName)
+					objId <- wObjectFromPrefab "FWTFrontStand" (obj^.objName)
 					wLayerObject "CObjectLayer" (obj^.objName) .= (Just $
 						newRenderObject objId (0, 0) 0)
 					traceShow (objId, obj^.objName) $ writer ((), [obj])
@@ -103,28 +103,28 @@ update = do
 				Nothing -> return ()
 
 			-- animation
-			--let mTileName = world^?getAnimations. L.at oId._Just.animTileName
+			let mTileName = world^?getAnimations. L.at oId._Just.animTileName
 
 			-- update tile
-			--whenMaybeDo mTileName (\tileName -> do
-			--	-- tileset of tile
-			--	tileMap <- use $ 
-			--		R.wRenderConfig . rcTiles
+			whenMaybeDo mTileName (\tileName -> do
+				-- tileset of tile
 
-			--	let Just (tilesetName, localTileId) = 
-			--		tileMap ^. L.at tileName
+				--let Just (tilesetName, localTileId) = 
+				--	tileMap ^. L.at tileName
 
-			--	--case tileMap ^. L.at tileName of
-			--	--	Just (tilesetName, localTileId) -> do
-			--	--		--Just tsId <- use $ mapHashes . gameTilesets . L.at tilesetName
-			--	--		--wObject (obj^.objName)._Just.objTsId .= tsId
-			--	--		--wObject (obj^.objName)._Just.objLocalId .= localTileId
-			--	--	Nothing -> return ()
-			--		--Nothing -> do
-			--		--	Just (tsId, localTileId) <- use $ mapHashes . gamePrefabs . L.at tileName
-			--		--	wObject (obj^.objName)._Just.objTsId .= tsId
-			--		--	wObject (obj^.objName)._Just.objLocalId .= localTileId
-			--	)
+				wSetObjectPrefab (obj^.objName) tileName
+
+				--case tileMap ^. L.at tileName of
+				--	Just (tilesetName, localTileId) -> do
+				--		--Just tsId <- use $ mapHashes . gameTilesets . L.at tilesetName
+				--		--wObject (obj^.objName)._Just.objTsId .= tsId
+				--		--wObject (obj^.objName)._Just.objLocalId .= localTileId
+				--	Nothing -> return ()
+					--Nothing -> do
+					--	Just (tsId, localTileId) <- use $ mapHashes . gamePrefabs . L.at tileName
+					--	wObject (obj^.objName)._Just.objTsId .= tsId
+					--	wObject (obj^.objName)._Just.objLocalId .= localTileId
+				)
 		) renderables
 
 type Renderable = World.Object

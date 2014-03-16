@@ -52,7 +52,7 @@ objectAnimation pId SouthWest = objectAnimation pId South
 
 objectAnimation 3 dir = a1
     where
-        animName num = "Player" ++ show 3 ++ "S" ++ show num
+        animName num = "FWTFrontStand"
         a1 = Animation (3*toInt dir) (animName 1) 0.25 a2 0 
         a2 = Animation (3*toInt dir) (animName 2) 0.25 a3 0
         a3 = Animation (3*toInt dir) (animName 3) 0.25 a4 0
@@ -60,7 +60,7 @@ objectAnimation 3 dir = a1
 
 objectAnimation 4 dir = a1
     where
-        animName num = "Player" ++ show 4 ++ "S" ++ show num
+        animName num = "FWTFrontStand"
         a1 = Animation (4*toInt dir) (animName 1) 0.25 a2 0 
         a2 = Animation (4*toInt dir) (animName 2) 0.25 a3 0
         a3 = Animation (4*toInt dir) (animName 3) 0.25 a4 0
@@ -68,13 +68,13 @@ objectAnimation 4 dir = a1
 
 objectAnimation playerId dir = a1
     where
-        animName num = "Player" ++ show playerId ++ show dir ++ show num
+        animName num = "FWTFrontStand"
         a1 = Animation (playerId*toInt dir) (animName 1) 0.25 a2 0 
         a2 = Animation (playerId*toInt dir) (animName 2) 0.25 a3 0
         a3 = Animation (playerId*toInt dir) (animName 3) 0.25 a4 0
         a4 = Animation (playerId*toInt dir) (animName 4) 0.25 a1 0
 
 arrowAnimation :: Orientation -> Animation
-arrowAnimation dir = let a1 = Animation 99 ("Arrow" ++ show dir) 999 a1 0 in a1
+arrowAnimation dir = let a1 = Animation 99 ("FWTProjectile") 999 a1 0 in a1
 
 boltAnimation = let a1 = Animation 100 "ItemBolt" 999 a1 0 in a1

@@ -48,8 +48,22 @@ moveArrow direction = proc oId -> do
 data Arrow = Arrow
 instance Spawnable Game.World.Arrow where
 	spawnPosition Arrow = proc playerId -> do
-			Just playerPos <- wLiftF (\pId -> view $ getPositions . L.at pId) -< playerId
-			returnA -< playerPos
+		Just playerPos <- wLiftF (\pId -> view $ getPositions . L.at pId) -< playerId
+		returnA -< playerPos
+	spawnWire _ = proc playerId -> do
+		(dx, dy) <- spawnArrowDirection -< playerId
+		let wire = moveArrow (dx*400, dy*400)
+		returnA -< wire
+	spawnBoundary _ = proc playerId -> do
+		(dx, dy) <- spawnArrowDirection -< playerId
+		let rotation = if
+			dy > 0 
+				then acos dx
+				else -(acos dx)
+		returnA -< arrowData^.bdBoundary rotation
+
+	spawnAnimation _ = pure $ arrowAnimation East
+
 
 class Spawnable a where
 	spawnPosition :: a -> WorldWire PlayerId (Float, Float)
@@ -58,15 +72,17 @@ class Spawnable a where
 	spawnWire :: a -> WorldWire PlayerId (WorldWire ObjectId ())
 
 	spawnIgnoreList :: a -> WorldWire PlayerId [ObjectId]
-	spawnIgnoreList _ = fmap (\pId -> [pId]) W.id
+	spawnIgnoreList _ = fmap (:[]) W.id
 	spawnIgnoreSpawner :: a -> WorldWire PlayerId Bool
-	spawnIgnoreSpawner _ = pure $ True
+	spawnIgnoreSpawner _ = pure True
 	spawnBoundary :: a -> WorldWire PlayerId Boundary
 	spawnBoundary _ = pure []
 
-	spawn :: a -> WorldWire PlayerId ()
+	spawnAnimation :: a -> WorldWire PlayerId Animation
+	--spawnAnimation _ = pure (arrowAnimation East) -- FIXME need empty animation
 
-	spawn obj = proc spawnerId -> do
+	spawnObjectWire :: a -> WorldWire PlayerId ()
+	spawnObjectWire obj = proc spawnerId -> do
 		Event oId <- spawnObjectMakeName -< spawnerId
 		position <- spawnPosition obj -< spawnerId
 		rotation <- spawnRotation obj -< spawnerId
@@ -74,7 +90,9 @@ class Spawnable a where
 		ignoreSpawner <- spawnIgnoreSpawner obj -< spawnerId
 		boundary <- spawnBoundary obj -< spawnerId
 		wire <- spawnWire obj -< spawnerId
+		anim <- spawnAnimation obj -< spawnerId
 
+		_ <- animateR -< (oId, anim)
 		_ <- setPosOnceR -< (oId, position)
 		_ <- wLiftSetOnceR setBoundary -< (oId, boundary)
 		_ <- wLiftSetOnceR setIgnoreCollision -< (oId, head ignoreList) -- FIXME for all in list
@@ -110,14 +128,16 @@ instance Spawnable ItemInstance where
 			_ -> boltWire
 
 spawnArrow :: ObjectWire PlayerId ()
-spawnArrow = spawn . thenDo (inhibit WireFinished)
+spawnArrow = spawn' . thenDo (inhibit WireFinished)
 	where
-		spawn = proc playerId -> do	
-			(oId, playerPos, playerDir) <- step1 -< playerId
-			_ <- setup -< (oId, playerId, playerPos, playerDir, playerId)
-			_ <- spawnWire -< (playerId, oId, playerDir)
+		spawn' = spawnObjectWire Arrow
 
-			returnA -< ()
+			--proc playerId -> do	
+			--(oId, playerPos, playerDir) <- step1 -< playerId
+			--_ <- setup -< (oId, playerId, playerPos, playerDir, playerId)
+			--_ <- spawnWire -< (playerId, oId, playerDir)
+
+			--returnA -< ()
 
 		step1 = proc playerId -> do
 			Event oId <- spawnObjectMakeName -< playerId
@@ -156,10 +176,6 @@ playerSpawnArrow = untilV spawnArrowEvent
 	W.--> spawnArrow 
 	W.--> void while . spawnArrowEvent
 	W.--> playerSpawnArrow
-
---swordTrackPlayer :: ObjectWire PlayerId ()
---swordTrackPlayer = 
-
 
 --playerMovement :: ObjectWire PlayerId ()
 playerMovement baseSpeed = untilV movingDirectionE 
@@ -210,14 +226,3 @@ testwire = proc input -> do
 
 	returnA -< ()
 
-
---worldLoop w'a session' world' state' = do
---	(dt, session) <- stepSession session'
---	((out, w), worldManager, worldDelta) <- runRWST (
---		stepWire w' dt (Right ())
---		) world' state'
-
---	let quit = case out of
---		Right _ -> False
---		Left _ -> True
---	return (quit, (w, session), (worldManager, worldDelta))

@@ -259,12 +259,18 @@ wAddComplexTile tilesetName objName tilePos tileSize = do
 
 wObjectFromPrefab :: (MonadState World m) => String -> String -> m ObjectId
 wObjectFromPrefab prefabName objName = do
-	prefabs <- use $ mapHashes . gamePrefabs
 	Just (tsId, localId) <- use $ mapHashes . gamePrefabs . at prefabName
 
 	wObject objName .= (Just $ newObject tsId localId)
 	Just oId <- use $ mapHashes . gameObjects . at objName
 	return oId
+
+wSetObjectPrefab :: (MonadState World m) => String -> String -> m ()
+wSetObjectPrefab objName prefabName = do
+	Just (tsId, localId) <- use $ mapHashes . gamePrefabs . at prefabName
+	Just objId <- use $ mapHashes . gameObjects . at objName
+	mapObjects . at objId . _Just . objTsId .= tsId
+	mapObjects . at objId . _Just . objLocalId .= localId
 
 wAddObject :: String -> State World ()
 wAddObject name = do
