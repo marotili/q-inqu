@@ -69,7 +69,7 @@ newRenderObjects = do
 					objId <- wObjectFromPrefab "FWTFrontStand" (obj^.objName)
 					wLayerObject "CObjectLayer" (obj^.objName) .= (Just $
 						newRenderObject objId (0, 0) 0)
-					traceShow (objId, obj^.objName) $ writer ((), [obj])
+					writer ((), [obj])
 		) $ zip3 newObjects' objectTileNames objectPoss
 
 data RenderableGameObject = RenderableGameObject
@@ -85,7 +85,7 @@ update = do
 			let Just oPos = world^.objectPosition oId
 			let mRot = world^.objectRotation oId
 
-			tiledMap <- traceShow (obj^.objName) get
+			tiledMap <- get
 
 
 			-- update position

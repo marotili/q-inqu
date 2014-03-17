@@ -28,6 +28,7 @@ import Control.Monad.State.Strict
 import Control.Monad.RWS.Strict
 
 import Game.World.Common
+import Game.World.Unit
 
 import Control.Arrow
 
@@ -153,7 +154,7 @@ newGame name = do
 	(oldWorld, newWorld, delta, manager) <- mkGameWorld tiledMap (50, -200) genMap
 	--print delta 
 
-	complexTileset <- R.load 
+	complexTileset <- traceShow (delta, newWorld) $ R.load 
 
 	let renderWorld = mkRenderWorld tiledMap delta genMap complexTileset
 	let (newRenderWorld, newRenderables) = 
@@ -333,9 +334,14 @@ mkGameWorld tiledMap startPos genMap = do
 			_ <- wLiftSetOnce setBoundary G.playerBoundary -< p3Id
 			_ <- wLiftSetOnce setBoundary G.playerBoundary -< p4Id
 
-			_ <- initWalls wallBoundaries -< input
+			_ <- wLiftSetOnceVoid makeUnit -< p1Id
+			_ <- wLiftSetOnceVoid makeUnit -< p2Id
+			_ <- wLiftSetOnceVoid makeUnit -< p3Id
+			_ <- wLiftSetOnceVoid makeUnit -< p4Id
 
-			itemId <- spawnObject "Bolt" -< input
+			--_ <- initWalls wallBoundaries -< input
+
+			--itemId <- spawnObject "Bolt" -< input
 
 			returnA -< ()
 

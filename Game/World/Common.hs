@@ -203,7 +203,7 @@ instance Show Ability where
 	show a = "Ability"
 
 data Equipment = Equipment
-    { equipmentSlots :: !(Map.Map EquipmentSlot (Maybe ItemInstance))
+    { _equipmentSlots :: !(Map.Map EquipmentSlot (Maybe ItemInstance))
     } deriving (Show)
 
 type InventoryIndex = Int
@@ -216,7 +216,7 @@ data Inventory = Inventory
 data EquipmentSlot =
     ESHelm | ESTorso | ESHands | ESLegs | ESFoot
     | ESRing | ESPrimaryWeapon | ESSecondaryWeapon
-    deriving (Show)
+    deriving (Show, Eq, Ord)
 
 data Item = EquipmentItem
     { _itemId :: !ItemId

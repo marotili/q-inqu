@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, Arrows, NamedFieldPuns, Rank2Types #-}
+{-# LANGUAGE BangPatterns, FlexibleContexts, Arrows, NamedFieldPuns, Rank2Types #-}
 module Game.World 
 	(
 	-- * World
@@ -13,6 +13,7 @@ module Game.World
 import Game.World.ObjectData
 import Debug.Trace
 import Game.World.Lens
+import Game.World.Unit
 import Control.Monad.RWS
 import Control.Monad.State
 import Data.Maybe
@@ -40,10 +41,39 @@ import qualified Game.World.Objects as World
 
 moveArrow :: (Float, Float) -> ObjectWire ObjectId ()
 moveArrow direction = proc oId -> do
-	_ <- move direction . for 1 
-		W.--> untilV removeObject W.--> void exit
-			-< oId
+	_ <- waitHit W.--> removeArrow -< oId
 	returnA -< ()
+
+	where
+		waitHit = proc oId -> do
+			_ <- move direction . for 1 -< oId
+			_ <- untilV (wLiftE objectCollided) W.-->
+					removeArrow . handleCollision
+				 -< oId
+			returnA -< ()
+
+		removeArrow = untilV removeObject W.--> void exit
+
+		handleCollision = proc oId -> do
+			collisions <- asSoonAs . (wLiftE objectCollided) -< oId
+			unitCollisions <- wLiftF (\cols -> do
+					world <- ask
+					return $ filter (\oId -> world^.isUnit oId) cols
+				)-< collisions
+
+			_ <- newObjectWiresR -< (unitCollisions, stun)
+			returnA -< traceShow (collisions, unitCollisions) oId
+
+stun :: ObjectWire ObjectId ()
+stun = proc oId -> do
+	_ <- move (-50, -50) . for 1 W.--> void exit -< oId	
+	returnA -< ()
+
+objectCollided oId = do
+	collisions <- view (collisionEvent oId)
+	if null collisions
+		then return (False, [])
+		else return (True, collisions)
 
 data Arrow = Arrow
 instance Spawnable Game.World.Arrow where
@@ -139,37 +169,37 @@ spawnArrow = spawn' . thenDo (inhibit WireFinished)
 
 			--returnA -< ()
 
-		step1 = proc playerId -> do
-			Event oId <- spawnObjectMakeName -< playerId
-			Just playerPos <- wLiftF (\pId -> view $ getPositions . L.at pId) -< playerId
-			Just playerDir <- wLiftF (\pId -> view $ getOrientations . L.at pId) -< playerId
-			returnA -< (oId, playerPos, playerDir)
+		--step1 = proc playerId -> do
+		--	Event oId <- spawnObjectMakeName -< playerId
+		--	Just playerPos <- wLiftF (\pId -> view $ getPositions . L.at pId) -< playerId
+		--	Just playerDir <- wLiftF (\pId -> view $ getOrientations . L.at pId) -< playerId
+		--	returnA -< (oId, playerPos, playerDir)
 
-		spawnWire = proc (pId, oId, playerDir) -> do
-			--let (dx, dy) = deltaFromOrientation playerDir
-			(dx, dy) <- spawnArrowDirection -< pId
-			_ <- wLiftSetOnceR rotateObject -< (oId, if
-				dy > 0 
-					then acos dx
-					else -(acos dx)
-				)
-			let wire = moveArrow (dx*400, dy*400)
-			_ <- newObjectWireR -< (oId, wire)
-			returnA -< ()
+		--spawnWire = proc (pId, oId, playerDir) -> do
+		--	--let (dx, dy) = deltaFromOrientation playerDir
+		--	(dx, dy) <- spawnArrowDirection -< pId
+		--	_ <- wLiftSetOnceR rotateObject -< (oId, if
+		--		dy > 0 
+		--			then acos dx
+		--			else -(acos dx)
+		--		)
+		--	let wire = moveArrow (dx*400, dy*400)
+		--	_ <- newObjectWireR -< (oId, wire)
+		--	returnA -< ()
 
-		setup = proc (oId, pId, playerPos, playerDir, playerId) -> do
-			(dx, dy) <- spawnArrowDirection -< pId
-			let rotation = if
-				dy > 0 
-					then acos dx
-					else -(acos dx)
+		--setup = proc (oId, pId, playerPos, playerDir, playerId) -> do
+		--	(dx, dy) <- spawnArrowDirection -< pId
+		--	let rotation = if
+		--		dy > 0 
+		--			then acos dx
+		--			else -(acos dx)
 
-			_ <- setPosOnceR -< (oId, playerPos)
-			_ <- animateR -< (oId, arrowAnimation East)
-			_ <- wLiftSetOnceR setBoundary -< (oId, arrowData^.bdBoundary rotation)
-			_ <- wLiftSetOnceR setIgnoreCollision -< (oId, playerId)
-			_ <- wLiftSetOnceR setIgnoreCollision -< (playerId, oId)
-			returnA -< ()
+		--	_ <- setPosOnceR -< (oId, playerPos)
+		--	_ <- animateR -< (oId, arrowAnimation East)
+		--	_ <- wLiftSetOnceR setBoundary -< (oId, arrowData^.bdBoundary rotation)
+		--	_ <- wLiftSetOnceR setIgnoreCollision -< (oId, playerId)
+		--	_ <- wLiftSetOnceR setIgnoreCollision -< (playerId, oId)
+			--returnA -< ()
 
 playerSpawnArrow :: ObjectWire PlayerId ()
 playerSpawnArrow = untilV spawnArrowEvent
@@ -225,4 +255,3 @@ testwire = proc input -> do
 	_ <- once . newObjectWire 4 beeWire -< input
 
 	returnA -< ()
-

@@ -255,8 +255,3 @@ setItems = _compSet compItem
 getItems :: Get (ObjectProp Item)
 getItems = _compGet compItem
 
-setUnits :: Set (ModifyContainer UnitId Unit)
-setUnits = _compSet compUnit
-getUnits :: Get (ObjectProp Unit)
-getUnits = _compGet compUnit
-

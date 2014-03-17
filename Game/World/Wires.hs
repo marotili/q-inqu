@@ -15,6 +15,7 @@ import Game.Collision
 import Control.Monad.State.Strict
 import Control.Monad
 import Control.Wire
+import Control.Wire.Unsafe.Event
 import qualified Control.Wire as W
 import qualified Control.Wire.Unsafe.Event as W
 import Game.World.Common
@@ -95,6 +96,13 @@ wLiftM f = mkGenN $ \a -> do
 		Just b -> return $ b `seq` (Right b, wLiftM f)
 		Nothing -> return (Left WireRunning, wLiftM f)
 
+wLiftE :: (a -> WorldContext (Bool, b)) -> WorldWire a (Event b)
+wLiftE f = mkGenN $ \a -> do
+	(e, b) <- f a
+	if e 
+		then return (Right (Event b), wLiftE f)
+		else return (Right NoEvent, wLiftE f)
+
 -- TODO: We should move the test into the state monad
 -- e.g.: object moves -> no collision and has new position in next update
 -- 		 	another object moves -> no collision but may overlap in the next update
@@ -165,6 +173,16 @@ newObject = do
 	let oId = wm^.wmNextObjectId
 	wmNextObjectId += 1
 	return oId
+
+newObjectWires oIds w = doOnce $ wLift (
+		mapM_ (\oId -> addWire oId w) oIds
+	)
+
+newObjectWiresR = newObjectWiresR' newObjectWires
+	where
+		newObjectWiresR' newObjectW = mkGen $ \ds (oId, w) -> do
+			(mx, w') <- stepWire (newObjectW oId w) ds (Right ())
+			return $ mx `seq` (mx, newObjectWiresR' (\_ _ -> w'))
 
 newObjectWire :: ObjectId -> ObjectWire ObjectId () -> WorldWire a (Event ())
 newObjectWire oId w = doOnce $ wLift (addWire oId w)

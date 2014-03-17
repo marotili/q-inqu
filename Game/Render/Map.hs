@@ -79,11 +79,11 @@ wMeshData wrc = to (\meshs -> V.fromList $ concatMap
 	(\(px, py, sx', sy', imgW, imgH, tsId) ->
 		let 
 			sx = floatToWord sx'
-			sy = traceShow (sx', px, sy') $ floatToWord sy'
+			sy = floatToWord sy'
 			tx0 = (floatToWord $ ((px) / imgW)) ::  Word32 
 			tx1 = (floatToWord $ (px + sx') / imgW) ::  Word32 
 			ty0 = (floatToWord $ ((py) / imgH)) ::  Word32 
-			ty1 = traceShow ((py + sy') / imgH) (floatToWord $ (py + sy') / imgH) ::  Word32 
+			ty1 = (floatToWord $ (py + sy') / imgH) ::  Word32 
 			imgId = (fromIntegral . fromJust $ wrc^?wrcTextures.at tsId._Just._1) :: Word32
 			zero = 0 :: Word32
 		in let x = 
@@ -297,7 +297,7 @@ newWorldRenderContext world program = do
 
 			GLRaw.glEnableVertexAttribArray rotationLoc
 
-			print (posLoc, originLoc, rotationLoc, tileIdLoc)
+			--print (posLoc, originLoc, rotationLoc, tileIdLoc)
 
 			alloca $ \ptr -> do
 				GLRaw.glGetIntegerv GLRaw.gl_MAX_VERTEX_ATTRIBS ptr

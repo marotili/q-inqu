@@ -116,7 +116,7 @@ getCompiledTileSets = to get
 				, _tscName = ts'^.tsName
 				, _tscBaseDirectory = ts'^.tsBaseDirectory
 				, _tscData = map 
-					(\tileName -> traceShow (tileName) $ fromJust $ ts^.rootTiles.at tileName) $ 
+					(\tileName -> fromJust $ ts^.rootTiles.at tileName) $ 
 						Set.toList (ts'^.tsData)
 				}
 			) (Map.elems $ ts^.tileSets)
