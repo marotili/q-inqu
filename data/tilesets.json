@@ -1,40 +1,229 @@
 {
 	"tileset": [
-		{ "name": "player"
-		, "filename": "player.png"
-		, "base_directory": "images"
-		, "source_data": []
-		, "derived_data": []
+		{ "name": "background"
+		, "filename": "background.png"
+		, "base_directory": "monsters/walls"
+		, "source_data": [
+			{ "tileId": "background", "filename":"background.png", "size":2000 }
+		]
+		, "derived_data": [
+			{ "tileId": "background2", "sourceId": "background", "transform": "flipHorizontal" }
+			]
 		},
 		{
 		"name" : "monsters",
 		"filename": "monsters.png",
-		"base_directory" : "monsters",
-		"source_data": [
-			  { "tileId":"WolfStandFront", "filename":"wolf/1.png", "size":96 }
-			, { "tileId":"WolfFrontWalk1", "filename":"wolf/1b.png", "size":96 }
-			, { "tileId":"WolfFrontAttack1", "filename":"wolf/2.png", "size":96 }
-			, { "tileId":"WolfStandLeft", "filename":"wolf/3.png", "size":96 }
-			, { "tileId":"WolfWalk1Left", "filename":"wolf/3b.png", "size":96 }
-			, { "tileId":"WolfLeftAttack1", "filename":"wolf/4.png", "size":96 }
-			, { "tileId":"FWTProjectile", "filename":"feuerwarzenteufel/1.png", "size":16 }
-			, { "tileId":"FWTFrontStand", "filename":"feuerwarzenteufel/2.png", "size":96 }
-			, { "tileId":"FWTFrontAttack", "filename":"feuerwarzenteufel/3.png", "size":96 }
-			, { "tileId":"FWTFrontWalk1", "filename":"feuerwarzenteufel/4.png", "size":96 }
-			, { "tileId":"FWTFrontWalk2", "filename":"feuerwarzenteufel/5.png", "size":96 }
-			, { "tileId":"FWTLeftStand", "filename":"feuerwarzenteufel/6.png", "size":96 }
-			, { "tileId":"FWTLeftAttack1", "filename":"feuerwarzenteufel/7.png", "size":96 }
-			, { "tileId":"FWTLeftWalk1", "filename":"feuerwarzenteufel/8.png", "size":96 }
-			, { "tileId":"FWTLeftWalk2", "filename":"feuerwarzenteufel/9.png", "size":96 }
-			, { "tileId":"FWTBackStand", "filename":"feuerwarzenteufel/a.png", "size":96 }
-			, { "tileId":"FWTBackWalk1", "filename":"feuerwarzenteufel/a1.png", "size":96 }
-			, { "tileId":"FwTBackWalk2", "filename":"feuerwarzenteufel/a2.png", "size":96 }
+		"base_directory" : "monsters"
+		, "group_data": {
+				"LilaFront": {
+					  "origin": [110, 220]
+					, "boundaries": {
+			  			  "ground": [[64, 360], [160, 360], [160, 415], [64, 415]]
+			  			, "torso": [[64, 165], [165, 165], [165, 315], [64, 315]]
+			  			, "head": [[40, 30], [155, 30], [155, 145], [40, 145]]
+			  		}
+				}
+			}
+		, "source_data": [
+			  { "tileId":"LilaWalk1Front", "filename":"lila/a1.png", "size":96
+			  	  , "group": "LilaFront"
+				  }	
+			, { "tileId":"LilaStandFront", "filename":"lila/a2.png", "size":96
+			  	  , "group": "LilaFront"
+				  }	
+			, { "tileId":"LilaWalk2Front", "filename":"lila/a3.png", "size":96
+			  	  , "group": "LilaFront"
+				  }			
+
+			, { "tileId":"LilaWalk1Left", "filename":"lila/b1.png", "size":96
+			  	  , "group": "LilaFront"
+				  }		
+			, { "tileId":"LilaStandLeft", "filename":"lila/b2.png", "size":96
+			  	  , "group": "LilaFront"
+				  }		
+			, { "tileId":"LilaWalk2Left", "filename":"lila/b3.png", "size":96
+			  	  , "group": "LilaFront"
+				  }		
+
+			, { "tileId":"LilaWalk1Back", "filename":"lila/h1.png", "size":96
+			  	  , "group": "LilaFront"
+				  }		
+			, { "tileId":"LilaStandBack", "filename":"lila/h2.png", "size":96
+			  	  , "group": "LilaFront"
+				  }		
+			, { "tileId":"LilaWalk2Back", "filename":"lila/h3.png", "size":96
+			  	  , "group": "LilaFront"
+				  }		
+
+			, { "tileId":"LilaWalk1Right", "filename":"lila/r1.png", "size":96
+			  	  , "group": "LilaFront"
+				  }		
+			, { "tileId":"LilaStandRight", "filename":"lila/r2.png", "size":96
+			  	  , "group": "LilaFront"
+				  }		
+			, { "tileId":"LilaWalk2Right", "filename":"lila/r3.png", "size":96
+			  	  , "group": "LilaFront"
+				  }		
+
+			, { "tileId":"WolfStandFront", "filename":"wolf/1.png", "size":48
+			  		, "originX":380, "originY":355 
+				  }
+			, { "tileId":"WolfFrontWalk1", "filename":"wolf/1b.png", "size":48
+			  		,"originX":380, "originY":355 
+				  }
+			, { "tileId":"WolfFrontAttack1", "filename":"wolf/2.png", "size":48
+			  		,"originX":380, "originY":355 
+				  	}
+			, { "tileId":"WolfStandLeft", "filename":"wolf/3.png", "size":48
+			  		,"originX":300, "originY":400 
+				  	}
+			, { "tileId":"WolfWalk1Left", "filename":"wolf/3b.png", "size":48
+			  		,"originX":300, "originY":400 
+				  	}
+			, { "tileId":"WolfLeftAttack1", "filename":"wolf/4.png", "size":48
+			  		,"originX":300, "originY":400 
+				  	}
+			, { "tileId":"FWTProjectile", "filename":"feuerwarzenteufel/1.png", "size":16
+			  		,"originX":250, "originY":250 
+				  	}
+			, { "tileId":"FWTFrontStand", "filename":"feuerwarzenteufel/2.png", "size":96
+			  		,"originX":250, "originY":250 
+				  	}
+			, { "tileId":"FWTFrontAttack", "filename":"feuerwarzenteufel/3.png", "size":96
+			  		,"originX":250, "originY":250 
+				  	}
+			, { "tileId":"FWTFrontWalk1", "filename":"feuerwarzenteufel/4.png", "size":96
+			  		,"originX":250, "originY":250 
+				  	}
+			, { "tileId":"FWTFrontWalk2", "filename":"feuerwarzenteufel/5.png", "size":96
+			  		,"originX":250, "originY":250 
+				  	}
+			, { "tileId":"FWTLeftStand", "filename":"feuerwarzenteufel/6.png", "size":96
+			  		,"originX":250, "originY":250 
+				  	}
+			, { "tileId":"FWTLeftAttack1", "filename":"feuerwarzenteufel/7.png", "size":96
+			  		,"originX":250, "originY":250 
+				  	}
+			, { "tileId":"FWTLeftWalk1", "filename":"feuerwarzenteufel/8.png", "size":96
+			  		,"originX":250, "originY":250 
+				  	}
+			, { "tileId":"FWTLeftWalk2", "filename":"feuerwarzenteufel/9.png", "size":96
+			  		,"originX":250, "originY":250 
+				  	}
+			, { "tileId":"FWTBackStand", "filename":"feuerwarzenteufel/a.png", "size":96
+			  		,"originX":250, "originY":250 
+				  	}
+			, { "tileId":"FWTBackWalk1", "filename":"feuerwarzenteufel/a1.png", "size":96
+			  		,"originX":250, "originY":250 
+				  	}
+			, { "tileId":"FwTBackWalk2", "filename":"feuerwarzenteufel/a2.png", "size":96
+			  		,"originX":250, "originY":250 
+				  	}
+
+			, { "tileId":"DoorClosed", "filename":"walls/door.png", "size":102
+			  		,"originX":0, "originY":0 
+				  	}
+			, { "tileId":"DoorOpen", "filename":"walls/door2.png", "size":111
+			  		,"originX":0, "originY":0 
+				  	}
+			, { "tileId":"Wall1", "filename":"walls/w1.png", "size":77
+			  		,"originX":0, "originY":0 
+				  	}
+			, { "tileId":"Wall2", "filename":"walls/w2.png", "size":64
+			  		,"originX":0, "originY":0 
+				  	}
+			, { "tileId":"Wall3", "filename":"walls/w3.png", "size":94
+			  		,"originX":0, "originY":0 
+				  	}
+			, { "tileId":"Wall4", "filename":"walls/w4.png", "size":91
+			  		,"originX":0, "originY":0 
+				  	}
+			, { "tileId":"Wall5", "filename":"walls/w5.png", "size":84
+			  		,"originX":0, "originY":0 
+				  	}
+			, { "tileId":"Wall6", "filename":"walls/w6.png", "size":73
+			  		,"originX":0, "originY":0 
+				  	}
+
+
+			, { "tileId":"Flower1", "filename":"krimskrams/f1.png", "size":40
+			  		,"originX":90, "originY":160 
+				  	}
+			, { "tileId":"Flower2", "filename":"krimskrams/f2.png", "size":40
+			  		,"originX":90, "originY":160 
+				  	}
+			, { "tileId":"Flower3", "filename":"krimskrams/f3.png", "size":40
+			  		,"originX":90, "originY":160
+				  	}
+			, { "tileId":"Flower4", "filename":"krimskrams/f4.png", "size":40
+			  		,"originX":90, "originY":160
+				  	}
+
+			, { "tileId":"Plant1", "filename":"krimskrams/p1.png", "size":30
+			  		,"originX":90, "originY":160
+				  	}
+			, { "tileId":"Plant2", "filename":"krimskrams/p2.png", "size":30
+			  		,"originX":90, "originY":160
+				  	}
+			, { "tileId":"Plant3", "filename":"krimskrams/p3.png", "size":30
+			  		,"originX":90, "originY":160
+				  	}
+			, { "tileId":"Plant4", "filename":"krimskrams/p4.png", "size":30
+			  		,"originX":90, "originY":160
+				  	}
+			, { "tileId":"Plant5", "filename":"krimskrams/p5.png", "size":30
+			  		,"originX":90, "originY":160
+				  	}
+			, { "tileId":"Plant6", "filename":"krimskrams/p6.png", "size":30
+			  		,"originX":90, "originY":160
+				  	}
+			, { "tileId":"Plant7", "filename":"krimskrams/p7.png", "size":30
+			  		,"originX":90, "originY":160
+				  	}
+
+			, { "tileId":"Stone1", "filename":"krimskrams/s1.png", "size":30
+			  		,"originX":50, "originY":50
+				  	}
+			, { "tileId":"Stone2", "filename":"krimskrams/s2.png", "size":30
+			  		,"originX":50, "originY":50
+				  	}
+			, { "tileId":"Stone3", "filename":"krimskrams/s3.png", "size":30
+			  		,"originX":50, "originY":50
+				  	}
 		],
 		"derived_data" : [
-			{ "tileId": "WolfStandRight"
-			, "sourceId": "WolfStandLeft"
-			, "transform": "flipHorizontal" 
-			},
+			  { "tileId": "Wall1_2", "sourceId": "Wall1", "transform": "flipHorizontal" }
+			, { "tileId": "Wall2_2", "sourceId": "Wall2", "transform": "flipHorizontal" }
+			, { "tileId": "Wall3_2", "sourceId": "Wall3", "transform": "flipHorizontal" }
+			, { "tileId": "Wall4_2", "sourceId": "Wall4", "transform": "flipHorizontal" }
+			, { "tileId": "Wall5_2", "sourceId": "Wall5", "transform": "flipHorizontal" }
+			, { "tileId": "Wall6_2", "sourceId": "Wall6", "transform": "flipHorizontal" }
+
+			, { "tileId": "DoorClosed_2", "sourceId": "DoorClosed", "transform":"flipHorizontal" }
+			, { "tileId": "DoorOpen_2", "sourceId": "DoorOpen", "transform":"flipHorizontal" }
+
+			, { "tileId": "Flower1_2", "sourceId": "Flower1", "transform":"flipHorizontal" }
+			, { "tileId": "Flower2_2", "sourceId": "Flower2", "transform":"flipHorizontal" }
+			, { "tileId": "Flower3_2", "sourceId": "Flower3", "transform":"flipHorizontal" }
+			, { "tileId": "Flower4_2", "sourceId": "Flower4", "transform":"flipHorizontal" }
+
+			, { "tileId": "Plant1_2", "sourceId": "Plant1", "transform":"flipHorizontal" }
+			, { "tileId": "Plant2_2", "sourceId": "Plant2", "transform":"flipHorizontal" }
+			, { "tileId": "Plant3_2", "sourceId": "Plant3", "transform":"flipHorizontal" }
+			, { "tileId": "Plant4_2", "sourceId": "Plant4", "transform":"flipHorizontal" }
+			, { "tileId": "Plant5_2", "sourceId": "Plant5", "transform":"flipHorizontal" }
+			, { "tileId": "Plant6_2", "sourceId": "Plant6", "transform":"flipHorizontal" }
+			, { "tileId": "Plant7_2", "sourceId": "Plant7", "transform":"flipHorizontal" }
+
+			, { "tileId": "Stone1_2", "sourceId": "Stone1", "transform":"flipHorizontal" }
+			, { "tileId": "Stone2_2", "sourceId": "Stone2", "transform":"flipHorizontal" }
+			, { "tileId": "Stone3_2", "sourceId": "Stone3", "transform":"flipHorizontal" }
+
+			, { "tileId": "WolfStandRight"
+				, "sourceId": "WolfStandLeft"
+				, "transform": "flipHorizontal" 
+				}
+			,
 			{ "tileId": "WolfRightWalk1"
 			, "sourceId": "WolfWalk1Left"
 			, "transform": "flipHorizontal"

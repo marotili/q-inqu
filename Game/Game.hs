@@ -11,6 +11,7 @@ import qualified Game.World.ObjectData as G
 import qualified Game.World.Delta as G
 import qualified Game.World as G
 import qualified Game.Render.Update as U
+import Game.Render.Walls
 
 import qualified Game.World.Gen as Gen
 import qualified Game.World.Gen.Terrain as Gen
@@ -31,6 +32,7 @@ import Game.World.Common
 import Game.World.Unit
 
 import Control.Arrow
+import System.Random
 
 data Game = Game
 	{ _gameName :: !String
@@ -156,7 +158,9 @@ newGame name = do
 
 	complexTileset <- traceShow (delta, newWorld) $ R.load 
 
-	let renderWorld = mkRenderWorld tiledMap delta genMap complexTileset
+	stdGen <- getStdGen
+
+	let renderWorld = mkRenderWorld tiledMap delta genMap complexTileset stdGen
 	let (newRenderWorld, newRenderables) = 
 		updateRender delta oldWorld newWorld renderWorld []
 
@@ -250,8 +254,8 @@ updateGame dt = do
 
 	return ()
 
-mkRenderWorld :: T.TiledMap -> G.WorldDelta -> Gen.GenMap -> R.LoadTileset -> R.World
-mkRenderWorld tiledMap delta genMap complexTileset = nWorld
+mkRenderWorld :: T.TiledMap -> G.WorldDelta -> Gen.GenMap -> R.LoadTileset -> StdGen -> R.World
+mkRenderWorld tiledMap delta genMap complexTileset gen = nWorld
 	where	
 		renderWorld = R.loadMapFromTiled tiledMap
 			& R.wRenderConfig .~ newRenderConfig
@@ -264,7 +268,7 @@ mkRenderWorld tiledMap delta genMap complexTileset = nWorld
 
 				--R.wComplexTileset "Monsters" .= (Just $ R.newComplexTileset)
 
-				R.wLayer "BottomLayer" .= (Just $ R.newLayer R.TileLayerType)
+				R.wLayer "BottomLayer" .= (Just $ R.newLayer R.ComplexLayerType)
 				R.wLayer "ObjectLayer" .= (Just $ R.newLayer R.ObjectLayerType)
 				R.wLayer "CObjectLayer" .= (Just $ R.newLayer R.ComplexLayerType)
 				R.wLayer "TopLayer" .= (Just $ R.newLayer R.TileLayerType)
@@ -273,16 +277,21 @@ mkRenderWorld tiledMap delta genMap complexTileset = nWorld
 				--objId <- R.wObjectFromPrefab "FWTFrontStand" "Wolf1"
 				--R.wLayerObject "CObjectLayer" "Wolf1" .= (Just $ R.newRenderObject (objId) (100, 100) 0)
 
-				mapM_ (\((x, y), tileType) -> do
-						tile <- use $ R.wTile (show tileType) -- TODO: change show to getter
-						-- top tiles are transparent so we need a floor tile beneath them
-						if (Gen.tileLayer genMap (x, y)) == "TopLayer"
-							then  do
-								floorTile <- use $ R.wTile "FinalFloor"
-								R.wLayerTile "BottomLayer" (x, -y) .= (Just floorTile)
-							else return ()
-						R.wLayerTile (Gen.tileLayer genMap (x, y)) (x, -y) .= (Just tile)
-					) (Map.toList $ genMap^.Gen.mapCompiledCells)
+				--R.wObject "wall1" .= (Just $ R.newObject)
+
+				--initWalls
+				--generateWalls 500 500 gen
+
+				--mapM_ (\((x, y), tileType) -> do
+				--		tile <- use $ R.wTile (show tileType) -- TODO: change show to getter
+				--		-- top tiles are transparent so we need a floor tile beneath them
+				--		if (Gen.tileLayer genMap (x, y)) == "TopLayer"
+				--			then  do
+				--				floorTile <- use $ R.wTile "FinalFloor"
+				--				R.wLayerTile "BottomLayer" (x, -y) .= (Just floorTile)
+				--			else return ()
+				--		R.wLayerTile (Gen.tileLayer genMap (x, y)) (x, -y) .= (Just tile)
+				--	) (Map.toList $ genMap^.Gen.mapCompiledCells)
 
 			) w1 -- renderWorld
 

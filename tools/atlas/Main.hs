@@ -31,11 +31,12 @@ readConfig = do
 	print p
 	return p
 
-trim tileSet = do
-	(sizes, offsets, trimOffsets) <- withMagickWandGenesis $ do
+trim :: TileSets -> TileSetCompiled -> TileSet -> IO [TileSetData]
+trim root compiledTileSet tileSet = do
+	(sizes, offsets, trimOffsets, derivedSizes, derivedTrimOffsets) <- withMagickWandGenesis $ do
 		(rks, wands) <- fmap unzip $ sequence [magickWand | _ <- [0..numTiles-1]]
 		(sizes, trimOffsets) <- fmap unzip $ mapM (\(tsData, wand) -> do
-				readImage wand $ FP.fromText "data" </> (tileSet^.tscBaseDirectory) </> (tsData^.tsdFilename)
+				readImage wand $ FP.fromText "data" </> (compiledTileSet^.tscBaseDirectory) </> (tsData^.tsdFilename)
 				trimImage wand 10
 				str <- identifyImage wand
 
@@ -50,47 +51,104 @@ trim tileSet = do
 				finalWidth <- getImageWidth wand
 
 				return ((finalWidth, bSize), offset)
-			) $ zip (tileSet^.tscData) wands
+			) $ zip (compiledTileSet^.tscData) wands
 
-		let rectOffsets = getOffsets (Bin 1024 1024) sizes
+		(derivedRks, derivedWands) <- fmap unzip $ sequence [magickWand | _ <- [0..(length $ tileSet^.tsDerivedData) - 1]]
+		(derivedSizes, derivedTrimOffsets) <- fmap unzip $ mapM (\(derivedData, wand) -> do
+				let Just sourceData = (root^.rootTiles.at (derivedData^.tsddSourceName))
+				readImage wand $ FP.fromText "data" </> (compiledTileSet^.tscBaseDirectory) </> (sourceData^.tsdFilename)
+				trimImage wand 10
+				str <- identifyImage wand
+				let offset = findOffset str
+
+				width <- getImageWidth wand
+				height <- getImageHeight wand
+
+				let bSize = sourceData^.tsdSize
+				let bWidth = (round $ fromIntegral bSize / fromIntegral height * fromIntegral width)
+				resizeImage wand bWidth bSize lanczosFilter 1
+				finalWidth <- getImageWidth wand
+
+
+				case (derivedData^.tsddTransformation) of
+					TransFlipHorizontal -> do
+						flopImage wand
+					TransFlipVertical -> do
+						flipImage wand
+					_ -> return ()
+
+				return ((finalWidth, bSize), offset)
+
+			) $ zip (tileSet^.tsDerivedData) derivedWands
+
+		let rectOffsets = getOffsets (Bin 4096 4096) (sizes ++ derivedSizes)
 
 		(_, w) <- magickWand
 
 		pw <- pixelWand
 		setColor pw "none"
-		newImage w 1024 1024 pw
+		newImage w 4096 4096 pw
 	
 		mapM_ (\((ox, oy), pk, wand) -> do
 				compositeImage w wand overCompositeOp ox oy
 				release pk
-			) $ zip3 rectOffsets rks wands
+			) $ zip3 rectOffsets (rks ++ derivedRks) (wands ++ derivedWands)
 
-		writeImage w (Just $ "data" </> (tileSet^.tscBaseDirectory) </> "compiled/tileset.png")
+		--mapM_ (\((ox, oy), pk, wand) -> do
+		--		compositeImage w wand overCompositeOp ox oy
+		--		release pk
+		--	) $ zip3 rectOffsetsDerived derivedRks derivedWands
 
-		return (sizes, rectOffsets, trimOffsets)
+		writeImage w (Just $ "data" </> (compiledTileSet^.tscBaseDirectory) </> "compiled/tileset.png")
 
+		return (sizes, rectOffsets, trimOffsets, derivedSizes, derivedTrimOffsets)
+
+	let derivedOffsets = drop (numTiles) offsets
 	let ts' = foldr (\(tsData, size, trimOffset, offset) ts -> (tsData 
 			& tsdFinalSize .~ size
 			& tsdBaseOffset .~ trimOffset
 			& tsdPosition .~ offset)
 			: ts)
-		[] $ zip4 (tileSet^.tscData) sizes trimOffsets offsets
+		[] $ zip4 (compiledTileSet^.tscData) sizes trimOffsets offsets
 
-	return ts'
+	let ts'' = foldr (\(derivedData, size, trimOffset, offset) ts -> 
+			let Just sourceData = (root^.rootTiles.at (derivedData^.tsddSourceName)) in
+				(sourceData 
+					& tsdName .~ (derivedData^.tsddName)
+					& tsdFinalSize .~ size
+					& tsdBaseOffset .~ trimOffset
+					& tsdPosition .~ offset)
+					: ts)
+			ts' $ zip4 (tileSet^.tsDerivedData) (derivedSizes) derivedTrimOffsets derivedOffsets
+
+	return (traceShow (derivedOffsets) ts'')
 
 	where
-		numTiles = length $ tileSet^.tscData
+		numTiles = length $ compiledTileSet^.tscData
 
 main = do
 	Right p <- readConfig
 
-	p' <- foldM (\root ts -> do
-			ts' <- trim ts
+	print p	
+
+	p' <- foldM (\root tsc -> do
+			ts' <- trim p tsc (fromJust $ p^.tileSets.at (tsc^.tscName))
 			let r = foldr (\tile root' ->
-					root' & rootTiles . at (tile^.tsdName) L..~ Just tile
+					let 
+						Just ts = root'^.tileSets . at (tsc^.tscName)
+						root2 = if not $ Set.member (tile^.tsdName) (ts^.tsData)
+							then
+								root' & tileSets.at (tsc^.tscName) .~ 
+									(Just $ ts & tsData %~ Set.insert (tile^.tsdName)
+										)
+							else
+								root'
+					in root2 & rootTiles . at (tile^.tsdName) L..~ Just tile
 				) root ts'
 			return r
-		) p $ p^.getCompiledTileSets
+		) p $ (p^.getCompiledTileSets)
+
+	print p'
 
 	B.writeFile "tileset_compiled.json" (encodePretty p')
 

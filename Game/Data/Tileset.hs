@@ -7,6 +7,7 @@ import Game.Data.Bin
 import Control.Lens
 import qualified Control.Lens as L
 import Data.Aeson
+import Data.Aeson.Types
 import Data.Aeson.Encode.Pretty
 import qualified Data.Aeson as A
 import Data.List
@@ -22,6 +23,19 @@ import Text.Regex
 import Control.Monad.Trans.Resource
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Vector as V
+
+data Boundary = Boundary
+	{ _boundaryName :: T.Text
+	, _boundaryPolyline :: [(Int, Int)]
+	} deriving (Show)
+
+data Group = Group
+	{ _groupName :: T.Text
+	, _groupOrigin :: (Int, Int)
+	, _groupBoundaries :: Map.Map T.Text Boundary
+	} deriving (Show)
 
 data TileSetData = TileSetData
 	{ _tsdFilename :: FP.FilePath
@@ -30,11 +44,15 @@ data TileSetData = TileSetData
 	, _tsdBaseOffset :: (Int, Int)
 	, _tsdFinalSize :: (Int, Int)
 	, _tsdPosition :: (Int, Int)
+	, _tsdOrigin :: (Int, Int)
+	, _tsdGroupName :: Maybe T.Text
+	, _tsdBoundaries :: Map.Map T.Text Boundary
 	} deriving (Show)
 
 data Transformation = 
 	  TransFlipHorizontal
 	| TransFlipVertical
+	| TransOffset
 	| TransEmpty
 	deriving (Show)
 
@@ -77,6 +95,7 @@ data TileSet = TileSet
 	, _tsFilename :: FP.FilePath
 	, _tsBaseDirectory :: FP.FilePath
 	, _tsData :: Set.Set TileId
+	, _tsGroups :: Map.Map T.Text Group
 	, _tsDerivedData :: [TileSetDerivedData]
 	} deriving (Show)
 
@@ -98,6 +117,8 @@ data TileSets = TileSets
 	, _rootObjAnims :: Map.Map (ObjectId, AnimationId) ObjectAnimation
 	} deriving (Show)
 
+makeLenses ''Boundary
+makeLenses ''Group
 makeLenses ''TileSetData
 makeLenses ''TileSet
 makeLenses ''TileSets
@@ -140,8 +161,8 @@ instance ToJSON TileSetCompiled where
 		object 
 			[ "name" A..= (ts^.tscName)
 			, "filename" A..= filename
-			, "imageWidth" A..= (0 :: Int)
-			, "imageHeight" A..= (0 :: Int)
+			, "imageWidth" A..= (4096 :: Int)
+			, "imageHeight" A..= (4096 :: Int)
 			, "base_directory" A..= baseDir
 			, "data" A..= (ts^.tscData)
 			]
@@ -216,7 +237,7 @@ instance FromJSON TileSets where
 				mapM_ (\seqD -> do
 						existingTile <- use $ rootTiles . at (seqD^.asdTileName)
 						case existingTile of Nothing -> error "tile does not exist"; _ -> return ()
-					) (seqData^.asData)
+					) (seqData^.asData) 
 
 				rootObjAnims . at (objAnim^.oaObjName, objAnim^.oaAnimName) . _Just . oaSequence %= (:) seqData
 
@@ -226,7 +247,7 @@ instance FromJSON TileSets where
 
 			parseTileSet (Object v) =
 				do
-					tsHead <- fmap (\a -> a (Set.empty::Set.Set TileId) ([]::[TileSetDerivedData])) $
+					tsHead <- fmap (\a -> a (Set.empty::Set.Set TileId) (Map.empty::Map.Map T.Text Group) ([]::[TileSetDerivedData])) $
 						lift $ parseJSON (Object v)	
 					existingTs <- use $ tileSets . at (tsHead^.tsName)
 					case existingTs of
@@ -235,14 +256,49 @@ instance FromJSON TileSets where
 
 					tileSets . at (tsHead^.tsName) L..= Just tsHead
 
+					tsGroup' <- lift $ v .:? "group_data"
 					tsData <- lift $ v.: "source_data"
 					tsDerivedData <- lift $ v.: "derived_data"
+
+					case tsGroup' of
+						Just tsGroup -> do
+							let groupNames = HashMap.keys tsGroup
+
+							mapM_ (\name -> do
+									Object group <- lift $ tsGroup .: name
+									origin <- lift $ group .: "origin" 
+									Object boundaries <- lift $ group .: "boundaries"
+
+									tileSets.at (tsHead^.tsName)._Just.
+										tsGroups.at name L..= (Just $ Group name (origin!!0, origin!!1) Map.empty)
+
+									mapM_ (\boundaryName -> do
+											polyLine <- lift $ boundaries .: boundaryName
+											tileSets.at (tsHead^.tsName)._Just.
+												tsGroups.at name._Just.groupBoundaries.at boundaryName L..=
+													(Just $ Boundary boundaryName $ foldr (\[x, y] ls -> (x,y):ls) [] polyLine)
+										) $ HashMap.keys boundaries
+								) groupNames
+						_ -> return ()
+
 					mapM_ (parseTsData (tsHead^.tsName)) tsData
 					mapM_ (parseDerivedData (tsHead^.tsName)) tsDerivedData
 
 			parseTsData tileSetName (Object v) = do
-				tileData <- lift $ parseJSON (Object v)
-				existingTsData <- use $ rootTiles . at (tileData^.tsdName)
+				tileData' <- lift $ parseJSON (Object v)
+				existingTsData <- use $ rootTiles . at (tileData'^.tsdName)
+
+				tileData <- case tileData' ^. tsdGroupName of
+					Just groupName -> do
+						Just ts <- use $ tileSets.at (tileSetName)
+						let Just group = ts^.tsGroups.at groupName
+
+						return $ tileData'
+							& tsdOrigin .~ (group^.groupOrigin)
+							& tsdBoundaries .~ (group^.groupBoundaries)
+					Nothing ->
+						return tileData'
+
 				case existingTsData of
 					Just _ -> error "tileIds must be unique"
 					Nothing -> do
@@ -265,7 +321,7 @@ instance FromJSON TileSets where
 				tileSets . at (tileSetName) . _Just . tsDerivedData %= (:) derivedData
 				--rootTiles . at (derivedData^.tsddName) L..= Just derivedData
 
-instance FromJSON (Set.Set TileId -> [TileSetDerivedData] -> TileSet) where
+instance FromJSON (Set.Set TileId -> Map.Map T.Text Group -> [TileSetDerivedData] -> TileSet) where
 	parseJSON (Object v) = TileSet <$>
 		v .: "name" <*>
 		v .: "filename" <*> 
@@ -335,10 +391,28 @@ instance FromJSON TileSetData where
 		v .: "filename" <*>
 		v .: "tileId" <*>
 		v .: "size" <*> 
-		pure (0, 0) <*> 
-		pure (0, 0) <*> 
-		pure (0, 0)
+		pure (0, 0) <*>  -- base offset
+		pure (0, 0) <*>  -- final size
+		pure (0, 0) <*>  -- position
+		test v
+			<*>
+		v .:? "group" <*> -- group name
+		pure Map.empty -- boundaries
+
+		where
+			test v = do
+				origin <- v .:? "origin" :: Parser (Maybe [Int])
+				case origin of
+					Just [x, y] -> pure (x, y)
+					_ -> do
+						originX <- v.:? "originX" :: Parser (Maybe Int)
+						originY <- v.:? "originY" :: Parser (Maybe Int)
+						case originX of
+							Just x -> pure (x, fromJust originY)
+							_ -> pure (0, 0)
 	parseJSON _ = mzero
+
+
 
 instance FromJSON FP.FilePath where
 	parseJSON (String v) = return $ FP.fromText v

@@ -37,6 +37,8 @@ library
         Game.Render.Error
         Game.Render.World
         Game.Render.Update
+
+        Game.Render.Walls
         
         Game.Collision 
 
@@ -104,7 +106,8 @@ library
         resourcet >= 0.4.10,
         regex-compat >= 0.95.1,
         aeson-pretty >= 0.7.0.2,
-        data-binary-ieee754 == 0.4.4
+        data-binary-ieee754 == 0.4.4,
+        unordered-containers >= 0.2.3.3
     ghc-options: -rtsopts -threaded -fprof-auto -Wall
 
 -- TODO remove netwire dependency
@@ -177,7 +180,8 @@ executable atlas
         resourcet,
         containers,
         mtl,
-        aeson-pretty
+        aeson-pretty,
+        unordered-containers
 
     ghc-options: -rtsopts -threaded -fprof-auto -Wall
 
