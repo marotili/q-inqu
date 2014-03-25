@@ -64,6 +64,12 @@ void main()
 		default:
 			color = vec4(0, 0, 0, 1);
 	}
+
+	if (true) {
+	vec4 grayscale = vec4(3, 0.59, 0.11, 1);
+	float gray = 0.3*color.r + 0.59*color.g + 0.11*color.b;
+	color = vec4(max(gray, color.r), gray, gray, color.a);
+	}
 	// color = vec4(1, 0, 0, 1);
      //color = vec4(texCoords, 0, 1);//colors[data[instanceID]];
     // color = vec4(1, 0, 0, 1);

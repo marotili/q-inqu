@@ -52,9 +52,16 @@ newWallTile name right bottom = WallTile name right bottom
 
 initWalls = do
 	--let wr' = wUpdate (
-	wAddComplexTile "background" "b1" (0, 0) (500, 500)
+	wAddComplexTile "background" "b1" (500, 500) (500, 500)
 	objId <- R.wObjectFromPrefab "b1" ("b0")
-	R.wLayerObject "BottomLayer" "b0" .= (Just $ R.newRenderObject objId (-500, -500) 0)
+	R.wLayerObject "BottomLayer" "b0" .= (Just $ R.newRenderObject objId (0, 0) 0)
+
+	objId1 <- R.wObjectFromPrefab "Flower1" "flower"
+	objId2 <- R.wObjectFromPrefab "Plant1" "plant"
+	objId3 <- R.wObjectFromPrefab "Flower2" "flower2"
+	R.wLayerObject "TopLayer" "flower" .= (Just $ R.newRenderObject objId1 (250, 150) 0)
+	R.wLayerObject "TopLayer" "flower2" .= (Just $ R.newRenderObject objId2 (250, 200) 0)
+	R.wLayerObject "TopLayer" "plant" .= (Just $ R.newRenderObject objId3(200, 150) 0)
 	--return wr'
 
 generateWalls :: Int -> Int -> StdGen -> State World ()

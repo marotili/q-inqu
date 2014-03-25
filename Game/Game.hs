@@ -271,16 +271,12 @@ mkRenderWorld tiledMap delta genMap complexTileset gen = nWorld
 				R.wLayer "BottomLayer" .= (Just $ R.newLayer R.ComplexLayerType)
 				R.wLayer "ObjectLayer" .= (Just $ R.newLayer R.ObjectLayerType)
 				R.wLayer "CObjectLayer" .= (Just $ R.newLayer R.ComplexLayerType)
-				R.wLayer "TopLayer" .= (Just $ R.newLayer R.TileLayerType)
-
-				--R.wObject "test" .= (Just $ R.newObject )
-				--objId <- R.wObjectFromPrefab "FWTFrontStand" "Wolf1"
-				--R.wLayerObject "CObjectLayer" "Wolf1" .= (Just $ R.newRenderObject (objId) (100, 100) 0)
+				R.wLayer "TopLayer" .= (Just $ R.newLayer R.ComplexLayerType)
 
 				--R.wObject "wall1" .= (Just $ R.newObject)
 
-				--initWalls
-				--generateWalls 500 500 gen
+				initWalls
+				generateWalls 500 500 gen
 
 				--mapM_ (\((x, y), tileType) -> do
 				--		tile <- use $ R.wTile (show tileType) -- TODO: change show to getter
