@@ -39,14 +39,24 @@ import Game.World.Wires
 import Game.World.Common
 import qualified Game.World.Objects as World
 
+rotate :: Float -> ObjectWire ObjectId ()
+rotate speed = mkGen $ \ds oId -> do
+	let dt = realToFrac (dtime ds)
+	rotateObject oId (speed*dt)
+	return (Right (), rotate speed)
+
 moveArrow :: (Float, Float) -> ObjectWire ObjectId ()
 moveArrow direction = proc oId -> do
 	_ <- waitHit W.--> removeArrow -< oId
+	let anim = arrowAnimation
+	_ <- animateR -< (oId, anim)
+
+	_ <- rotate (3.14) -< oId
 	returnA -< ()
 
 	where
 		waitHit = proc oId -> do
-			_ <- move direction . for 1 -< oId
+			_ <- move direction . for 3 -< oId
 			_ <- untilV (wLiftE objectCollided) W.-->
 					removeArrow . handleCollision
 				 -< oId
@@ -66,7 +76,9 @@ moveArrow direction = proc oId -> do
 
 stun :: ObjectWire ObjectId ()
 stun = proc oId -> do
-	_ <- move (-50, -50) . for 1 W.--> void exit -< oId	
+	_ <- for 2 . animate (let a1 = Animation 999 "FWTDead" 99 a1 0 in a1) W.-->
+		void exit
+		-< oId
 	returnA -< ()
 
 objectCollided oId = do
@@ -82,7 +94,7 @@ instance Spawnable Game.World.Arrow where
 		returnA -< playerPos
 	spawnWire _ = proc playerId -> do
 		(dx, dy) <- spawnArrowDirection -< playerId
-		let wire = moveArrow (dx*400, dy*400)
+		let wire = moveArrow (dx*40, dy*40)
 		returnA -< wire
 	spawnBoundary _ = proc playerId -> do
 		(dx, dy) <- spawnArrowDirection -< playerId
@@ -92,7 +104,7 @@ instance Spawnable Game.World.Arrow where
 				else -(acos dx)
 		returnA -< arrowData^.bdBoundary rotation
 
-	spawnAnimation _ = pure $ arrowAnimation East
+	spawnAnimation _ = pure $ arrowAnimation
 
 
 class Spawnable a where

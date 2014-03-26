@@ -22,6 +22,62 @@
 			  			, "torso": [[64, 165], [165, 165], [165, 315], [64, 315]]
 			  			, "head": [[40, 30], [155, 30], [155, 145], [40, 145]]
 			  		}
+				},
+				"LilaBack": {
+					  "origin": [110, 220]
+					, "boundaries": {
+			  			  "ground": [[64, 360], [160, 360], [160, 415], [64, 415]]
+			  			, "torso": [[64, 165], [165, 165], [165, 315], [64, 315]]
+			  			, "head": [[40, 30], [155, 30], [155, 145], [40, 145]]
+			  		}
+				},
+				"LilaLeft": {
+					  "origin": [110, 220]
+					, "boundaries": {
+			  			  "ground": [[64, 360], [160, 360], [160, 415], [64, 415]]
+			  			, "torso": [[64, 165], [165, 165], [165, 315], [64, 315]]
+			  			, "head": [[40, 30], [155, 30], [155, 145], [40, 145]]
+			  		}
+				},
+				"LilaRight": {
+					  "origin": [110, 220]
+					, "boundaries": {
+			  			  "ground": [[64, 360], [160, 360], [160, 415], [64, 415]]
+			  			, "torso": [[64, 165], [165, 165], [165, 315], [64, 315]]
+			  			, "head": [[40, 30], [155, 30], [155, 145], [40, 145]]
+			  		}
+				},
+				"RosaFront": {
+					  "origin": [110, 220]
+					, "boundaries": {
+			  			  "ground": [[64, 360], [160, 360], [160, 415], [64, 415]]
+			  			, "torso": [[64, 165], [165, 165], [165, 315], [64, 315]]
+			  			, "head": [[40, 30], [155, 30], [155, 145], [40, 145]]
+			  		}
+				},
+				"RosaBack": {
+					  "origin": [110, 220]
+					, "boundaries": {
+			  			  "ground": [[64, 360], [160, 360], [160, 415], [64, 415]]
+			  			, "torso": [[64, 165], [165, 165], [165, 315], [64, 315]]
+			  			, "head": [[40, 30], [155, 30], [155, 145], [40, 145]]
+			  		}
+				},
+				"RosaLeft": {
+					  "origin": [110, 220]
+					, "boundaries": {
+			  			  "ground": [[64, 360], [160, 360], [160, 415], [64, 415]]
+			  			, "torso": [[64, 165], [165, 165], [165, 315], [64, 315]]
+			  			, "head": [[40, 30], [155, 30], [155, 145], [40, 145]]
+			  		}
+				},
+				"RosaRight": {
+					  "origin": [110, 220]
+					, "boundaries": {
+			  			  "ground": [[64, 360], [160, 360], [160, 415], [64, 415]]
+			  			, "torso": [[64, 165], [165, 165], [165, 315], [64, 315]]
+			  			, "head": [[40, 30], [155, 30], [155, 145], [40, 145]]
+			  		}
 				}
 			}
 		, "source_data": [
@@ -34,6 +90,15 @@
 			, { "tileId":"LilaWalk2Front", "filename":"lila/a3.png", "size":96
 			  	  , "group": "LilaFront"
 				  }			
+			, { "tileId":"LilaAttackFront", "filename":"lila/a5.png", "size":96
+			  	  , "group": "LilaFront"
+				  }			
+			, { "tileId":"LilaBlockFront", "filename":"lila/a6.png", "size":96
+			  	  , "group": "LilaFront"
+				  }			
+			, { "tileId":"LilaDamageFront", "filename":"lila/a7.png", "size":96
+			  	  , "group": "LilaFront"
+				  }	
 
 			, { "tileId":"LilaWalk1Left", "filename":"lila/b1.png", "size":96
 			  	  , "group": "LilaFront"
@@ -43,27 +108,102 @@
 				  }		
 			, { "tileId":"LilaWalk2Left", "filename":"lila/b3.png", "size":96
 			  	  , "group": "LilaFront"
-				  }		
+				  }					
+			, { "tileId":"LilaAttackLeft", "filename":"lila/b5.png", "size":96
+			  	  , "group": "LilaLeft"
+				  }			
+			, { "tileId":"LilaBlockLeft", "filename":"lila/b6.png", "size":96
+			  	  , "group": "LilaLeft"
+				  }			
+			, { "tileId":"LilaDamageLeft", "filename":"lila/b7.png", "size":96
+			  	  , "group": "LilaLeft"
+				  }	
 
 			, { "tileId":"LilaWalk1Back", "filename":"lila/h1.png", "size":96
-			  	  , "group": "LilaFront"
+			  	  , "group": "LilaBack"
 				  }		
 			, { "tileId":"LilaStandBack", "filename":"lila/h2.png", "size":96
-			  	  , "group": "LilaFront"
+			  	  , "group": "LilaBack"
 				  }		
 			, { "tileId":"LilaWalk2Back", "filename":"lila/h3.png", "size":96
-			  	  , "group": "LilaFront"
-				  }		
+			  	  , "group": "LilaBack"
+				  }					
+			, { "tileId":"LilaAttackBack", "filename":"lila/h5.png", "size":96
+			  	  , "group": "LilaBack"
+				  }			
+			, { "tileId":"LilaBlockBack", "filename":"lila/h6.png", "size":96
+			  	  , "group": "LilaBack"
+				  }			
+			, { "tileId":"LilaDamageBack", "filename":"lila/h7.png", "size":96
+			  	  , "group": "LilaBack"
+				  }	
 
 			, { "tileId":"LilaWalk1Right", "filename":"lila/r1.png", "size":96
-			  	  , "group": "LilaFront"
+			  	  , "group": "LilaRight"
 				  }		
 			, { "tileId":"LilaStandRight", "filename":"lila/r2.png", "size":96
-			  	  , "group": "LilaFront"
+			  	  , "group": "LilaRight"
 				  }		
 			, { "tileId":"LilaWalk2Right", "filename":"lila/r3.png", "size":96
-			  	  , "group": "LilaFront"
+			  	  , "group": "LilaRight"
+				  }					
+			, { "tileId":"LilaAttackRight", "filename":"lila/r5.png", "size":96
+			  	  , "group": "LilaRight"
+				  }			
+			, { "tileId":"LilaBlockRight", "filename":"lila/r6.png", "size":96
+			  	  , "group": "LilaRight"
+				  }			
+			, { "tileId":"LilaDamageRight", "filename":"lila/r7.png", "size":96
+			  	  , "group": "LilaRight"
+				  }	
+
+			,  { "tileId":"RosaWalk1Front", "filename":"rosa/a1.png", "size":96
+			  	  , "group": "RosaFront"
+				  }	
+			, { "tileId":"RosaStandFront", "filename":"rosa/a2.png", "size":96
+			  	  , "group": "RosaFront"
+				  }	
+			, { "tileId":"RosaWalk2Front", "filename":"rosa/a3.png", "size":96
+			  	  , "group": "RosaFront"
+				  }			
+			, { "tileId":"RosaAttackFront", "filename":"rosa/a5.png", "size":96
+			  	  , "group": "RosaFront"
+				  }				
+			, { "tileId":"RosaDamageFront", "filename":"rosa/a6.png", "size":96
+			  	  , "group": "RosaFront"
+				  }	
+
+			, { "tileId":"RosaWalk1Left", "filename":"rosa/b1.png", "size":96
+			  	  , "group": "RosaFront"
 				  }		
+			, { "tileId":"RosaStandLeft", "filename":"rosa/b2.png", "size":96
+			  	  , "group": "RosaFront"
+				  }		
+			, { "tileId":"RosaWalk2Left", "filename":"rosa/b3.png", "size":96
+			  	  , "group": "RosaFront"
+				  }					
+			, { "tileId":"RosaAttackLeft", "filename":"rosa/b5.png", "size":96
+			  	  , "group": "RosaLeft"
+				  }			
+			, { "tileId":"RosaDamageLeft", "filename":"rosa/b6.png", "size":96
+			  	  , "group": "RosaLeft"
+				  }	
+
+			, { "tileId":"RosaWalk1Back", "filename":"rosa/c1.png", "size":96
+			  	  , "group": "RosaBack"
+				  }		
+			, { "tileId":"RosaStandBack", "filename":"rosa/c2.png", "size":96
+			  	  , "group": "RosaBack"
+				  }		
+			, { "tileId":"RosaWalk2Back", "filename":"rosa/c3.png", "size":96
+			  	  , "group": "RosaBack"
+				  }					
+			, { "tileId":"RosaAttackBack", "filename":"rosa/c5.png", "size":96
+			  	  , "group": "RosaBack"
+				  }			
+			, { "tileId":"RosaDamageBack", "filename":"rosa/c6.png", "size":96
+			  	  , "group": "RosaBack"
+				  }	
 
 			, { "tileId":"WolfStandFront", "filename":"wolf/1.png", "size":48
 			  		, "originX":380, "originY":355 
@@ -71,6 +211,14 @@
 			, { "tileId":"WolfFrontWalk1", "filename":"wolf/1b.png", "size":48
 			  		,"originX":380, "originY":355 
 				  }
+
+			, { "tileId":"WolfStandBack", "filename":"wolf/5.png", "size":48
+			  		, "originX":380, "originY":355 
+				  }
+			, { "tileId":"WolfBackWalk1", "filename":"wolf/6.png", "size":48
+			  		,"originX":380, "originY":355 
+				  }
+
 			, { "tileId":"WolfFrontAttack1", "filename":"wolf/2.png", "size":48
 			  		,"originX":380, "originY":355 
 				  	}
@@ -83,6 +231,8 @@
 			, { "tileId":"WolfLeftAttack1", "filename":"wolf/4.png", "size":48
 			  		,"originX":300, "originY":400 
 				  	}
+
+
 			, { "tileId":"FWTProjectile", "filename":"feuerwarzenteufel/1.png", "size":16
 			  		,"originX":250, "originY":250 
 				  	}
@@ -116,9 +266,13 @@
 			, { "tileId":"FWTBackWalk1", "filename":"feuerwarzenteufel/a1.png", "size":96
 			  		,"originX":250, "originY":250 
 				  	}
-			, { "tileId":"FwTBackWalk2", "filename":"feuerwarzenteufel/a2.png", "size":96
+			, { "tileId":"FWTBackWalk2", "filename":"feuerwarzenteufel/a2.png", "size":96
 			  		,"originX":250, "originY":250 
 				  	}
+			, { "tileId":"FWTDead", "filename":"feuerwarzenteufel/tot.png", "size":45
+					, "originX":250, "originY":400
+					}
+
 
 			, { "tileId":"DoorClosed", "filename":"walls/door.png", "size":102
 			  		,"originX":0, "originY":0 
@@ -190,6 +344,16 @@
 			, { "tileId":"Stone3", "filename":"krimskrams/s3.png", "size":30
 			  		,"originX":50, "originY":50
 				  	}
+
+			, { "tileId":"Energy1", "filename":"energieball.png", "size":40
+			  		,"originX":50, "originY":50
+				  	}
+			, { "tileId":"Energy2", "filename":"energieball2.png", "size":40
+			  		,"originX":50, "originY":50
+				  	}
+			, { "tileId":"Energy3", "filename":"energieball3.png", "size":40
+			  		,"originX":230, "originY":230
+				  	}
 		],
 		"derived_data" : [
 			  { "tileId": "Wall1_2", "sourceId": "Wall1", "transform": "flipHorizontal" }
@@ -218,6 +382,16 @@
 			, { "tileId": "Stone1_2", "sourceId": "Stone1", "transform":"flipHorizontal" }
 			, { "tileId": "Stone2_2", "sourceId": "Stone2", "transform":"flipHorizontal" }
 			, { "tileId": "Stone3_2", "sourceId": "Stone3", "transform":"flipHorizontal" }
+
+			, { "tileId": "RosaWalk1Right", "sourceId": "RosaWalk1Left", "transform":"flipHorizontal" }
+			, { "tileId": "RosaWalk2Right", "sourceId": "RosaWalk2Left", "transform":"flipHorizontal" }
+			, { "tileId": "RosaStandRight", "sourceId": "RosaStandLeft", "transform":"flipHorizontal" }
+			, { "tileId": "RosaAttackRight", "sourceId": "RosaAttackLeft", "transform":"flipHorizontal" }
+			, { "tileId": "RosaDamageRight", "sourceId": "RosaDamageLeft", "transform":"flipHorizontal" }
+
+			, { "tileId": "Energe1_2", "sourceId": "Energy1", "transform":"flipHorizontal" }
+			, { "tileId": "Energe2_2", "sourceId": "Energy2", "transform":"flipHorizontal" }
+			, { "tileId": "Energe3_2", "sourceId": "Energy3", "transform":"flipHorizontal" }
 
 			, { "tileId": "WolfStandRight"
 				, "sourceId": "WolfStandLeft"

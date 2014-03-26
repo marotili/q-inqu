@@ -73,7 +73,34 @@ objectAnimation 1 dir = a1
         animName East 4 = "LilaWalk2Right"
 
         a1 = Animation (3*toInt dir) (animName dir 1) 0.2 a2 0 
-        a2 = Animation (3*toInt dir) (animName dir 2) 0.2 a3 0
+        a2 = Animation (3*toInt dir) (animName dir 2) 0.1 a4 0
+        a3 = Animation (3*toInt dir) (animName dir 3) 0.2 a4 0
+        a4 = Animation (3*toInt dir) (animName dir 4) 0.2 a1 0
+
+objectAnimation 2 dir = a1
+    where
+        animName South 1 = "RosaStandFront"
+        animName South 2 = "RosaWalk1Front"
+        animName South 3 = "RosaStandFront"
+        animName South 4 = "RosaWalk2Front"
+
+        animName North 1 = "RosaStandBack"
+        animName North 2 = "RosaWalk1Back"
+        animName North 3 = "RosaStandBack"
+        animName North 4 = "RosaWalk2Back"
+
+        animName West 1 = "RosaStandLeft"
+        animName West 2 = "RosaWalk1Left"
+        animName West 3 = "RosaStandLeft"
+        animName West 4 = "RosaWalk2Left"
+
+        animName East 1 = "RosaStandRight"
+        animName East 2 = "RosaWalk1Right"
+        animName East 3 = "RosaStandRight"
+        animName East 4 = "RosaWalk2Right"
+
+        a1 = Animation (3*toInt dir) (animName dir 1) 0.2 a2 0 
+        a2 = Animation (3*toInt dir) (animName dir 2) 0.1 a4 0
         a3 = Animation (3*toInt dir) (animName dir 3) 0.2 a4 0
         a4 = Animation (3*toInt dir) (animName dir 4) 0.2 a1 0
 
@@ -84,10 +111,10 @@ objectAnimation 3 dir = a1
         animName South 3 = "WolfStandFront"
         animName South 4 = "WolfFrontWalk1"
 
-        animName North 1 = "WolfStandFront"
-        animName North 2 = "WolfStandFront"
-        animName North 3 = "WolfStandFront"
-        animName North 4 = "WolfStandFront"
+        animName North 1 = "WolfStandBack"
+        animName North 2 = "WolfBackWalk1"
+        animName North 3 = "WolfStandBack"
+        animName North 4 = "WolfBackWalk1"
 
         animName West 1 = "WolfStandLeft"
         animName West 2 = "WolfWalk1Left"
@@ -139,7 +166,14 @@ objectAnimation playerId dir = a1
         a3 = Animation (playerId*toInt dir) (animName 3) 0.25 a4 0
         a4 = Animation (playerId*toInt dir) (animName 4) 0.25 a1 0
 
-arrowAnimation :: Orientation -> Animation
-arrowAnimation dir = let a1 = Animation 99 ("FWTProjectile") 999 a1 0 in a1
+arrowAnimation :: Animation
+arrowAnimation = a1
+    where
+        a1 = Animation 99 ("Energy1") 0.5 a2 0
+        a2 = Animation 100 ("Energy2") 0.5 a3 0
+        a3 = Animation 101 ("Energy3") 0.5 a4 0
+        a4 = Animation 102 ("Energy1_2") 0.5 a5 0
+        a5 = Animation 103 ("Energy2_2") 0.5 a6 0
+        a6 = Animation 104 ("Energy3_2") 0.5 a1 0
 
 boltAnimation = let a1 = Animation 100 "ItemBolt" 999 a1 0 in a1
