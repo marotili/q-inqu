@@ -268,6 +268,7 @@ mkRenderWorld tiledMap delta genMap complexTileset gen = nWorld
 
 				--R.wComplexTileset "Monsters" .= (Just $ R.newComplexTileset)
 
+				R.wLayer "BackgroundLayer" .= (Just $ R.newLayer R.ComplexLayerType)
 				R.wLayer "BottomLayer" .= (Just $ R.newLayer R.ComplexLayerType)
 				R.wLayer "ObjectLayer" .= (Just $ R.newLayer R.ObjectLayerType)
 				R.wLayer "CObjectLayer" .= (Just $ R.newLayer R.ComplexLayerType)

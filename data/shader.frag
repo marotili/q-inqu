@@ -18,6 +18,8 @@ uniform sampler2D Texture10;
 uniform sampler2D Texture11;
 uniform sampler2D Texture12;
 
+uniform int ghostMode = 0;
+
 
 void main()
 {
@@ -65,7 +67,7 @@ void main()
 			color = vec4(0, 0, 0, 1);
 	}
 
-	if (true) {
+	if (ghostMode == 2) {
 	vec4 grayscale = vec4(3, 0.59, 0.11, 1);
 	float gray = 0.3*color.r + 0.59*color.g + 0.11*color.b;
 	color = vec4(max(gray, color.r), gray, gray, color.a);

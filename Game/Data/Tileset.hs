@@ -176,6 +176,8 @@ instance ToJSON TileSetData where
 			[ "tileId" A..= (tsd^.tsdName)
 			, "offset_x" A..= (tsd^.tsdPosition._1)
 			, "offset_y" A..= (tsd^.tsdPosition._2)
+			, "origin_x" A..= (tsd^.tsdOrigin._1)
+			, "origin_y" A..= (tsd^.tsdOrigin._2)
 			, "width" A..= (tsd^.tsdFinalSize._1)
 			, "height" A..= (tsd^.tsdFinalSize._2)
 			]

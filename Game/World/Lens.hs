@@ -255,3 +255,8 @@ setItems = _compSet compItem
 getItems :: Get (ObjectProp Item)
 getItems = _compGet compItem
 
+--unitsInDistance :: ObjectId -> Float -> Get Set.Set ObjectId
+--unitsInDistance oId distance = to get
+--    where
+--        get world = let
+--            Just oPos = world^.wcPositions.at oId

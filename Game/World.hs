@@ -51,7 +51,7 @@ moveArrow direction = proc oId -> do
 	let anim = arrowAnimation
 	_ <- animateR -< (oId, anim)
 
-	_ <- rotate (3.14) -< oId
+	_ <- rotate (6.28) -< oId
 	returnA -< ()
 
 	where
@@ -94,7 +94,7 @@ instance Spawnable Game.World.Arrow where
 		returnA -< playerPos
 	spawnWire _ = proc playerId -> do
 		(dx, dy) <- spawnArrowDirection -< playerId
-		let wire = moveArrow (dx*40, dy*40)
+		let wire = moveArrow (dx*100, dy*100)
 		returnA -< wire
 	spawnBoundary _ = proc playerId -> do
 		(dx, dy) <- spawnArrowDirection -< playerId
@@ -240,9 +240,27 @@ playerMovement baseSpeed = untilV movingDirectionE
 			_ <- animateR -< (pId, anim)
 			returnA -< ()
 
-playerWire :: ObjectWire ObjectId ()
-playerWire = proc pId -> do
+playerAttack :: ObjectWire PlayerId ()
+playerAttack = untilV spawnArrowEvent
+	W.--> playerAttackAnim
+	W.--> void while . spawnArrowEvent
+	W.--> playerAttack
+	where
+		playerAttackAnim = proc pId -> do
+			(dx, dy) <- spawnArrowDirection -< pId
+			let dir = orientationFromDelta (dx, dy)
+			_ <- animateR . for 1 -< (pId, attackAnimation dir)
+			returnA -< ()
+
+player2Wire :: ObjectWire ObjectId ()
+player2Wire = proc pId -> do
 	_ <- playerSpawnArrow -< pId
+	_ <- playerMovement 250 -< pId
+	returnA -< ()
+
+player1Wire :: ObjectWire ObjectId ()
+player1Wire = proc pId -> do
+	_ <- playerAttack -< pId
 	_ <- playerMovement 300 -< pId
 	returnA -< ()
 
@@ -261,8 +279,8 @@ beeWire = proc pId -> do
 testwire :: WorldWire a ()
 testwire = proc input -> do
 	_ <- stepObjectWires -< input
-	_ <- once . newObjectWire 1 playerWire -< input
-	_ <- once . newObjectWire 2 playerWire -< input
+	_ <- once . newObjectWire 1 player1Wire -< input
+	_ <- once . newObjectWire 2 player2Wire -< input
 	_ <- once . newObjectWire 3 dinoWire -< input
 	_ <- once . newObjectWire 4 beeWire -< input
 

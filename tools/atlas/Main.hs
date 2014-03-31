@@ -33,9 +33,9 @@ readConfig = do
 
 trim :: TileSets -> TileSetCompiled -> TileSet -> IO [TileSetData]
 trim root compiledTileSet tileSet = do
-	(sizes, offsets, trimOffsets, derivedSizes, derivedTrimOffsets) <- withMagickWandGenesis $ do
+	(oldSizes, sizes, offsets, trimOffsets, derivedOldSizes, derivedSizes, derivedTrimOffsets) <- withMagickWandGenesis $ do
 		(rks, wands) <- fmap unzip $ sequence [magickWand | _ <- [0..numTiles-1]]
-		(sizes, trimOffsets) <- fmap unzip $ mapM (\(tsData, wand) -> do
+		(oldSizes, sizes, trimOffsets) <- fmap unzip3 $ mapM (\(tsData, wand) -> do
 				readImage wand $ FP.fromText "data" </> (compiledTileSet^.tscBaseDirectory) </> (tsData^.tsdFilename)
 				trimImage wand 10
 				str <- identifyImage wand
@@ -50,11 +50,11 @@ trim root compiledTileSet tileSet = do
 				resizeImage wand bWidth bSize lanczosFilter 1
 				finalWidth <- getImageWidth wand
 
-				return ((finalWidth, bSize), offset)
+				return $ traceShow offset $ ((width, height), (finalWidth, bSize), offset)
 			) $ zip (compiledTileSet^.tscData) wands
 
 		(derivedRks, derivedWands) <- fmap unzip $ sequence [magickWand | _ <- [0..(length $ tileSet^.tsDerivedData) - 1]]
-		(derivedSizes, derivedTrimOffsets) <- fmap unzip $ mapM (\(derivedData, wand) -> do
+		(derivedOldSizes, derivedSizes, derivedTrimOffsets) <- fmap unzip3 $ mapM (\(derivedData, wand) -> do
 				let Just sourceData = (root^.rootTiles.at (derivedData^.tsddSourceName))
 				readImage wand $ FP.fromText "data" </> (compiledTileSet^.tscBaseDirectory) </> (sourceData^.tsdFilename)
 				trimImage wand 10
@@ -77,13 +77,13 @@ trim root compiledTileSet tileSet = do
 						flipImage wand
 					_ -> return ()
 
-				return ((finalWidth, bSize), offset)
+				return ((width, height), (finalWidth, bSize), offset)
 
 			) $ zip (tileSet^.tsDerivedData) derivedWands
 
 		let rectOffsets = getOffsets (Bin 4096 4096) (sizes ++ derivedSizes)
 
-		(_, w) <- magickWand
+		(pk, w) <- magickWand
 
 		pw <- pixelWand
 		setColor pw "none"
@@ -100,28 +100,47 @@ trim root compiledTileSet tileSet = do
 		--	) $ zip3 rectOffsetsDerived derivedRks derivedWands
 
 		writeImage w (Just $ "data" </> (compiledTileSet^.tscBaseDirectory) </> "compiled/tileset.png")
+		release pk
 
-		return (sizes, rectOffsets, trimOffsets, derivedSizes, derivedTrimOffsets)
+		return (oldSizes, sizes, rectOffsets, trimOffsets, derivedOldSizes, derivedSizes, derivedTrimOffsets)
 
 	let derivedOffsets = drop (numTiles) offsets
-	let ts' = foldr (\(tsData, size, trimOffset, offset) ts -> (tsData 
+	let ts' = foldr (\(tsData, oldSize@(ow,oh), size@(w,h), trimOffset, offset) ts -> (tsData 
 			& tsdFinalSize .~ size
 			& tsdBaseOffset .~ trimOffset
-			& tsdPosition .~ offset)
+			& tsdPosition .~ offset
+			& tsdOrigin %~ \(ox, oy) -> let
+				wFactor :: Float
+				wFactor = (fromIntegral w/fromIntegral ow)
+				hFactor :: Float
+				hFactor = (fromIntegral h/fromIntegral oh)
+					in ( round $ (fromIntegral ox - fromIntegral (trimOffset^._1))*wFactor
+						, round $ (fromIntegral oy - fromIntegral (trimOffset^._2))*hFactor
+						)
+			)
 			: ts)
-		[] $ zip4 (compiledTileSet^.tscData) sizes trimOffsets offsets
+		[] $ zip5 (compiledTileSet^.tscData) oldSizes sizes trimOffsets offsets
 
-	let ts'' = foldr (\(derivedData, size, trimOffset, offset) ts -> 
+	let ts'' = foldr (\(derivedData, oldSize@(ow,oh), size@(w,h), trimOffset, offset) ts -> 
 			let Just sourceData = (root^.rootTiles.at (derivedData^.tsddSourceName)) in
 				(sourceData 
 					& tsdName .~ (derivedData^.tsddName)
 					& tsdFinalSize .~ size
 					& tsdBaseOffset .~ trimOffset
-					& tsdPosition .~ offset)
+					& tsdPosition .~ offset
+					& tsdOrigin %~ \(ox, oy) -> let
+						wFactor :: Float
+						wFactor = (fromIntegral w/fromIntegral ow)
+						hFactor :: Float
+						hFactor = (fromIntegral h/fromIntegral oh)
+							in ( round $ (fromIntegral ox - fromIntegral (trimOffset^._1))*wFactor
+								, round $ (fromIntegral oy - fromIntegral (trimOffset^._2))*hFactor
+								)			
+					)
 					: ts)
-			ts' $ zip4 (tileSet^.tsDerivedData) (derivedSizes) derivedTrimOffsets derivedOffsets
+			ts' $ zip5 (tileSet^.tsDerivedData) (derivedOldSizes) (derivedSizes) derivedTrimOffsets derivedOffsets
 
-	return (traceShow (derivedOffsets) ts'')
+	return ts''
 
 	where
 		numTiles = length $ compiledTileSet^.tscData
@@ -148,61 +167,5 @@ main = do
 			return r
 		) p $ (p^.getCompiledTileSets)
 
-	print p'
-
 	B.writeFile "tileset_compiled.json" (encodePretty p')
 
-
-	--scaleImages (p^.tileSet)
-
-	--l <- withMagickWandGenesis $ do
-	--	(_, w) <- magickWand
-
-	--	pw <- pixelWand
-	--	setColor pw "none"
-	--	newImage w 1024 1024 pw
-	
-
-	--	(tmps, ws) <- magickWand
-	--	readImage ws $ FP.fromText "data/monsters/1.png"
-	--	trimImage ws 10
-
-	--	str <- identifyImage ws
-	--	let offset = findOffset str
-
-	--	compositeImage w ws overCompositeOp 0 0
-
-	--	release tmps
-
-
-	--	(tmps2, ws2) <- magickWand
-	--	readImage ws2 $ FP.fromText "data/monsters/2.png"
-	--	trimImage ws2 10
-
-	--	compositeImage w ws2 overCompositeOp 500 500
-	--	release tmps2
-
-
-	--	writeImage w (Just "data/monsters/compiled/test.png")
-
-
-	--	return (str, offset)
-	--print l
-
-
---scaleImages tileSet =
---	mapM_ (\tsData -> do
---		withMagickWandGenesis $ do
---			(_, w) <- magickWand
---			scaleImage w tsData
---		) (tileSet^.tsData)
---	where
---		baseDir = tileSet^.tsBaseDirectory
---		scaleImage w tsData = do
---			readImage w $ FP.fromText "data" </> baseDir </> (tsData^.tsdFilename)
---			width <- getImageWidth w
---			height <- getImageWidth w
---			resizeImage w (tsData^.tsdSize) (tsData^.tsdSize) lanczosFilter 1
---			writeImages w ("data" </> baseDir </> "compiled" </> (tsData^.tsdFilename)) True
---			--clearMagickWand w
---	

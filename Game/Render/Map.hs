@@ -343,8 +343,8 @@ renderNormalLayer program wrc layerName layerId world = do
 	GLRaw.glDrawElements GLRaw.gl_TRIANGLES (6*(fromIntegral (world^.R.wLayerNumObjects layerName))) GLRaw.gl_UNSIGNED_INT nullPtr
 	logGL "renderNormalLayer: drawArraysInstanced"
 
-renderWorldRenderContext :: GL.Program -> WorldRenderContext -> IO ()
-renderWorldRenderContext program wrc = do
+--renderWorldRenderContext :: GL.Program -> WorldRenderContext -> IO ()
+renderWorldRenderContext program wrc playerId = do
 	--print "get world"
 	let world = wrc^.wrcWorld
 	--print "bind wrc"
@@ -365,6 +365,9 @@ renderWorldRenderContext program wrc = do
 	logGL "renderWorldRenderContext: uniformBlockBinding tilesetIndex"
 
 	isComplex <- GL.get $ GL.uniformLocation program "isComplex"
+
+	ghostMode <- GL.get $ GL.uniformLocation program "ghostMode"
+	GL.uniform ghostMode $= GL.Index1 (fromIntegral playerId :: GL.GLint)
 
 	--print $ Map.size (world^.R.mapTilesets)
 

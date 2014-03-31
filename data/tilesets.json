@@ -1,15 +1,5 @@
 {
 	"tileset": [
-		{ "name": "background"
-		, "filename": "background.png"
-		, "base_directory": "monsters/walls"
-		, "source_data": [
-			{ "tileId": "background", "filename":"background.png", "size":2000 }
-		]
-		, "derived_data": [
-			{ "tileId": "background2", "sourceId": "background", "transform": "flipHorizontal" }
-			]
-		},
 		{
 		"name" : "monsters",
 		"filename": "monsters.png",
@@ -389,9 +379,9 @@
 			, { "tileId": "RosaAttackRight", "sourceId": "RosaAttackLeft", "transform":"flipHorizontal" }
 			, { "tileId": "RosaDamageRight", "sourceId": "RosaDamageLeft", "transform":"flipHorizontal" }
 
-			, { "tileId": "Energe1_2", "sourceId": "Energy1", "transform":"flipHorizontal" }
-			, { "tileId": "Energe2_2", "sourceId": "Energy2", "transform":"flipHorizontal" }
-			, { "tileId": "Energe3_2", "sourceId": "Energy3", "transform":"flipHorizontal" }
+			, { "tileId": "Energy1_2", "sourceId": "Energy1", "transform":"flipHorizontal" }
+			, { "tileId": "Energy2_2", "sourceId": "Energy2", "transform":"flipHorizontal" }
+			, { "tileId": "Energy3_2", "sourceId": "Energy3", "transform":"flipHorizontal" }
 
 			, { "tileId": "WolfStandRight"
 				, "sourceId": "WolfStandLeft"

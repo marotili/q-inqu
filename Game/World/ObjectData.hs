@@ -30,7 +30,7 @@ playerBoundary =
     ]
 
 arrowData = BaseData
-    { _bdOrigin = (8, -32)
+    { _bdOrigin = (170, 23)
     , _bdBaseBoundary = arrowBoundary
     }
 
@@ -43,6 +43,18 @@ arrowBoundary =
     ]
 
 
+
+
+attackAnimation dir = let a1 = Animation (543) (animName dir) 99 a1 0 in a1
+    where
+        animName North = "LilaAttackBack"
+        animName NorthEast = "LilaAttackBack"
+        animName NorthWest = "LilaAttackBack"
+        animName South = "LilaAttackFront"
+        animName SouthEast  = "LilaAttackFront"
+        animName SouthWest = "LilaAttackFront"
+        animName West = "LilaAttackLeft"
+        animName East = "LilaAttackRight"
 
 objectAnimation :: ObjectId -> Orientation -> Animation
 objectAnimation pId NorthWest = objectAnimation pId North
@@ -73,9 +85,9 @@ objectAnimation 1 dir = a1
         animName East 4 = "LilaWalk2Right"
 
         a1 = Animation (3*toInt dir) (animName dir 1) 0.2 a2 0 
-        a2 = Animation (3*toInt dir) (animName dir 2) 0.1 a4 0
+        a2 = Animation (3*toInt dir) (animName dir 2) 0.2 a4 0
         a3 = Animation (3*toInt dir) (animName dir 3) 0.2 a4 0
-        a4 = Animation (3*toInt dir) (animName dir 4) 0.2 a1 0
+        a4 = Animation (3*toInt dir) (animName dir 4) 0.2 a2 0
 
 objectAnimation 2 dir = a1
     where
@@ -169,11 +181,11 @@ objectAnimation playerId dir = a1
 arrowAnimation :: Animation
 arrowAnimation = a1
     where
-        a1 = Animation 99 ("Energy1") 0.5 a2 0
+        a1 = Animation 99 ("Energy1") 0.5 a1 0
         a2 = Animation 100 ("Energy2") 0.5 a3 0
         a3 = Animation 101 ("Energy3") 0.5 a4 0
-        a4 = Animation 102 ("Energy1_2") 0.5 a5 0
-        a5 = Animation 103 ("Energy2_2") 0.5 a6 0
-        a6 = Animation 104 ("Energy3_2") 0.5 a1 0
+        a4 = Animation 102 ("Energe1_2") 0.5 a5 0
+        a5 = Animation 103 ("Energe2_2") 0.5 a6 0
+        a6 = Animation 104 ("Energe3_2") 0.5 a1 0
 
 boltAnimation = let a1 = Animation 100 "ItemBolt" 999 a1 0 in a1

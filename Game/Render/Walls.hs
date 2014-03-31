@@ -21,47 +21,67 @@ data WallTileManager = WallTileManager
 
 makeLenses ''WallTile
 makeLenses ''WallTileManager
+wallBaseData = 
+	[("Wall2", 90, 0), ("Wall2_2", 90, 0), ("Wall4", 90, 0), ("Wall4_2", 90, 0)
+	, ("Wall5", 90, 0), ("Wall5_2", 90, 0), ("Wall6", 80, 0), ("Wall6_2", 80, 0)]
+
+wallBaseData2 =
+	[("Wall1", 0, 60), ("Wall1_2", 0, 60), ("Wall3", 0, 60), ("Wall3_2", 0, 60)
+	, ("Wall4", 0, 40), ("Wall4_2", 0, 60)
+	]
 
 wallTileManager = WallTileManager Map.empty
 	& wtmWallTiles . at "Wall1" .~ (Just $ newWallTile "Wall1" 
-			[("Wall2", 90, 0), ("Wall3", 90, 0)]
-			[("Wall4", 0, 96), ("Wall5", 0, 96)]
+		wallBaseData wallBaseData2
+		)
+	& wtmWallTiles . at "Wall1_2" .~ (Just $ newWallTile "Wall1_2" 
+		wallBaseData wallBaseData2
 		)
 	& wtmWallTiles . at "Wall2" .~ (Just $ newWallTile "Wall2"
-			[("Wall2", 90, 0), ("Wall3", 90, 0)]
-			[("Wall4", 0, 96), ("Wall5", 0, 96)]
+		wallBaseData wallBaseData2
+		)
+	& wtmWallTiles . at "Wall2_2" .~ (Just $ newWallTile "Wall2_2"
+		wallBaseData wallBaseData2
 		)
 	& wtmWallTiles . at "Wall3" .~ (Just $ newWallTile "Wall3"
-			[("Wall2", 90, 0), ("Wall3", 90, 0)]
-			[("Wall4", 0, 96), ("Wall5", 0, 96)]
+		wallBaseData wallBaseData2
+		)
+	& wtmWallTiles . at "Wall3_2" .~ (Just $ newWallTile "Wall3_2"
+		wallBaseData wallBaseData2
 		)
 	& wtmWallTiles . at "Wall4" .~ (Just $ newWallTile "Wall4"
-			[("Wall2", 90, 0), ("Wall3", 90, 0)]
-			[("Wall4", 0, 96), ("Wall5", 0, 96)]
+		wallBaseData wallBaseData2
+		)
+	& wtmWallTiles . at "Wall4_2" .~ (Just $ newWallTile "Wall4_2"
+		wallBaseData wallBaseData2
 		)
 	& wtmWallTiles . at "Wall5" .~ (Just $ newWallTile "Wall5"
-			[("Wall2", 90, 0), ("Wall3", 90, 0)]
-			[("Wall4", 0, 96), ("Wall5", 0, 96)]
+		wallBaseData wallBaseData2
+		)
+	& wtmWallTiles . at "Wall5_2" .~ (Just $ newWallTile "Wall5_2"
+		wallBaseData wallBaseData2
 		)
 	& wtmWallTiles . at "Wall6" .~ (Just $ newWallTile "Wall6"
-			[("Wall2", 90, 0), ("Wall3", 90, 0)]
-			[("Wall4", 0, 96), ("Wall5", 0, 96)]
+		wallBaseData wallBaseData2
+		)
+	& wtmWallTiles . at "Wall6_2" .~ (Just $ newWallTile "Wall6_2"
+		wallBaseData wallBaseData2
 		)
 
 newWallTile name right bottom = WallTile name right bottom
 
 initWalls = do
 	--let wr' = wUpdate (
-	wAddComplexTile "background" "b1" (500, 500) (500, 500)
+	wAddComplexTile "background" "b1" (500, 500) (470, 470) (0, 0)
 	objId <- R.wObjectFromPrefab "b1" ("b0")
-	R.wLayerObject "BottomLayer" "b0" .= (Just $ R.newRenderObject objId (0, 0) 0)
+	R.wLayerObject "BackgroundLayer" "b0" .= (Just $ R.newRenderObject objId (40, 30) 0)
 
 	objId1 <- R.wObjectFromPrefab "Flower1" "flower"
-	objId2 <- R.wObjectFromPrefab "Plant1" "plant"
+	objId2 <- R.wObjectFromPrefab "Plant3" "plant"
 	objId3 <- R.wObjectFromPrefab "Flower2" "flower2"
-	R.wLayerObject "TopLayer" "flower" .= (Just $ R.newRenderObject objId1 (250, 150) 0)
-	R.wLayerObject "TopLayer" "flower2" .= (Just $ R.newRenderObject objId2 (250, 200) 0)
-	R.wLayerObject "TopLayer" "plant" .= (Just $ R.newRenderObject objId3(200, 150) 0)
+	R.wLayerObject "BottomLayer" "flower" .= (Just $ R.newRenderObject objId1 (250, 150) 0)
+	R.wLayerObject "BottomLayer" "flower2" .= (Just $ R.newRenderObject objId2 (250, 200) 0)
+	R.wLayerObject "BottomLayer" "plant" .= (Just $ R.newRenderObject objId3(200, 150) 0)
 	--return wr'
 
 generateWalls :: Int -> Int -> StdGen -> State World ()

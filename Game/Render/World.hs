@@ -10,6 +10,7 @@ import qualified Data.Set as Set
 import Debug.Trace
 import qualified Filesystem.Path.CurrentOS as FP
 import qualified Data.Aeson as A
+import qualified Data.Aeson.Types as A
 import qualified Filesystem.Path as FP
 import qualified Data.Text as T
 import qualified Data.ByteString.Lazy as B
@@ -64,9 +65,11 @@ data World = World
 --	{ 
 --	} deriving (Eq, Show)
 
+type Origin = (Float, Float)
+
 data ObjHashes = ObjHashes
 	{ _gameObjects :: !(Map.Map String ObjectId)
-	, _gamePrefabs :: !(Map.Map String (TilesetId, LocalTileId))
+	, _gamePrefabs :: !(Map.Map String (TilesetId, LocalTileId, Origin))
 	, _hashLayers :: !(Map.Map String LayerId)
 	, _gameTilesets :: !(Map.Map String TilesetId)
 	} deriving (Eq, Show)
@@ -108,11 +111,13 @@ data Tile = Tile
 data Object = Object
 	{ _objTsId :: !TilesetId
 	, _objLocalId :: !LocalTileId
+	, _objPrefab :: !(Maybe String)
 	} deriving (Eq, Show)
 
 newObject ts lid = Object
 	{ _objTsId = ts
 	, _objLocalId = lid
+	, _objPrefab = Nothing
 	}
 
 newTile ts lid = Tile
@@ -245,8 +250,8 @@ wTileset name = lens get set
 				) world
 			Nothing -> wUpdate (wRemoveTileset name) world
 
-wAddComplexTile :: String -> String -> (Int, Int) -> (Int, Int) -> State World ()
-wAddComplexTile tilesetName objName tilePos tileSize = do
+wAddComplexTile :: String -> String -> (Int, Int) -> (Int, Int) -> Origin -> State World ()
+wAddComplexTile tilesetName objName tilePos tileSize origin = do
 	Just tsId <- use $ mapHashes . gameTilesets . at tilesetName
 	Just ts <- use $ mapComplexTilesets . at tsId
 	let nextId = ts^.ctsNextLocalId
@@ -255,22 +260,23 @@ wAddComplexTile tilesetName objName tilePos tileSize = do
 
 	--oId <- _wId
 	--mapObjects . at oId .= (Just $ newObject tsId nextId)
-	mapHashes . gamePrefabs . at objName .= Just (tsId, nextId)
+	mapHashes . gamePrefabs . at objName .= Just (tsId, nextId, origin)
 
 wObjectFromPrefab :: (MonadState World m) => String -> String -> m ObjectId
 wObjectFromPrefab prefabName objName = do
-	Just (tsId, localId) <- use $ mapHashes . gamePrefabs . at prefabName
+	Just (tsId, localId, _) <- use $ mapHashes . gamePrefabs . at prefabName
 
-	wObject objName .= (Just $ newObject tsId localId)
+	wObject objName .= (Just $ newObject tsId localId & objPrefab .~ (Just prefabName))
 	Just oId <- use $ mapHashes . gameObjects . at objName
 	return oId
 
 wSetObjectPrefab :: (MonadState World m) => String -> String -> m ()
 wSetObjectPrefab objName prefabName = do
-	Just (tsId, localId) <- use $ mapHashes . gamePrefabs . at prefabName
+	Just (tsId, localId, _) <- use $ mapHashes . gamePrefabs . at prefabName
 	Just objId <- use $ mapHashes . gameObjects . at objName
 	mapObjects . at objId . _Just . objTsId .= tsId
 	mapObjects . at objId . _Just . objLocalId .= localId
+	mapObjects . at objId . _Just . objPrefab .= (Just prefabName)
 
 wAddObject :: String -> State World ()
 wAddObject name = do
@@ -643,14 +649,25 @@ wTilePos layerName = to get
 					, obj^.roRotation
 					)
 				) $ sortBy sortY $ Map.elems _layerObjects
-			ComplexObjectLayer { _layerObjects } -> map (\obj -> 
-					( obj^.roPos._1
-					, obj^.roPos._2
-					, obj^.roOrigin._1
-					, obj^.roOrigin._2
-					, obj^.roRotation
-					)
-				) $ sortBy sortY $ Map.elems _layerObjects
+			ComplexObjectLayer { _layerObjects } -> 
+				map (\renderObj -> 
+						let 
+							Just obj = world^.mapObjects.at (renderObj^.roId)
+							(originX, originY) = case (obj^.objPrefab) of
+								Just prefabName ->
+									let Just (_, _, origin) = world^.mapHashes.gamePrefabs.at prefabName
+									in origin
+								Nothing -> 
+									( renderObj^.roOrigin._1
+									, renderObj^.roOrigin._2)
+						in  traceShow ("upload", originX, originY)
+							( renderObj ^.roPos._1
+							, renderObj ^.roPos._2
+							, originX
+							, originY
+							, renderObj ^.roRotation
+							)
+					) $ sortBy sortY $ Map.elems _layerObjects
 			where
 				Just lId = world^.mapHashes.hashLayers.at layerName
 				Just layer = world^.mapLayers.at lId
@@ -735,10 +752,14 @@ instance A.FromJSON (State World ()) where
 				height <- v A..: "height"			
 				posX <- v A..: "offset_x"
 				posY <- v A..: "offset_y"
+				originX <- v A..: "origin_x" :: A.Parser Int
+				originY <- v A..: "origin_y" :: A.Parser Int
 				tileName <- v A..: "tileId"
 
-				return $ worldState >> do
-					wAddComplexTile name tileName (posX, posY) (width, height)
+				return $ worldState >> do 
+					traceShow (originX, originY) $
+						wAddComplexTile name tileName (posX, posY) (width, height) (fromIntegral originX, fromIntegral originY)
+
 
 
 type LoadTileset = B.ByteString

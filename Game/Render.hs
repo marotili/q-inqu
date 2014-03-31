@@ -60,7 +60,7 @@ newRenderContext playerId game = do
 
 clearWindow :: GLFW.Window -> IO ()
 clearWindow window = do
-	GL.clearColor $= GL.Color4 1 1 1 1
+	GL.clearColor $= GL.Color4 0 0 0 1
 	logGL "clearWindow: clearColor"
 	GL.clear [GL.ColorBuffer]
 	logGL "clearWindow: clear"
@@ -100,7 +100,7 @@ render window rc cam = do
 	GL.currentProgram $= Just (newRc^.rcMainProgram)
 	programSetViewProjection (newRc^.rcMainProgram) newCam
 	updateWorldRenderContext (newRc^.rcWorldRenderContext)
-	renderWorldRenderContext (newRc^.rcMainProgram) (newRc^.rcWorldRenderContext)
+	renderWorldRenderContext (newRc^.rcMainProgram) (newRc^.rcWorldRenderContext) (rc^.rcPlayerId)
 
 	GL.stencilTest $= GL.Disabled
 
@@ -108,7 +108,7 @@ render window rc cam = do
 	GL.currentProgram $= Just (newRc^.rcMainProgram)
 	programSetViewProjection (newRc^.rcMainProgram) (cameraSetOriginTopLeft newCam)
 	updateWorldRenderContext uirc
-	renderWorldRenderContext (newRc^.rcMainProgram) uirc
+	renderWorldRenderContext (newRc^.rcMainProgram) uirc 0
 
 	return newCam
 
