@@ -1,0 +1,344 @@
+% base points
+points(0..150).
+
+% data
+polygon(0, 20, 40).
+polygon(1, 60, 40).
+polygon(2, 60, 80).
+polygon(3, 20, 80).
+
+polyAlignSide(0, right).
+polyAlignSide(1, bottom).
+polyAlignSide(2, left).
+polyAlignSide(3, top).
+
+maxTileSize(Width, Height) :- 
+	Width = #max { W : tileSize(_, W, _) }
+	, Height = #max { H : tileSize(_, _, H) }
+	.
+
+% the points near the corners
+eligibleCornerPoints(PolyId, X, Y) :-
+	polygon(PolyId, X0, Y0)
+	, maxTileSize(Width, Height)
+	, X = (X0 - Width..X0 + Width)
+	, Y = (Y0 - Height..Y0 + Height)
+	.
+
+lineMin(PolyId, MinX, MinY) :-
+	nextPoly(PolyId, NextPolyId)
+	, polygon(PolyId, X0, Y0)
+	, polygon(NextPolyId, X1, Y1)
+	, MinX = #min{X0;X1}
+	, MinY = #min{Y0;Y1}
+	.
+
+eligibleLinePoints(PolyId, X, Y) :-
+	nextPoly(PolyId, NextPolyId)
+	, polygon(PolyId, X0, Y0)
+	, polygon(NextPolyId, X1, Y1)
+	, points(X;Y)
+	, maxTileSize(Width, Height)
+	, MinX = #min{X0;X1}, MaxX = #max{X0;X1}
+	, MinY = #min{Y0;Y1}, MaxY = #max{Y0;Y1}
+	, X >= MinX - Width, X <= MaxX + Width
+	, Y >= MinY - Height, Y <= MaxY + Height
+	.
+
+polyIds(Id) :- polygon(Id, _, _).
+maxPolyId(N) :- N = #max { Id : polyIds(Id) }.
+
+polyOutside(0, 1, top).
+polyOutside(1, 2, right).
+polyOutside(2, 3, bottom).
+polyOutside(3, 0, left).
+
+polyInside(N, N', Inside) :- 
+	polyOutside(N, N', Outside), opposite(Outside, Inside).
+
+prevPoly(N, N-1) :- N != 0, polygon(N, _, _).
+prevPoly(0, MaxId) :- maxPolyId(MaxId).
+
+nextPoly(N, N+1) :- N != N', maxPolyId(N'), polygon(N, _, _).
+nextPoly(MaxId, 0) :- maxPolyId(MaxId).
+
+%prevPolyData(N, X, Y) :- polygon(N-1, X, Y), N != 0.
+%prevPolyData(0, X, Y) :- polygon(MaxId, X, Y), maxPolyId(MaxId).
+
+%nextPolyData(N, X, Y) :- polygon(N+1, X, Y), N != N', maxPolyId(N').
+%nextPolyData(N, X, Y) :- polygon(0, X, Y), maxPolyId(N).
+
+% tileSize(Name, Width, Height)
+tileSize(a, 5, 5).
+tileSize(b, 4, 4).
+tileSize(c, 3, 3).
+% tileSize(d, 2, 2).
+
+% tileOffset(Name, OffsetXStart, OffsetXEnd, OffsetYStart, OffsetYEnd)
+tileOffset(a, left, 0, 1).
+tileOffset(a, top, 0, 1).
+tileOffset(a, right, 4, 5).
+tileOffset(a, bottom, 4, 5).
+
+tileOffset(b, left, 0, 1).
+tileOffset(b, top, 0, 1).
+tileOffset(b, right, 3, 4).
+tileOffset(b, bottom, 3, 4).
+
+tileOffset(c, left, 0, 1).
+tileOffset(c, top, 0, 1).
+tileOffset(c, right, 2, 3).
+tileOffset(c, bottom, 2, 3).
+
+tileOffset(d, left, 0, 1).
+tileOffset(d, top, 0, 1).
+tileOffset(d, right,  1, 2).
+tileOffset(d, bottom, 1, 2).
+
+% baseLine Tile Left Top Right Bottom offset = alignment
+tileBaseLine(a, left, 1, 0).
+tileBaseLine(a, top, 0, 1).
+tileBaseLine(a, right, Width-1, 0) :- tileSize(a, Width, Height).
+tileBaseLine(a, bottom, 0, Height-1) :- tileSize(a, Width, Height).
+
+tileBaseLine(b, left, 1, 0).
+tileBaseLine(b, top, 0, 1).
+tileBaseLine(b, right, Width-1, 0) :- tileSize(b, Width, Height).
+tileBaseLine(b, bottom, 0, Height-1) :- tileSize(b, Width, Height).
+
+tileBaseLine(c, left, 1, 0).
+tileBaseLine(c, top, 0, 1).
+tileBaseLine(c, right, Width-1, 0) :- tileSize(c, Width, Height).
+tileBaseLine(c, bottom, 0, Height-1) :- tileSize(c, Width, Height).
+
+tileBaseLine(d, left, 1, 0).
+tileBaseLine(d, top, 0, 1).
+tileBaseLine(d, right, Width-1, 0) :- tileSize(d, Width, Height).
+tileBaseLine(d, bottom, 0, Height-1) :- tileSize(d, Width, Height).
+
+#show tileBaseLine/4.
+
+% tileBaseLine(b, left, 1, 0).
+% tileBaseLine(b, top, 0, 1).
+% tileBaseLine(b, right, Width-1, 0) :- tileSize(b, Width, Height).
+% tileBaseLine(b, bottom, 0, Height-2) :- tileSize(b, Width, Height).
+
+opposite(left, right).
+opposite(top, bottom).
+opposite(A, B) :- opposite(B, A).
+
+%% generate corners
+cornerCandidates(PolyId, TileId, X, Y) :- 
+	polygon(PolyId, CornerX, CornerY)
+	, prevPoly(PolyId, PrevPolyId)
+	, nextPoly(PolyId, NextPolyId)
+	, polyInside(PrevPolyId, PolyId, SidePrev)
+	, polyInside(PolyId, NextPolyId, SideNext)
+
+	, eligibleCornerPoints(PolyId, X, Y)
+	, tileSize(TileId, TileWidth, TileHeight)
+	, tileBaseLine(TileId, SidePrev, OffsetXPrev, OffsetYPrev)
+	, tileBaseLine(TileId, SideNext, OffsetXNext, OffsetYNext)
+
+	, X + OffsetXPrev + OffsetXNext == CornerX
+	, Y + OffsetYPrev + OffsetYNext == CornerY
+	.
+
+1 { setTile(0, PolyId, TileId, X, Y) 
+  : cornerCandidates(PolyId, TileId, X, Y) } 1 
+  :- polygon(PolyId, _, _).
+
+0 { setTile(N + 1, PolyId, TileId, X, Y)
+  : alignNext(N, PolyId, TileId, X, Y)
+  } 1
+  :- setTile(N, PolyId, OldTile, OldX, OldY)
+  , setTile(0, NextPolyId, _, _, _	)
+  , nextPoly(PolyId, NextPolyId)
+  , N <= 30 % arbitary
+  .
+
+lastTile(N, PolyId) :- 
+	N = #max { N' : setTile(N', PolyId, _, _, _) }
+	, polygon(PolyId, _, _)
+	.
+
+lastTileData(N, PolyId, TileId, X, Y) :-
+   lastTile(N, PolyId), setTile(N, PolyId, TileId, X, Y)
+   .
+
+firstTile(0, PolyId, X, Y, TileId) :-
+   setTile(0, PolyId, TileId, X, Y)
+   . 
+
+#show lastTileData/5.
+#show firstTile/5.
+:- lastTile(N, PolyId), N < 4.
+% :- lastTile(N, PolyId)
+% 	, nextPoly(PolyId, NextPolyId)
+% 	, setTile(0, NextPolyId, LastTileId, LastX, LastY)
+% 	, setTile(N, PolyId, TileId, X, Y)
+% 	, not equal(LastTileId, TileId, LastX, LastY, X, Y) 
+%    , PolyId == 0
+% 	.
+
+% :- lastTile(N, 0), nextPoly(0, 1)
+%  , setTile(0, 1, LastTileId, LastX, LastY)
+%  , setTile(N, 0, TileId, X, Y)
+%  , not equal(LastTileId, TileId, LastX, LastY, X, Y) 
+%  .
+
+% :- lastTile(N, PolyId), N < 14.
+
+equal(TileId1, TileId2, X0, Y0, X1, Y1) :-
+	alignNext(_, _, TileId1, X0, Y0)
+	, alignNext(_, _, TileId2, X1, Y1)
+	, TileId1 == TileId2, X0 == X1, Y0 == Y1
+	.
+
+%% add new tiles left
+alignNext(N, PolyId, TileId, X, Y) :-
+   setTile(N, PolyId, OldTileId, OldX, OldY)
+   , tileSize(TileId, TileWidth, TileHeight)
+%   , eligibleLinePoints(PolyId, X, Y) 
+   , polygon(PolyId, PX, PY)
+   , nextPoly(PolyId, NextPolyId)
+   , polyInside(PolyId, NextPolyId, PolySide)
+   , tileBaseLine(TileId, PolySide, BaselineOffsetX, BaselineOffsetY)
+
+   , polyAlignSide(PolyId, left)
+   , tileOffset(OldTileId, left, OffsetMin, OffsetMax)
+
+   , tileOffset(LastTileId, right, LastTileOffsetMin, LastTileOffsetMax)
+   , tileOffset(TileId, left, NewTileOffsetMin, NewTileOffsetMax)
+   , tileOffset(TileId, right, NewTileOffsetMinRight, NewTileOffsetMaxRight)
+
+   , setTile(0, NextPolyId, LastTileId, LastX, LastY)
+   , 1 { LastX < X 
+   	   ; equal(TileId, LastTileId, X, Y, LastX, LastY) 
+   	   } 1
+
+   , X1 = OldX + OffsetMax - NewTileOffsetMaxRight
+   , X2 = OldX + OffsetMin - NewTileOffsetMinRight
+   , MinX = #min{X1;X2}
+   , MaxX = #max{X1;X2}
+   , X = MinX..MaxX
+   % , X = (OldX + OffsetMin - NewTileOffsetMinRight)..(OldX + OffsetMax - NewTileOffsetMaxRight)
+   , Y = PY - BaselineOffsetY
+   . 
+
+% between(X, OX, OffsetRightMin, OffsetRightMax, OffsetLeftMin, OffsetLeftMax) :-
+%    X1 = OX + OffsetRightMin - OffsetRightMax
+%    , X2 = OX + OffsetRightMax - OffsetRightMin
+%    , MinX = #min{X1;X2}
+%    , MaxX = #max{X1;X2}
+%    , X = MinX..MaxX
+%    .
+
+% #begin_lua
+
+% function between(ox, rmin, rmax, lmin, lmax)
+%    r = {}
+%    a = ox - rmin
+%    b = ox + lmax
+%    for x = a, b do
+%       table.insert(r, x)
+%    end
+% end
+
+% #end_lua.
+
+%% add new tiles right
+alignNext(N, PolyId, TileId, X, Y) :-
+   setTile(N, PolyId, OldTileId, OldX, OldY)
+   , tileSize(TileId, TileWidth, TileHeight)
+
+   , polygon(PolyId, PX, PY)
+   , nextPoly(PolyId, NextPolyId)
+   , polyInside(PolyId, NextPolyId, PolySide)
+   , tileBaseLine(TileId, PolySide, BaselineOffsetX, BaselineOffsetY)
+
+   , polyAlignSide(PolyId, right)
+   , tileOffset(OldTileId, right, OffsetMin, OffsetMax)
+
+   , tileOffset(LastTileId, left, LastTileOffsetMin, LastTileOffsetMax)
+   , tileOffset(TileId, right, NewTileOffsetMin, NewTileOffsetMax)
+   , tileOffset(TileId, left, NewTileOffsetMinLeft, NewTileOffsetMaxLeft)
+
+   , setTile(0, NextPolyId, LastTileId, LastX, LastY)
+   , 1 { X < LastX
+   	   ; equal(TileId, LastTileId, X, Y, LastX, LastY) 
+   	   } 1
+
+   , X1 = OldX + OffsetMax - NewTileOffsetMaxLeft
+   , X2 = OldX + OffsetMin - NewTileOffsetMinLeft
+   , MinX = #min{X1;X2}
+   , MaxX = #max{X1;X2}
+   , X = MinX..MaxX
+   % , X = (OldX + OffsetMin - NewTileOffsetMinLeft)..(OldX + OffsetMax - NewTileOffsetMaxLeft)
+   , Y = PY - BaselineOffsetY
+   %, Y + BaselineOffsetY == PY
+   . 
+
+%% add new tiles top
+alignNext(N, PolyId, TileId, X, Y) :-
+   setTile(N, PolyId, OldTileId, OldX, OldY)
+   , tileSize(TileId, TileWidth, TileHeight)
+%   , eligibleLinePoints(PolyId, X, Y)
+   , polygon(PolyId, PX, PY)
+   , nextPoly(PolyId, NextPolyId)
+   , polyInside(PolyId, NextPolyId, PolySide)
+   , tileBaseLine(TileId, PolySide, BaselineOffsetX, BaselineOffsetY)
+
+   , polyAlignSide(PolyId, top)
+   , tileOffset(OldTileId, top, OffsetMin, OffsetMax)
+
+   , tileOffset(LastTileId, bottom, LastTileOffsetMin, LastTileOffsetMax)
+   , tileOffset(TileId, top, NewTileOffsetMin, NewTileOffsetMax)
+   , tileOffset(TileId, bottom, NewTileOffsetMinBottom, NewTileOffsetMaxBottom)
+   , setTile(0, NextPolyId, LastTileId, LastX, LastY)
+   , 1 { LastY < Y
+   	   ; equal(TileId, LastTileId, X, Y, LastX, LastY) 
+   	   } 1
+
+   , X = PX - BaselineOffsetX
+   %, X+ BaselineOffsetX == PX
+   , Y1 = OldY + OffsetMax - NewTileOffsetMaxBottom
+   , Y2 = OldY + OffsetMin - NewTileOffsetMinBottom
+   , MinY = #min{Y1;Y2}
+   , MaxY = #max{Y1;Y2}
+   , Y = MinY..MaxY
+   . 
+
+%% add new tiles bottom
+alignNext(N, PolyId, TileId, X, Y) :-
+   setTile(N, PolyId, OldTileId, OldX, OldY)
+   , tileSize(TileId, TileWidth, TileHeight)
+   , polygon(PolyId, PX, PY)
+   , nextPoly(PolyId, NextPolyId)
+   , polyInside(PolyId, NextPolyId, PolySide)
+   , tileBaseLine(TileId, PolySide, BaselineOffsetX, BaselineOffsetY)
+
+   , polyAlignSide(PolyId, bottom)
+   , tileOffset(OldTileId, bottom, OffsetMin, OffsetMax)
+
+   , tileOffset(LastTileId, top, LastTileOffsetMin, LastTileOffsetMax)
+   , tileOffset(TileId, bottom, NewTileOffsetMin, NewTileOffsetMax)
+   , tileOffset(TileId, top, NewTileOffsetMinTop, NewTileOffsetMaxTop)
+   , setTile(0, NextPolyId, LastTileId, LastX, LastY)
+   , 1 { Y  < LastY
+   	   ; equal(TileId, LastTileId, X, Y, LastX, LastY) 
+   	   } 1
+
+   , X = PX - BaselineOffsetX
+
+   , Y1 = OldY + OffsetMax - NewTileOffsetMaxTop
+   , Y2 = OldY + OffsetMin - NewTileOffsetMinTop
+   , MinY = #min{Y1;Y2}
+   , MaxY = #max{Y1;Y2}
+   , Y = MinY..MaxY
+   . 
+
+
+align1(N, TileId, X, Y) :- alignNext(N, 1, TileId, X, Y).
+
+%#show setTile/5.
