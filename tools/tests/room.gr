@@ -1,11 +1,11 @@
 % base points
-points(0..150).
+% points(0..150).
 
 % data
 polygon(0, 20, 40).
-polygon(1, 60, 40).
-polygon(2, 60, 80).
-polygon(3, 20, 80).
+polygon(1, 130, 40).
+polygon(2, 130, 120).
+polygon(3, 20, 120).
 
 polyAlignSide(0, right).
 polyAlignSide(1, bottom).
@@ -25,24 +25,15 @@ eligibleCornerPoints(PolyId, X, Y) :-
 	, Y = (Y0 - Height..Y0 + Height)
 	.
 
-lineMin(PolyId, MinX, MinY) :-
-	nextPoly(PolyId, NextPolyId)
-	, polygon(PolyId, X0, Y0)
-	, polygon(NextPolyId, X1, Y1)
-	, MinX = #min{X0;X1}
-	, MinY = #min{Y0;Y1}
-	.
-
 eligibleLinePoints(PolyId, X, Y) :-
 	nextPoly(PolyId, NextPolyId)
 	, polygon(PolyId, X0, Y0)
 	, polygon(NextPolyId, X1, Y1)
-	, points(X;Y)
 	, maxTileSize(Width, Height)
 	, MinX = #min{X0;X1}, MaxX = #max{X0;X1}
 	, MinY = #min{Y0;Y1}, MaxY = #max{Y0;Y1}
-	, X >= MinX - Width, X <= MaxX + Width
-	, Y >= MinY - Height, Y <= MaxY + Height
+   , X = (MinX - Width)..(MaxX + Width)
+   , Y = (MinY - Height)..(MaxY + Height)
 	.
 
 polyIds(Id) :- polygon(Id, _, _).
@@ -69,26 +60,26 @@ nextPoly(MaxId, 0) :- maxPolyId(MaxId).
 %nextPolyData(N, X, Y) :- polygon(0, X, Y), maxPolyId(N).
 
 % tileSize(Name, Width, Height)
-tileSize(a, 5, 5).
-tileSize(b, 4, 4).
-tileSize(c, 3, 3).
+tileSize(a, 10, 10).
+tileSize(b, 8, 8).
+tileSize(c, 7, 7).
 % tileSize(d, 2, 2).
 
 % tileOffset(Name, OffsetXStart, OffsetXEnd, OffsetYStart, OffsetYEnd)
 tileOffset(a, left, 0, 1).
 tileOffset(a, top, 0, 1).
-tileOffset(a, right, 4, 5).
-tileOffset(a, bottom, 4, 5).
+tileOffset(a, right, 9, 10).
+tileOffset(a, bottom, 9, 10).
 
 tileOffset(b, left, 0, 1).
 tileOffset(b, top, 0, 1).
-tileOffset(b, right, 3, 4).
-tileOffset(b, bottom, 3, 4).
+tileOffset(b, right, 7, 8).
+tileOffset(b, bottom, 7, 8).
 
 tileOffset(c, left, 0, 1).
 tileOffset(c, top, 0, 1).
-tileOffset(c, right, 2, 3).
-tileOffset(c, bottom, 2, 3).
+tileOffset(c, right, 6, 7).
+tileOffset(c, bottom, 6, 7).
 
 tileOffset(d, left, 0, 1).
 tileOffset(d, top, 0, 1).
@@ -115,8 +106,6 @@ tileBaseLine(d, left, 1, 0).
 tileBaseLine(d, top, 0, 1).
 tileBaseLine(d, right, Width-1, 0) :- tileSize(d, Width, Height).
 tileBaseLine(d, bottom, 0, Height-1) :- tileSize(d, Width, Height).
-
-#show tileBaseLine/4.
 
 % tileBaseLine(b, left, 1, 0).
 % tileBaseLine(b, top, 0, 1).
@@ -154,7 +143,7 @@ cornerCandidates(PolyId, TileId, X, Y) :-
   :- setTile(N, PolyId, OldTile, OldX, OldY)
   , setTile(0, NextPolyId, _, _, _	)
   , nextPoly(PolyId, NextPolyId)
-  , N <= 30 % arbitary
+  , N <= 100 % arbitary
   .
 
 lastTile(N, PolyId) :- 
@@ -170,16 +159,46 @@ firstTile(0, PolyId, X, Y, TileId) :-
    setTile(0, PolyId, TileId, X, Y)
    . 
 
+next(TileId, X, Y) :- setTile(15, 0, OldTileId, OldX, OldY)
+   , tileSize(TileId, TileWidth, TileHeight)
+
+   , polygon(PolyId, PX, PY)
+   , nextPoly(PolyId, NextPolyId)
+   , polyInside(PolyId, NextPolyId, PolySide)
+   , tileBaseLine(TileId, PolySide, BaselineOffsetX, BaselineOffsetY)
+
+   , polyAlignSide(PolyId, right)
+   , tileOffset(OldTileId, right, OffsetMin, OffsetMax)
+
+   , tileOffset(LastTileId, left, LastTileOffsetMin, LastTileOffsetMax)
+   , tileOffset(TileId, right, NewTileOffsetMin, NewTileOffsetMax)
+   , tileOffset(TileId, left, NewTileOffsetMinLeft, NewTileOffsetMaxLeft)
+
+   , setTile(0, NextPolyId, LastTileId, LastX, LastY)
+
+   , equal(TileId, LastTileId, X, Y, LastX, LastY) 
+
+   , X1 = OldX + OffsetMax - NewTileOffsetMaxLeft
+   , X2 = OldX + OffsetMin - NewTileOffsetMinLeft
+   , MinX = #min{X1;X2}
+   , MaxX = #max{X1;X2}
+   , X = MinX..MaxX
+   % , X = (OldX + OffsetMin - NewTileOffsetMinLeft)..(OldX + OffsetMax - NewTileOffsetMaxLeft)
+   , Y = PY - BaselineOffsetY
+   .
+
+#show next/3.
 #show lastTileData/5.
 #show firstTile/5.
-:- lastTile(N, PolyId), N < 4.
-% :- lastTile(N, PolyId)
-% 	, nextPoly(PolyId, NextPolyId)
-% 	, setTile(0, NextPolyId, LastTileId, LastX, LastY)
-% 	, setTile(N, PolyId, TileId, X, Y)
-% 	, not equal(LastTileId, TileId, LastX, LastY, X, Y) 
-%    , PolyId == 0
-% 	.
+% :- lastTile(N, PolyId), N != 15, PolyId == 0.
+% :- lastTile(N, 0), setTile(N, 0, _, X, _), X < 56.
+
+:- lastTile(N, PolyId)
+	, nextPoly(PolyId, NextPolyId)
+	, setTile(0, NextPolyId, LastTileId, LastX, LastY)
+	, setTile(N, PolyId, TileId, X, Y)
+	, not equal(LastTileId, TileId, LastX, LastY, X, Y) 
+	.
 
 % :- lastTile(N, 0), nextPoly(0, 1)
 %  , setTile(0, 1, LastTileId, LastX, LastY)
@@ -189,9 +208,11 @@ firstTile(0, PolyId, X, Y, TileId) :-
 
 % :- lastTile(N, PolyId), N < 14.
 
+%% equality test only near corners
 equal(TileId1, TileId2, X0, Y0, X1, Y1) :-
-	alignNext(_, _, TileId1, X0, Y0)
-	, alignNext(_, _, TileId2, X1, Y1)
+   tileSize(TileId1, _, _), tileSize(TileId2, _, _)
+   , setTile(0, _, _, X0, Y0)
+   , setTile(0, _, _, X1, Y1)
 	, TileId1 == TileId2, X0 == X1, Y0 == Y1
 	.
 
@@ -225,27 +246,6 @@ alignNext(N, PolyId, TileId, X, Y) :-
    % , X = (OldX + OffsetMin - NewTileOffsetMinRight)..(OldX + OffsetMax - NewTileOffsetMaxRight)
    , Y = PY - BaselineOffsetY
    . 
-
-% between(X, OX, OffsetRightMin, OffsetRightMax, OffsetLeftMin, OffsetLeftMax) :-
-%    X1 = OX + OffsetRightMin - OffsetRightMax
-%    , X2 = OX + OffsetRightMax - OffsetRightMin
-%    , MinX = #min{X1;X2}
-%    , MaxX = #max{X1;X2}
-%    , X = MinX..MaxX
-%    .
-
-% #begin_lua
-
-% function between(ox, rmin, rmax, lmin, lmax)
-%    r = {}
-%    a = ox - rmin
-%    b = ox + lmax
-%    for x = a, b do
-%       table.insert(r, x)
-%    end
-% end
-
-% #end_lua.
 
 %% add new tiles right
 alignNext(N, PolyId, TileId, X, Y) :-
