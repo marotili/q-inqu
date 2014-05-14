@@ -2,11 +2,13 @@
 % points(0..150).
 
 % data
+% wall boundary
 polygon(0, 20, 40).
 polygon(1, 130, 40).
 polygon(2, 130, 120).
 polygon(3, 20, 120).
 
+% fill rects from left to right
 polyAlignSide(0, right).
 polyAlignSide(1, bottom).
 polyAlignSide(2, left).
@@ -25,6 +27,7 @@ eligibleCornerPoints(PolyId, X, Y) :-
 	, Y = (Y0 - Height..Y0 + Height)
 	.
 
+% points near the line
 eligibleLinePoints(PolyId, X, Y) :-
 	nextPoly(PolyId, NextPolyId)
 	, polygon(PolyId, X0, Y0)
@@ -39,6 +42,7 @@ eligibleLinePoints(PolyId, X, Y) :-
 polyIds(Id) :- polygon(Id, _, _).
 maxPolyId(N) :- N = #max { Id : polyIds(Id) }.
 
+%
 polyOutside(0, 1, top).
 polyOutside(1, 2, right).
 polyOutside(2, 3, bottom).
@@ -52,12 +56,6 @@ prevPoly(0, MaxId) :- maxPolyId(MaxId).
 
 nextPoly(N, N+1) :- N != N', maxPolyId(N'), polygon(N, _, _).
 nextPoly(MaxId, 0) :- maxPolyId(MaxId).
-
-%prevPolyData(N, X, Y) :- polygon(N-1, X, Y), N != 0.
-%prevPolyData(0, X, Y) :- polygon(MaxId, X, Y), maxPolyId(MaxId).
-
-%nextPolyData(N, X, Y) :- polygon(N+1, X, Y), N != N', maxPolyId(N').
-%nextPolyData(N, X, Y) :- polygon(0, X, Y), maxPolyId(N).
 
 % tileSize(Name, Width, Height)
 tileSize(a, 10, 10).
@@ -341,4 +339,4 @@ alignNext(N, PolyId, TileId, X, Y) :-
 
 align1(N, TileId, X, Y) :- alignNext(N, 1, TileId, X, Y).
 
-%#show setTile/5.
+#show setTile/5.

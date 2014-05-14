@@ -1,0 +1,19 @@
+
+#const maxRooms = 12.
+#const minRooms = 6.
+
+minWidth(4).
+minHeight(4).
+maxWidth(12).
+maxHeight(12).
+
+roomWidth(4..12).
+roomHeight(4..12).
+
+roomId(id).
+roomSize(roomId(id), w, h).
+roomType(roomId(id), roomTypes(type)).
+
+roomTypes(type).
+
+
