@@ -35,6 +35,6 @@ main = do
 		=~ "setTile\\(([0-9]+),([0-9]+),([a-z]+),([0-9]+),([0-9]+)\\)" :: [[String]]
 		) test
 
-	let t = map (map newTile) lines
+	let t = map (newTileAnswer . map newTile) lines
 
 	print t

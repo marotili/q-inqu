@@ -4,35 +4,46 @@ module Game.Game where
 import Control.Lens
 import Debug.Trace
 import qualified Game.Render.World as R
-
+	
 import qualified Game.World.Common as G
-import qualified Game.World.Objects as G
-import qualified Game.World.ObjectData as G
-import qualified Game.World.Delta as G
-import qualified Game.World as G
-import qualified Game.Render.Update as U
-import Game.Render.Walls
-
-import qualified Game.World.Gen as Gen
-import qualified Game.World.Gen.Terrain as Gen
-
-import qualified Game.World.Import.Tiled as T
-import qualified Data.Tiled as T
-import Game.World.Wires
-import Game.World.Lens
-import qualified Data.Set as Set
-import qualified Data.Map as Map
-import qualified Control.Wire as W
-import qualified Control.Wire.Unsafe.Event as W
-
-import Control.Monad.State.Strict
-import Control.Monad.RWS.Strict
-
-import Game.World.Common
-import Game.World.Unit
-
+import qualified Game.World.Objects as G 
+import qualified Game.World.ObjectData as G 
+import qualified Game.World.Delta as G 
+import qualified Game.World as G 
+import qualified Game.Render.Update as U 
+import Game.Render.Walls 
+import qualified Game.World.Gen as Gen 
+import qualified Game.World.Gen.Terrain as Gen 
+import qualified Game.World.Import.Tiled as T 
+import qualified Data.Tiled as T 
+import Game.World.Wires 
+import Game.World.Lens 
+import qualified Data.Set as Set 
+--import qualified Data.Map as Map 
+import qualified Control.Wire as W 
+import qualified Control.Wire.Unsafe.Event as W 
+import Control.Monad.State.Strict 
+import Control.Monad.RWS.Strict 
+import Game.World.Common 
+import Game.World.Unit 
 import Control.Arrow
 import System.Random
+
+data GameConfig = GameConfig
+	{ _gameConfigName :: String
+	, _gameInitialTiled :: !T.TiledMap
+	, _gameInitialWire :: !(G.WorldWire () ())
+	}
+
+--genDefaultGame :: IO Game
+
+---- make world
+--defaultGame = do
+--	tiledMap <- T.tMap
+--	let genMap = Gen.mkGenWorld
+--	return $ GameConfig 
+--		{ _gameName = "Q-inqu"
+--		}
 
 data Game = Game
 	{ _gameName :: !String
@@ -49,101 +60,8 @@ data Game = Game
 
 newRenderConfig :: R.RenderConfig
 newRenderConfig = execState (do
+		return ()
 		-- players
-		R.rcTiles . at "Player1S1" .= Just ("sprite_klein3", 0)
-		R.rcTiles . at "Player1S2" .= Just ("sprite_klein3", 1)
-		R.rcTiles . at "Player1S3" .= Just ("sprite_klein3", 2)
-		R.rcTiles . at "Player1S4" .= Just ("sprite_klein3", 3)
-
-		R.rcTiles . at "Player1N1" .= Just ("sprite_klein3", 8)
-		R.rcTiles . at "Player1N2" .= Just ("sprite_klein3", 9)
-		R.rcTiles . at "Player1N3" .= Just ("sprite_klein3", 10)
-		R.rcTiles . at "Player1N4" .= Just ("sprite_klein3", 11)
-
-		R.rcTiles . at "Player1W1" .= Just ("sprite_klein3", 16)
-		R.rcTiles . at "Player1W2" .= Just ("sprite_klein3", 17)
-		R.rcTiles . at "Player1W3" .= Just ("sprite_klein3", 18)
-		R.rcTiles . at "Player1W4" .= Just ("sprite_klein3", 19)
-
-		R.rcTiles . at "Player1E1" .= Just ("sprite_klein3", 28)
-		R.rcTiles . at "Player1E2" .= Just ("sprite_klein3", 29)
-		R.rcTiles . at "Player1E3" .= Just ("sprite_klein3", 30)
-		R.rcTiles . at "Player1E4" .= Just ("sprite_klein3", 31)
-
-		R.rcTiles . at "Player2S1" .= Just ("ghost_sprite", 0)
-		R.rcTiles . at "Player2S2" .= Just ("ghost_sprite", 1)
-		R.rcTiles . at "Player2S3" .= Just ("ghost_sprite", 2)
-		R.rcTiles . at "Player2S4" .= Just ("ghost_sprite", 3)
-
-		R.rcTiles . at "Player2N1" .= Just ("ghost_sprite", 4)
-		R.rcTiles . at "Player2N2" .= Just ("ghost_sprite", 5)
-		R.rcTiles . at "Player2N3" .= Just ("ghost_sprite", 6)
-		R.rcTiles . at "Player2N4" .= Just ("ghost_sprite", 7)
-
-		R.rcTiles . at "Player2W1" .= Just ("ghost_sprite", 8)
-		R.rcTiles . at "Player2W2" .= Just ("ghost_sprite", 9)
-		R.rcTiles . at "Player2W3" .= Just ("ghost_sprite", 10)
-		R.rcTiles . at "Player2W4" .= Just ("ghost_sprite", 11)
-
-		R.rcTiles . at "Player2E1" .= Just ("ghost_sprite", 12)
-		R.rcTiles . at "Player2E2" .= Just ("ghost_sprite", 13)
-		R.rcTiles . at "Player2E3" .= Just ("ghost_sprite", 14)
-		R.rcTiles . at "Player2E4" .= Just ("ghost_sprite", 15)
-
-		R.rcTiles . at "Player2E4" .= Just ("ghost_sprite", 15)
-		R.rcTiles . at "Player2E4" .= Just ("ghost_sprite", 15)
-
-		R.rcTiles . at "Player3S1" .= Just ("dino", 0)
-		R.rcTiles . at "Player3S2" .= Just ("dino", 1)
-		R.rcTiles . at "Player3S3" .= Just ("dino", 2)
-		R.rcTiles . at "Player3S4" .= Just ("dino", 3)
-
-		R.rcTiles . at "Player4S1" .= Just ("dino", 4)
-		R.rcTiles . at "Player4S2" .= Just ("dino", 5)
-		R.rcTiles . at "Player4S3" .= Just ("dino", 6)
-		R.rcTiles . at "Player4S4" .= Just ("dino", 7)
-
-		-- arrows
-		R.rcTiles . at "ArrowW" .= Just ("arrow", 0)
-		R.rcTiles . at "ArrowNW" .= Just ("arrow", 1)
-		R.rcTiles . at "ArrowN" .= Just ("arrow", 2)
-		R.rcTiles . at "ArrowNE" .= Just ("arrow", 3)
-		R.rcTiles . at "ArrowE" .= Just ("arrow", 4)
-		R.rcTiles . at "ArrowSE" .= Just ("arrow", 5)
-		R.rcTiles . at "ArrowS" .= Just ("arrow", 6)
-		R.rcTiles . at "ArrowSW" .= Just ("arrow", 7)
-
-		R.rcTiles . at "WallW2" .= Just ("sewer_tileset", 8)
-		R.rcTiles . at "WallS2" .= Just ("sewer_tileset", 9)
-		R.rcTiles . at "WallE2" .= Just ("sewer_tileset", 10)
-
-		-- duplicates
-		R.rcTiles . at "WallSW2" .= Just ("sewer_tileset", 8)
-		R.rcTiles . at "WallSE2" .= Just ("sewer_tileset", 10)
-
-		R.rcTiles . at "WallSW1" .= Just ("sewer_tileset", 16)
-		R.rcTiles . at "WallS1" .= Just ("sewer_tileset", 17)
-		R.rcTiles . at "WallSE1" .= Just ("sewer_tileset", 18)
-
-		R.rcTiles . at "WallN3" .= Just ("sewer_tileset", 4)
-		R.rcTiles . at "WallNE3" .= Just ("sewer_tileset", 5)
-		R.rcTiles . at "WallE3" .= Just ("sewer_tileset", 13)
-		R.rcTiles . at "WallSE3" .= Just ("sewer_tileset", 21)
-		R.rcTiles . at "WallS3" .= Just ("sewer_tileset", 1)
-		R.rcTiles . at "WallSW3" .= Just ("sewer_tileset", 19)
-		R.rcTiles . at "WallW3" .= Just ("sewer_tileset", 11)
-		R.rcTiles . at "WallNW3" .= Just ("sewer_tileset", 3)
-		R.rcTiles . at "WallCenter3" .= Just ("sewer_tileset", 12)
-
-		R.rcTiles . at "WallOuterNW3" .= Just ("sewer_tileset", 6)
-		R.rcTiles . at "WallOuterNE3" .= Just ("sewer_tileset", 7)
-		R.rcTiles . at "WallOuterSW3" .= Just ("sewer_tileset", 22)
-		R.rcTiles . at "WallOuterSE3" .= Just ("sewer_tileset", 23)
-
-		R.rcTiles . at "FinalFloor" .= Just ("sewer_tileset", 33)
-		R.rcTiles . at "NoMatch" .= Just ("sewer_tileset", 40)
-		R.rcTiles . at "Wall" .= Just ("sewer_tileset", 41)
-
 		--R.rcTiles . at "ItemBolt" .= Just ("items", 2)
 	) $ R.emptyConfig
 
