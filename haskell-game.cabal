@@ -19,7 +19,12 @@ source-repository head
 --   netwire
 --  default-language:    Haskell2010
 
-library
+library game
+    default-language: Haskell2010
+    exposed-modules:
+
+
+library engine
     default-language: Haskell2010
     exposed-modules:
         Game.Input.Input
@@ -39,11 +44,11 @@ library
         Game.Render.Update
 
         Game.Render.Walls
-        
-        Game.Collision 
+
+        Game.Collision
 
         Game.World.Unit
-        
+
         Game.World
         Game.World.Visibility
         Game.World.Types
@@ -116,7 +121,8 @@ executable server
     hs-source-dirs: src/server
     build-depends:
         base,
-        cell,
+        engine,
+        game,
         pipes-binary >= 0.2.0 && < 0.3,
         pipes-concurrency >= 2.0.0 && < 2.1,
         pipes-network >= 0.6.0 && < 0.7.0,
@@ -145,7 +151,7 @@ executable tests
     main-is: TestMain.hs
     build-depends:
         base,
-        cell,
+        engine,
         HUnit,
         lens
     ghc-options: -rtsopts -threaded -fprof-auto -Wall
@@ -156,7 +162,8 @@ executable soundTests
     main-is: Sound.hs
     build-depends:
         base,
-        OpenAL
+        OpenAL,
+        ALUT
     ghc-options: -rtsopts -threaded -fprof-auto -Wall
 
 executable wireTests
@@ -166,7 +173,7 @@ executable wireTests
     build-depends:
         base,
         netwire,
-        cell,
+        engine,
         HUnit,
         lens
     ghc-options: -rtsopts -threaded -fprof-auto -Wall
@@ -194,7 +201,7 @@ executable parseRoom
         lens,
         transformers,
         bytestring,
-        cell,
+        engine,
         pipes-binary,
         async,
         pipes-concurrency,
@@ -209,7 +216,7 @@ executable parseRoom
         netwire,
         stm
 
-    ghc-options: -rtsopts -threaded -fprof-auto -Wall   
+    ghc-options: -rtsopts -threaded -fprof-auto -Wall
 
 executable atlas
     default-language: Haskell2010
@@ -218,7 +225,7 @@ executable atlas
     buildable:False
     build-depends:
         base,
-        cell,
+        engine,
         lens,
         aeson,
         bytestring,
@@ -238,7 +245,8 @@ executable client
     hs-source-dirs: src/client
     build-depends:
         base,
-        cell,
+        engine,
+        game,
         pipes-binary >= 0.2.0 && < 0.3,
         pipes-concurrency >= 2.0.0 && < 2.1,
         pipes-network >= 0.6.0 && < 0.7.0,
@@ -265,4 +273,3 @@ executable client
 
   ghc-options: -rtsopts -threaded -fprof-auto -Wall
   main-is: main.hs
-

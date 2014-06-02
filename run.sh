@@ -1,6 +1,6 @@
 dist/build/server/server +RTS -K16M &
 pid=$!
-sleep 1
+sleep 2
 dist/build/client/client +RTS -N4 -c -A4096k -K16M &
 pid3=$!
 dist/build/client/client +RTS -N4 -c -A4096k -K16M 
