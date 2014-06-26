@@ -1,5 +1,5 @@
 {-# LANGUAGE NamedFieldPuns, Rank2Types, TemplateHaskell #-}
-module Game.Render.Map 
+module Game.Render.Map
 	(
 	  WorldRenderContext
 	, newWorldRenderContext
@@ -77,16 +77,16 @@ wTileData = to (\ids -> V.fromList $ concatMap (\tId -> concat . take 6 . repeat
 wMeshData :: WorldRenderContext -> Getter [(Float, Float, Float, Float, Float, Float, Int)] (V.Vector Word32)
 wMeshData wrc = to (\meshs -> V.fromList $ concatMap
 	(\(px, py, sx', sy', imgW, imgH, tsId) ->
-		let 
+		let
 			sx = floatToWord sx'
 			sy = floatToWord sy'
-			tx0 = (floatToWord $ ((px) / imgW)) ::  Word32 
-			tx1 = (floatToWord $ (px + sx') / imgW) ::  Word32 
-			ty0 = (floatToWord $ ((py) / imgH)) ::  Word32 
-			ty1 = (floatToWord $ (py + sy') / imgH) ::  Word32 
+			tx0 = (floatToWord $ ((px) / imgW)) ::  Word32
+			tx1 = (floatToWord $ (px + sx') / imgW) ::  Word32
+			ty0 = (floatToWord $ ((py) / imgH)) ::  Word32
+			ty1 = (floatToWord $ (py + sy') / imgH) ::  Word32
 			imgId = (fromIntegral . fromJust $ wrc^?wrcTextures.at tsId._Just._1) :: Word32
 			zero = 0 :: Word32
-		in let x = 
+		in let x =
 			[ zero, zero, tx0, ty1, imgId, zero, zero, zero
 			, sx, zero, tx1, ty1, imgId, zero, zero, zero
 			, sx, sy, tx1, ty0, imgId, zero, zero, zero
@@ -95,25 +95,25 @@ wMeshData wrc = to (\meshs -> V.fromList $ concatMap
 			, zero, zero, tx0, ty1, imgId, zero, zero, zero
 			] in x
 		) meshs
-	) 
+	)
 
 wTilesetData :: WorldRenderContext -> Getter R.World (V.Vector Int32)
 wTilesetData wrc = to get
 	where
 		get world = V.fromList $ (map fromIntegral $ concat $
-			sortBy tsInitialIdSort $ map(\(i, id, mts) -> 
+			sortBy tsInitialIdSort $ map(\(i, id, mts) ->
 				case mts of
 					Just ts -> tsData i ts id
 					Nothing -> error "tileset not found"
 					)
 				$ zip3 [0..] ids tss) ++ padding
 			where
-				tsInitialIdSort (tsId:xs) (tsId2:ys) 
+				tsInitialIdSort (tsId:xs) (tsId2:ys)
 					| tsId < tsId2 = LT
 					| otherwise = GT
 				ids = Map.keys (world^.R.mapTilesets)
 				tss = map (\tsId -> world^.R.mapTilesets.at tsId) ids
-				tsData img ts tsId = 
+				tsData img ts tsId =
 					[ world^?!R.mapTsOffsets.at tsId._Just
 					, ts^.R.tsImage.R.iWidth
 					, ts^.R.tsImage.R.iHeight
@@ -141,17 +141,17 @@ updateWorldRenderContext wrc = do
 	mapM_ (\layerId -> do
 		let layerName = wrc^.wrcWorld.R.wLayerName layerId
 		let Just layerBuf = wrc^.wrcLayerSSBs.at layerId
-		let Just posBuf = wrc^.wrcPosSSBs.at layerId 
+		let Just posBuf = wrc^.wrcPosSSBs.at layerId
 		let Just elementBuf = wrc^.wrcElements.at layerId
 		let Just meshBuf = wrc^.wrcMeshSSBs.at layerId
 
-		updateNewFromVec GL.ArrayBuffer layerBuf 
+		updateFromVec GL.ArrayBuffer layerBuf
 			(wrc^.wrcWorld.R.wTileIds layerName.wTileData)
-		updateNewFromVec GL.ArrayBuffer posBuf 
+		updateFromVec GL.ArrayBuffer posBuf
 			(wrc^.wrcWorld.R.wTilePos layerName.wPosData)
-		updateNewFromVec GL.ArrayBuffer meshBuf
+		updateFromVec GL.ArrayBuffer meshBuf
 			(wrc^.wrcWorld.R.wTileMesh layerName.wMeshData wrc)
-		updateNewFromVec GL.ElementArrayBuffer elementBuf 
+		updateFromVec GL.ElementArrayBuffer elementBuf 
 			(wElementData (wrc^.wrcWorld) layerName)
 		) (Set.toList $ wrc^.wrcWorld.R.mapUpdateLayers)
 
@@ -168,8 +168,8 @@ newWorldRenderContext world program = do
 	logGL "newWorldRenderContext: genVaos"
 
 	imageTextures <- GL.genObjectNames (
-		Map.size (world^.R.mapTilesets) + 
-		Map.size (world^.R.mapComplexTilesets) 
+		Map.size (world^.R.mapTilesets) +
+		Map.size (world^.R.mapComplexTilesets)
 		) :: IO [GL.TextureObject]
 	logGL "newWorldRenderContext: Textures"
 
@@ -193,7 +193,7 @@ newWorldRenderContext world program = do
 
 			mapM_ (\(tilesetId, i, textureObj) -> do
 				wrcTextures.at tilesetId .= Just (i, textureObj)
-					) $ 
+					) $
 				zip3 (
 					(Map.keys $ world^.R.mapTilesets) ++
 					(Map.keys $ world^.R.mapComplexTilesets)
@@ -208,11 +208,11 @@ newWorldRenderContext world program = do
 			let Just posBuf = wrc^.wrcPosSSBs.at layerId
 			let Just meshBuf = wrc^.wrcMeshSSBs. at layerId
 			let Just elementBuf = wrc^.wrcElements.at layerId
-			
-			uploadFromVec 0 GL.ArrayBuffer layerBuf (world^.R.wTileIds layerName.wTileData)
-			uploadFromVec 0 GL.ArrayBuffer posBuf (world^.R.wTilePos layerName.wPosData)
-			uploadFromVec 0 GL.ArrayBuffer meshBuf (world^.R.wTileMesh layerName.wMeshData wrc)
-			uploadFromVec 0 GL.ElementArrayBuffer elementBuf (wElementData (wrc^.wrcWorld) layerName)
+
+			uploadFromVec 1000 GL.ArrayBuffer layerBuf (world^.R.wTileIds layerName.wTileData)
+			uploadFromVec 1000 GL.ArrayBuffer posBuf (world^.R.wTilePos layerName.wPosData)
+			uploadFromVec 1000 GL.ArrayBuffer meshBuf (world^.R.wTileMesh layerName.wMeshData wrc)
+			uploadFromVec 1000 GL.ElementArrayBuffer elementBuf (wElementData (wrc^.wrcWorld) layerName)
 
 		) (Map.keys $ world^.R.mapLayers)
 
@@ -239,8 +239,8 @@ newWorldRenderContext world program = do
 			Right s -> case s of
 				(P.ImageRGBA8 (P.Image imgWidth imgHeight dat)) ->
 					V.unsafeWith dat $ \ptr -> do
-						GL.texImage2D GL.Texture2D GL.NoProxy 0 GL.RGBA8 
-							(GL.TextureSize2D (fromIntegral imgWidth) (fromIntegral imgHeight)) 0 
+						GL.texImage2D GL.Texture2D GL.NoProxy 0 GL.RGBA8
+							(GL.TextureSize2D (fromIntegral imgWidth) (fromIntegral imgHeight)) 0
 							(GL.PixelData GL.RGBA GL.UnsignedByte ptr)
 						logGL "newWorldRenderContext: texImage2D"
 						GL.textureFilter GL.Texture2D $= ((GL.Nearest, Nothing), GL.Nearest)
@@ -265,7 +265,7 @@ newWorldRenderContext world program = do
 			let Just posBuf = wrc^.wrcPosSSBs.at layerId
 			let Just vao = wrc^.wrcVaos.at layerId
 
-			GL.bindVertexArrayObject $= (Just vao)	
+			GL.bindVertexArrayObject $= (Just vao)
 			GL.AttribLocation tileIdLoc <- GL.get $ GL.attribLocation program "tileId"
 			GL.AttribLocation posLoc <- GL.get $ GL.attribLocation program "pos"
 			GL.AttribLocation originLoc <- GL.get $ GL.attribLocation program "origin"
@@ -361,7 +361,7 @@ renderWorldRenderContext program wrc playerId = do
 	logGL "renderWorldRenderContext: getUniformBlockIndex"
 	GL.bindBufferBase' GL.UniformBuffer tilesetIndex (wrc^.wrcTilesetSSB)
 	logGL "renderWorldRenderContext: bindBufferBase' tilesetIndex"
-	GL.uniformBlockBinding program tilesetIndex tilesetIndex	
+	GL.uniformBlockBinding program tilesetIndex tilesetIndex
 	logGL "renderWorldRenderContext: uniformBlockBinding tilesetIndex"
 
 	isComplex <- GL.get $ GL.uniformLocation program "isComplex"

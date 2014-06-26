@@ -45,7 +45,7 @@ import qualified Game.Input.Actions as A
 import Game.World.AI.Basic
 import Game.Network.Client
 
-type ProdDecoder a = (Monad m)	 
+type ProdDecoder a = (Monad m)
 	=> Producer B.ByteString m r
 	-> Producer' (PB.ByteOffset, a) m (Either (PB.DecodingError, Producer B.ByteString m r) r)
 decodeAction :: ProdDecoder FromClientData
@@ -73,7 +73,7 @@ produceWorld session' lastDt total = do
 	(dt, session) <- lift $ stepSession session'
 
 	let time = dt
-	let 
+	let
 		finalTime :: Rational
 		finalTime = (realToFrac . dtime $ time) + lastDt
 
@@ -108,7 +108,7 @@ fakeClient !game = do
 				gameWorldManager .= manager2
 				--updateGame dt
 				updateOnlyGame dt
-				world <- use gameLogicWorld 
+				world <- use gameLogicWorld
 				worldDelta <- use gameLastDelta
 				manager <- use gameWorldManager
 
@@ -117,11 +117,11 @@ fakeClient !game = do
 				return (aiInput1, aiInput2)
 			) game
 
-		mapM_ (\a -> P.yield (0, 3, a)) $ Set.toList actions1 
+		mapM_ (\a -> P.yield (0, 3, a)) $ Set.toList actions1
 		mapM_ (\a -> P.yield (0, 4, a)) $ Set.toList actions2
 		newGame `seq` fakeClient newGame
 
-runFakeClient input output game = 
+runFakeClient input output game =
 	void (decodeSteps (fromInput input)) >-> fakeClient game >-> toOutput output
 
 runGame :: Input FromClientData -> Output C.ByteString -> IO ()
@@ -136,7 +136,7 @@ runGame recvEvents output = do
 		--eventProducer :: Producer (Float, A.Action) IO ()
 		eventProducer = P.for (fromInput recvEvents) P.yield
 	runEffect $
-		P.for (eventProducer >-> worldProducer) PB.encode 
+		P.for (eventProducer >-> worldProducer) PB.encode
 			>-> toOutput output
 	performGC
 
@@ -149,11 +149,11 @@ eventUpdate n = do
 		else return ()
 	lift $ threadDelay (1000000 `div` 60)
 	eventUpdate n'
- 
+
 main :: IO ()
 main = withSocketsDo $ do
 	(output1, input1) <- spawn Unbounded
-	(output2, input2) <- spawn Unbounded
+	-- (output2, input2) <- spawn Unbounded
 	(output3, input3) <- spawn Unbounded
 
 	(sendEvents1, recvEvents1) <- spawn Unbounded :: IO (Output FromClientData, Input FromClientData)
@@ -164,7 +164,8 @@ main = withSocketsDo $ do
 
 	let recvEvents = recvEvents1
 	--let sendEvents = sens
-	let output = output1 Monoid.<> output2 Monoid.<> output3
+	-- let output = output1 Monoid.<> output2 Monoid.<> output3
+	let output = output1 Monoid.<> output3
 
 	_ <- async $ do
 		runEffect $ eventUpdate 0 >-> toOutput sendEvents1
@@ -178,9 +179,9 @@ main = withSocketsDo $ do
 		performGC
 
 	_ <- async $ do
-		serve HostIPv4 "5002" (connCb (numClient, sendEvents1, input1, input2))
+		serve HostIPv4 "5002" (connCb (numClient, sendEvents1, input1, input1))
 
-	mapM_ wait [a1, a2]
+	mapM_ wait [a2]
 
 	return ()
 
@@ -194,7 +195,7 @@ forward = do
 		forward
 
 --connCb :: (Output (Float, A.Action), Input C.ByteString, Input C.ByteString)
-	-- -> (Socket, SockAddr) 
+	-- -> (Socket, SockAddr)
 	 -- > IO ()
 connCb :: (TVar Int, Output (Float, Int, A.Action), Input C.ByteString, Input C.ByteString)
 	-> (Socket, SockAddr) -> IO ()
@@ -230,7 +231,8 @@ connCb (numClient, sendEvents, input1, input2) (sock, _) = do
 
 		--runEffect $ (P.yield "Test" >-> cons)
 		_ <- async $ do
-			runEffect $ fromInput (if cl == 0 then input1 else input2) >-> toClient
+			-- runEffect $ fromInput (if cl == 0 then input1 else input2) >-> toClient
+			runEffect $ fromInput (input1) >-> toClient
 			performGC
 		a2 <- async $ do
 			runEffect $ testX >-> forward >-> toOutput sendEvents

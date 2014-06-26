@@ -35,7 +35,7 @@ type Renderer = RWS (World, WorldDelta, [Renderable]) [Renderable] R.World
 
 -- * TODO: fix monad
 whenMaybeDo :: (Monad m) => Maybe a -> (a -> m ()) -> m ()
-whenMaybeDo m f = 
+whenMaybeDo m f =
 	case m of
 		Just v -> f v
 		Nothing -> return ()
@@ -81,7 +81,7 @@ update :: Renderer ()
 update = do
 	(world, _, renderables) <- ask
 	mapM_ (\obj -> do
-			let oId = obj^.objId 
+			let oId = obj^.objId
 			let Just oPos = world^.objectPosition oId
 			let mRot = world^.objectRotation oId
 
@@ -92,7 +92,7 @@ update = do
 			wLayerObject "CObjectLayer" (obj^.objName) . _Just . roPos .= oPos
 			case mRot of
 				Just rot -> do
-					wLayerObject "CObjectLayer" (obj^.objName) 
+					wLayerObject "CObjectLayer" (obj^.objName)
 						. _Just . roRotation .= rot
 				Nothing -> return ()
 
@@ -103,9 +103,9 @@ update = do
 			whenMaybeDo mTileName (\tileName -> do
 				-- tileset of tile
 
-				--let Just (tilesetName, localTileId) = 
+				--let Just (tilesetName, localTileId) =
 				--	tileMap ^. L.at tileName
-
+				-- wLayerObject "CObjectLayer" (obj^.objName) . _Just . roTileName .= tileName
 				wSetObjectPrefab (obj^.objName) tileName
 
 				--case tileMap ^. L.at tileName of
