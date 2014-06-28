@@ -47,9 +47,10 @@ import Game.Network.Client
 
 type ProdDecoder a = (Monad m)
 	=> Producer B.ByteString m r
-	-> Producer' (PB.ByteOffset, a) m (Either (PB.DecodingError, Producer B.ByteString m r) r)
+	-> Producer (PB.ByteOffset, a) m (Either (PB.DecodingError, Producer B.ByteString m r) r)
 decodeAction :: ProdDecoder FromClientData
-decodeAction = PB.decodeMany
+-- decodeAction = PB.decodeMany
+decodeAction = \bytes -> bytes^.PB.decoded -- decodeMany
 
 
 
