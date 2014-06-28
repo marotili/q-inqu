@@ -33,11 +33,11 @@ import Game.Render.Update
 
 type ProdDecoder a = (Monad m)	 
 	=> Producer B.ByteString m r
-	-> Producer' (ByteOffset, a) m (Either (DecodingError, Producer B.ByteString m r) r)
+	-> Producer (ByteOffset, a) m (Either (DecodingError, Producer B.ByteString m r) r)
 
 
 decodeSteps :: ProdDecoder ([(PlayerId, A.Action)], Rational)
-decodeSteps = decodeMany
+decodeSteps = \bytes -> bytes^.decoded -- decodeMany
 
 
 
