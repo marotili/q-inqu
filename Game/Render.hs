@@ -6,13 +6,13 @@ import qualified Graphics.Rendering.OpenGL as GL
 import qualified Graphics.UI.GLFW as GLFW
 
 import Game.Render.Map
-import Game.Render.Render
-import Game.Render.Camera
+import Game.Render.Core.Render
+import Game.Render.Core.Camera
 import Game.Render.Light
 
 import Control.Lens
 
-import Game.Render.Error
+import Game.Render.Core.Error
 import Game.World.Import.Tiled
 import Game.World.Common
 import Game.World
@@ -23,10 +23,10 @@ import Game.Game
 data RenderContext = RenderContext
 	{ _rcPlayerId :: Int
 	, _rcMainProgram :: Program
-	, _rcWorldRenderContext :: WorldRenderContext
-	, _rcLightContext :: LightContext
-	, _rcVisibilityContext :: VisibilityContext
-	, _rcUIRenderContext :: WorldRenderContext
+	--, _rcWorldRenderContext :: WorldRenderContext
+	--, _rcLightContext :: LightContext
+	--, _rcVisibilityContext :: VisibilityContext
+	--, _rcUIRenderContext :: WorldRenderContext
 	}
 makeLenses ''RenderContext
 
@@ -36,26 +36,26 @@ newRenderContext playerId game = do
 	GL.blend $= GL.Enabled
 	logGL "newRenderContext: blend setup failed"
 
-	let nWorld = game^.gameRenderWorld
+	--let nWorld = game^.gameRenderWorld
 
-	let uiWorld = mkUIWorld game
+	--let uiWorld = mkUIWorld game
 	program <- setupShaders "shader.vert" "shader.frag"
 	_ <- uniformInfo program
-	wrc <- newWorldRenderContext nWorld program
-	uirc <- newWorldRenderContext uiWorld program
-	lc <- newLightContext
+	--wrc <- newWorldRenderContext nWorld program
+	--uirc <- newWorldRenderContext uiWorld program
+	--lc <- newLightContext
 
-	let world = game^.gameLogicWorld
+	--let world = game^.gameLogicWorld
 
-	vc <- newVisibilityContext (world^.wCollisionManager) (0, 0)
+	--vc <- newVisibilityContext (world^.wCollisionManager) (0, 0)
 
 	return RenderContext
 		{ _rcPlayerId = playerId
 		, _rcMainProgram = program
-		, _rcWorldRenderContext = wrc
-		, _rcLightContext = lc
-		, _rcVisibilityContext = vc
-		, _rcUIRenderContext = uirc
+		--, _rcWorldRenderContext = wrc
+		--, _rcLightContext = lc
+		--, _rcVisibilityContext = vc
+		--, _rcUIRenderContext = uirc
 		}
 
 clearWindow :: GLFW.Window -> IO ()
@@ -74,12 +74,12 @@ render window rc cam = do
 	--(width, height) <- GLFW.getFramebufferSize window
 	clearWindow window
 
-	logGL "render: set current program"
+	--logGL "render: set current program"
 
-	let world = rc^.rcWorldRenderContext.wrcWorld
+	--let world = rc^.rcWorldRenderContext.wrcWorld
 
-	let Just (x, y) = world^?wLayerObject "CObjectLayer" ("Player" ++ show (rc^.rcPlayerId))._Just.roPos
-	let newCam = cameraUpdatePosition cam (-x) (-y)
+	--let Just (x, y) = world^?wLayerObject "CObjectLayer" ("Player" ++ show (rc^.rcPlayerId))._Just.roPos
+	let newCam = cam -- cameraUpdatePosition cam (-x) (-y)
 
 	let newRc = rc -- & rcLightContext.lcLights._head.lightPosition .~ (-x, y)
 
@@ -97,18 +97,18 @@ render window rc cam = do
 	--GL.stencilFunc $= (GL.Equal, 0, 255)
 	--GL.stencilFunc $= (GL.Equal, 1, 255)
 
-	GL.currentProgram $= Just (newRc^.rcMainProgram)
-	programSetViewProjection (newRc^.rcMainProgram) newCam
-	updateWorldRenderContext (newRc^.rcWorldRenderContext)
-	renderWorldRenderContext (newRc^.rcMainProgram) (newRc^.rcWorldRenderContext) (rc^.rcPlayerId)
+	--GL.currentProgram $= Just (newRc^.rcMainProgram)
+	--programSetViewProjection (newRc^.rcMainProgram) newCam
+	--updateWorldRenderContext (newRc^.rcWorldRenderContext)
+	--renderWorldRenderContext (newRc^.rcMainProgram) (newRc^.rcWorldRenderContext) (rc^.rcPlayerId)
 
-	GL.stencilTest $= GL.Disabled
+	--GL.stencilTest $= GL.Disabled
 
-	let uirc = newRc^.rcUIRenderContext
-	GL.currentProgram $= Just (newRc^.rcMainProgram)
-	programSetViewProjection (newRc^.rcMainProgram) (cameraSetOriginTopLeft newCam)
-	updateWorldRenderContext uirc
-	renderWorldRenderContext (newRc^.rcMainProgram) uirc 0
+	--let uirc = newRc^.rcUIRenderContext
+	--GL.currentProgram $= Just (newRc^.rcMainProgram)
+	--programSetViewProjection (newRc^.rcMainProgram) (cameraSetOriginTopLeft newCam)
+	--updateWorldRenderContext uirc
+	--renderWorldRenderContext (newRc^.rcMainProgram) uirc 0
 
 	return newCam
 

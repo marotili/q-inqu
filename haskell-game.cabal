@@ -29,13 +29,14 @@ library
 
         Game.World.AI.Basic
 
-        Game.Render.Text
-        Game.Render.Render
+        Game.Render.Core.Text
+        Game.Render.Core.Render
+        Game.Render.Core.Camera
+        Game.Render.Core.Error
+
         Game.Render.Map
-        Game.Render.Camera
         Game.Render.Light
         Game.Render
-        Game.Render.Error
         Game.Render.World
         Game.Render.Update
 
@@ -92,7 +93,7 @@ library
         htiled == 0.1.2.1,
         network-simple >= 0.3,
         async >= 2.0,
-        pipes-binary >= 0.2.0,
+        pipes-binary >= 0.3.0,
         pipes-concurrency >= 2.0.0,
         pipes-network >= 0.6.0,
         pipes >= 4.0.0,
@@ -142,17 +143,6 @@ executable server
         Octree >= 0.5
     ghc-options: -rtsopts -threaded -fprof-auto -Wall
     main-is: Server.hs
-
-executable tests
-    default-language: Haskell2010
-    hs-source-dirs: tests/Render
-    main-is: TestMain.hs
-    build-depends:
-        base,
-        cell,
-        HUnit,
-        lens
-    ghc-options: -rtsopts -threaded -fprof-auto -Wall
 
 executable testText
     default-language: Haskell2010

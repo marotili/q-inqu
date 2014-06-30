@@ -39,7 +39,7 @@ import Game.Input.Actions
 
 import Linear
 
-import Game.Render.Camera
+import Game.Render.Core.Camera
 import Control.Lens
 
 data XCButtons = 

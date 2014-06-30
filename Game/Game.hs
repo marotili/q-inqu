@@ -50,7 +50,7 @@ data Game = Game
 	, _gameTiled :: !T.TiledMap
 	, _gamePlayerStartPos :: !(Float, Float)
 	, _gameLogicWorld :: !G.World
-	, _gameRenderWorld :: !R.World
+	, _gameRenderWorld :: !R.RenderWorld
 	, _gameLastDelta :: !G.WorldDelta
 	, _gameWorldManager :: !G.WorldManager
 	, _gameRenderObjects :: ![U.Renderable]
@@ -58,12 +58,12 @@ data Game = Game
 	, _gameGenMap :: !Gen.GenMap
 	}
 
-newRenderConfig :: R.RenderConfig
-newRenderConfig = execState (do
-		return ()
-		-- players
-		--R.rcTiles . at "ItemBolt" .= Just ("items", 2)
-	) $ R.emptyConfig
+--newRenderConfig :: R.RenderConfig
+--newRenderConfig = execState (do
+--		return ()
+--		-- players
+--		--R.rcTiles . at "ItemBolt" .= Just ("items", 2)
+--	) $ R.emptyConfig
 
 makeLenses ''Game
 
@@ -74,11 +74,11 @@ newGame name = do
 	(oldWorld, newWorld, delta, manager) <- mkGameWorld tiledMap (50, -200) genMap
 	--print delta 
 
-	complexTileset <- traceShow (delta, newWorld) $ R.load 
+	--complexTileset <- traceShow (delta, newWorld) $ R.load 
 
 	stdGen <- getStdGen
 
-	let renderWorld = mkRenderWorld tiledMap delta genMap complexTileset stdGen
+	let renderWorld = R.emptyRenderWorld -- mkRenderWorld tiledMap delta genMap complexTileset stdGen
 	let (newRenderWorld, newRenderables) = 
 		updateRender delta oldWorld newWorld renderWorld []
 
@@ -172,43 +172,43 @@ updateGame dt = do
 
 	return ()
 
-mkRenderWorld :: T.TiledMap -> G.WorldDelta -> Gen.GenMap -> R.LoadTileset -> StdGen -> R.World
-mkRenderWorld tiledMap delta genMap complexTileset gen = nWorld
+mkRenderWorld :: T.TiledMap -> G.WorldDelta -> Gen.GenMap -> a -> StdGen -> R.RenderWorld
+mkRenderWorld tiledMap delta genMap complexTileset gen = R.emptyRenderWorld -- nWorld
 	where	
-		renderWorld = R.loadMapFromTiled tiledMap
-			& R.wRenderConfig .~ newRenderConfig
+		--renderWorld = R.loadMapFromTiled tiledMap
+			-- & R.wRenderConfig .~ newRenderConfig
 
-		nWorld = let w1 = 
-				R.wUpdate (do
-					R.loadComplexTilesets complexTileset
-				) renderWorld
-			in R.wUpdate (do
+		--nWorld = renderWorld --let w1 = 
+			--	R.wUpdate (do
+			--		R.loadComplexTilesets complexTileset
+			--	) renderWorld
+			--in R.wUpdate (do
 
-				--R.wComplexTileset "Monsters" .= (Just $ R.newComplexTileset)
+			--	--R.wComplexTileset "Monsters" .= (Just $ R.newComplexTileset)
 
-				R.wLayer "BackgroundLayer" .= (Just $ R.newLayer R.ComplexLayerType)
-				R.wLayer "BottomLayer" .= (Just $ R.newLayer R.ComplexLayerType)
-				R.wLayer "ObjectLayer" .= (Just $ R.newLayer R.ObjectLayerType)
-				R.wLayer "CObjectLayer" .= (Just $ R.newLayer R.ComplexLayerType)
-				R.wLayer "TopLayer" .= (Just $ R.newLayer R.ComplexLayerType)
+			--	R.wLayer "BackgroundLayer" .= (Just $ R.newLayer R.ComplexLayerType)
+			--	R.wLayer "BottomLayer" .= (Just $ R.newLayer R.ComplexLayerType)
+			--	R.wLayer "ObjectLayer" .= (Just $ R.newLayer R.ObjectLayerType)
+			--	R.wLayer "CObjectLayer" .= (Just $ R.newLayer R.ComplexLayerType)
+			--	R.wLayer "TopLayer" .= (Just $ R.newLayer R.ComplexLayerType)
 
-				--R.wObject "wall1" .= (Just $ R.newObject)
+			--	--R.wObject "wall1" .= (Just $ R.newObject)
 
-				initWalls
-				generateWalls 500 500 gen
+			--	initWalls
+			--	generateWalls 500 500 gen
 
-				--mapM_ (\((x, y), tileType) -> do
-				--		tile <- use $ R.wTile (show tileType) -- TODO: change show to getter
-				--		-- top tiles are transparent so we need a floor tile beneath them
-				--		if (Gen.tileLayer genMap (x, y)) == "TopLayer"
-				--			then  do
-				--				floorTile <- use $ R.wTile "FinalFloor"
-				--				R.wLayerTile "BottomLayer" (x, -y) .= (Just floorTile)
-				--			else return ()
-				--		R.wLayerTile (Gen.tileLayer genMap (x, y)) (x, -y) .= (Just tile)
-				--	) (Map.toList $ genMap^.Gen.mapCompiledCells)
+			--	--mapM_ (\((x, y), tileType) -> do
+			--	--		tile <- use $ R.wTile (show tileType) -- TODO: change show to getter
+			--	--		-- top tiles are transparent so we need a floor tile beneath them
+			--	--		if (Gen.tileLayer genMap (x, y)) == "TopLayer"
+			--	--			then  do
+			--	--				floorTile <- use $ R.wTile "FinalFloor"
+			--	--				R.wLayerTile "BottomLayer" (x, -y) .= (Just floorTile)
+			--	--			else return ()
+			--	--		R.wLayerTile (Gen.tileLayer genMap (x, y)) (x, -y) .= (Just tile)
+			--	--	) (Map.toList $ genMap^.Gen.mapCompiledCells)
 
-			) w1 -- renderWorld
+			--) w1 -- renderWorld
 
 --mkGameWorld :: Game -> IO (G.World, Delta, WorldManager)
 mkGameWorld tiledMap startPos genMap = do
@@ -269,16 +269,16 @@ mkGameWorld tiledMap startPos genMap = do
 
 			returnA -< ()
 
-mkUIWorld :: Game -> R.World
-mkUIWorld game = nWorld
+mkUIWorld :: Game -> R.RenderWorld
+mkUIWorld game = R.emptyRenderWorld -- R.loadMapFromTiled tiledMap
 	where	
-		tiledMap = game^.gameTiled
-		renderWorld = R.loadMapFromTiled tiledMap
-		nWorld = R.wUpdate (do
-				Just tsId <- use $ R.mapHashes.R.gameTilesets.at "heart"
-				R.wObject "PlayerHealth" .= (Just $ R.newObject tsId 0)
-				Just objId <- use $ R.mapHashes.R.gameObjects.at "PlayerHealth"
-				R.wLayer "ObjectLayer" .= (Just $ R.newLayer R.ObjectLayerType)
-				R.wLayerObject "ObjectLayer" "PlayerHealth" 
-					.= (Just $ R.newRenderObject objId (10, -10) 0)
-			) renderWorld
+		--tiledMap = game^.gameTiled
+		--renderWorld = R.loadMapFromTiled tiledMap
+		--nWorld = R.wUpdate (do
+		--		Just tsId <- use $ R.mapHashes.R.gameTilesets.at "heart"
+		--		R.wObject "PlayerHealth" .= (Just $ R.newObject tsId 0)
+		--		Just objId <- use $ R.mapHashes.R.gameObjects.at "PlayerHealth"
+		--		R.wLayer "ObjectLayer" .= (Just $ R.newLayer R.ObjectLayerType)
+		--		R.wLayerObject "ObjectLayer" "PlayerHealth" 
+		--			.= (Just $ R.newRenderObject objId (10, -10) 0)
+		--	) renderWorld

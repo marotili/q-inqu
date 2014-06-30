@@ -2,6 +2,7 @@
 module Game.Render.World
 (
   emptyRenderWorld
+  , RenderWorld ()
 ) where
 
 import Control.Monad.State.Strict
@@ -183,16 +184,17 @@ rwUpdateRenderObjectTile objectName tileName = do
   Just layer <- use $ mapLayers.at layerName :: State RenderWorld (Maybe MapLayer)
   --let mRenderObject = (_dynamicLayerObjects layer)^.at objectName :: Maybe RenderObject
 
-  let mRenderObject = layer^?_DynamicLayer.dynamicLayerObjects.at objectName
+  let mRenderObject = Nothing -- layer^?_DynamicLayer.dynamicLayerObjects.at objectName :: Maybe RenderObject
 
   case mRenderObject of 
     Just renderObject ->
-      mapLayers.at layerName._DynamicLayer.dynamicLayerObjects.at objectName .= (Just (renderObject 
-          & roTilesetName .~ (prefab^.opTilesetName)
-          & roLocalId .~ (prefab^.opTileId)
-          & roOrigin .~ (prefab^.opOrigin)
-          )
-          )
+      error "not implemented"
+      --mapLayers.at layerName._Just._DynamicLayer.dynamicLayerObjects.at objectName .= (Just (renderObject 
+      --    & roTilesetName .~ (prefab^.opTilesetName)
+      --    & roLocalId .~ (prefab^.opTileId)
+      --    & roOrigin .~ (prefab^.opOrigin)
+      --    )
+      --    )
     Nothing -> error "unexpected"
 
 rwUpdateRenderObjectInstance :: ObjectName -> Position -> Float -> State RenderWorld ()

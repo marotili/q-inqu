@@ -55,7 +55,7 @@ consumeClientWorld renderContextVar game = do
 		renderContext <- readTVar renderContextVar
 		return renderContext
 
-	let game' = game & gameRenderWorld .~ (rc^.rcWorldRenderContext.wrcWorld)
+	let game' = game -- & gameRenderWorld .~ (rc^.rcWorldRenderContext.wrcWorld)
 
 	let newGame = execState (do
 			gameWorldManager .= manager2
@@ -67,7 +67,7 @@ consumeClientWorld renderContextVar game = do
 	lift $ atomically $ do
 		--renderContext <- readTVar renderContextVar
 		writeTVar renderContextVar (rc 
-				& rcWorldRenderContext.wrcWorld .~ (newGame^.gameRenderWorld)
+				-- & rcWorldRenderContext.wrcWorld .~ (newGame^.gameRenderWorld)
 			)
 
 	--lift $ performGC

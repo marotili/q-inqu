@@ -1,7 +1,7 @@
 module Text where
 
 import Test.HUnit
-import Game.Render.Text
+import Game.Render.Core.Text
 import Control.Lens
 
 --tests :: Test
