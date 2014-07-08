@@ -29,6 +29,7 @@ library
 
         Game.World.AI.Basic
 
+        Game.Render.Core.Manager
         Game.Render.Core.Text
         Game.Render.Core.Render
         Game.Render.Core.Camera
@@ -111,7 +112,8 @@ library
         regex-compat >= 0.95.1,
         aeson-pretty >= 0.7.0.2,
         data-binary-ieee754 >= 0.4.4,
-        unordered-containers
+        unordered-containers,
+        mmorph
 
     ghc-options: -rtsopts -threaded -fprof-auto -Wall
 
