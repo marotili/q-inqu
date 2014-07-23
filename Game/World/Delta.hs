@@ -1,5 +1,7 @@
 {-# LANGUAGE FlexibleContexts, Rank2Types, NoMonomorphismRestriction, BangPatterns #-}
-module Game.World.Delta where
+module Game.World.Delta 
+()
+where
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set

@@ -1,5 +1,8 @@
 {-# LANGUAGE NamedFieldPuns #-}
-module Game.World.Gen.Frequency where
+module Game.World.Gen.Frequency 
+(
+)
+where
 
 import System.Random
 import Data.Maybe

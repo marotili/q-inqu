@@ -29,6 +29,7 @@ library
 
         Game.World.AI.Basic
 
+        Game.Render.Core.Buffer
         Game.Render.Core.Manager
         Game.Render.Core.Text
         Game.Render.Core.Render
@@ -75,8 +76,7 @@ library
         base,
         linear,
         containers >= 0.5,
-        freetype2,
-        bindings-harfbuzz,
+        freetype2 == 2.5.3.0,
         lens >= 4.0,
         mtl        >= 2.1,
         random     >= 1.0,
@@ -115,7 +115,7 @@ library
         unordered-containers,
         mmorph
 
-    ghc-options: -rtsopts -threaded -fprof-auto -Wall
+    ghc-options: -rtsopts -threaded -fprof-auto -Wall -fno-warn-unused-binds
 
 -- TODO remove netwire dependency
 executable server
@@ -175,7 +175,7 @@ executable textTests
     main-is: Text.hs
     build-depends:
         base,
-        freetype2,
+        freetype2 == 2.5.3.0,
         vector,
         bytestring,
         JuicyPixels,

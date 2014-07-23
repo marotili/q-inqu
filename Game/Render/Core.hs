@@ -1,4 +1,6 @@
 module Game.Render.Core
+(
+)
 where
 
 import Game.Render.Core.Manager

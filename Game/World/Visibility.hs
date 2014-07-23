@@ -1,5 +1,8 @@
 {-# LANGUAGE Rank2Types, TemplateHaskell, ScopedTypeVariables #-}
-module Game.World.Visibility where
+module Game.World.Visibility 
+(
+)
+where
 
 import Control.Arrow
 import Control.Parallel

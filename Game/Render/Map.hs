@@ -1,15 +1,6 @@
 {-# LANGUAGE NamedFieldPuns, Rank2Types, TemplateHaskell #-}
 module Game.Render.Map
 	(
-	--  WorldRenderContext
-	--, newWorldRenderContext
-	--, bindWorldRenderContext
-	--, updateWorldRenderContext
-	--, renderWorldRenderContext
-
-	--, wrcWorld
-
-	---- * To remove
 	) where
 
 --import Foreign.C

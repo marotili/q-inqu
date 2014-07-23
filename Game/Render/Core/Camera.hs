@@ -1,14 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 module Game.Render.Core.Camera
 	(
-	  Camera
-	, cameraUpdateProjection
-	, cameraUpdatePosition
-	, programSetViewProjection
-	, newDefaultCamera
-	, screenToOpenGLCoords
-	, cameraInverse
-	, cameraSetOriginTopLeft
 	) where
 
 import qualified Graphics.Rendering.OpenGL.Raw as GLRaw

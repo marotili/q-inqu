@@ -1,5 +1,8 @@
 {-# LANGUAGE FlexibleContexts, Arrows, Rank2Types, FlexibleInstances, BangPatterns #-}
-module Game.World.Wires where
+module Game.World.Wires 
+(
+)
+where
 
 import qualified Data.Map.Strict as Map
 import Debug.Trace

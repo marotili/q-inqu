@@ -1,5 +1,8 @@
 {-# LANGUAGE FlexibleInstances, NamedFieldPuns, TemplateHaskell, Rank2Types #-}
-module Game.World.ObjectData where
+module Game.World.ObjectData 
+(
+)
+where
 
 import qualified Data.Set as Set
 import Linear

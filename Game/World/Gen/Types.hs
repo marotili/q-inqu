@@ -1,5 +1,8 @@
 {-# LANGUAGE NamedFieldPuns, TemplateHaskell, MultiParamTypeClasses #-}
-module Game.World.Gen.Types where
+module Game.World.Gen.Types 
+(
+)
+where
 
 import qualified Data.Map as Map
 import System.Random
@@ -143,7 +146,7 @@ genMap :: GenMap ()
 genMap = do
     genState <- get
     let gameMap = newMap
-    let (_, _, _) = runRWS genStage gameMap genState
+    let _ = runRWS genStage gameMap genState
     return ()
 
 

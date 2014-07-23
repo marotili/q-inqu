@@ -12,7 +12,7 @@ import Data.Maybe
 import qualified Control.Wire as W
 --import Control.Monoid
 import qualified Data.Set as Set
-
+import qualified Graphics.Rendering.OpenGL as GL
 import qualified Graphics.UI.GLFW          as GLFW
 import Game.Input.Input
 import Game.Input.Actions
@@ -24,7 +24,7 @@ import Text.PrettyPrint
 import qualified Game.Render as Render
 import Game.Render.Map
 import qualified Game.Render.Map as RMap
-import Game.Render.Camera
+import Game.Render.Core.Camera
 
 import qualified Control.Monad.State.Strict as S
 
@@ -41,17 +41,22 @@ import Pipes.Concurrent
 import Control.Concurrent.Async
 import Game.World
 import qualified Pipes.Binary as PB
-import Game.Render.Error
+import Game.Render.Core.Error
 import qualified Data.ByteString as B
 import qualified Control.Monad.Trans.State.Strict as StrictState
 import Game.Game
+
+import Game.Render.Core.Manager
+import Game.Render.Core.Text
 --------------------------------------------------------------------------------
 
 data Env = Env
     { envEventsChan    :: TQueue Event
-    , envActionChan    :: TQueue (Float, InputActions)
+    --, envActionChan    :: TQueue (Float, InputActions)
     , envWindow        :: !GLFW.Window
-    , envRenderContext :: TVar Render.RenderContext
+    , envTriangleRenderer :: TriangleRenderer
+    , envFontRenderer :: FontRenderer
+    --, envRenderContext :: TVar Render.RenderContext
     }
 
 data State = State
@@ -106,16 +111,17 @@ main = withSocketsDo $ do
     args <- getArgs
     let ip = case args of [] -> "127.0.0.1"; _ -> head args
 
-    connect ip "5002" $ \(sock, _) -> do
-      let fromServer = fromSocket sock 4096
-      let toServer = toSocket sock
-      actionsChan <- newTQueueIO :: IO (TQueue (Float, InputActions))
+    _ <- do
+    --connect ip "5002" $ \(sock, _) -> do
+      --let fromServer = fromSocket sock 4096
+      --let toServer = toSocket sock
+      --actionsChan <- newTQueueIO :: IO (TQueue (Float, InputActions))
 
-      let fromServerFirst = fromSocket sock 4096 -- :: Producer ByteString IO ()
-      print "Send player id"
-      (mres, _) <- StrictState.runStateT decodeId fromServerFirst
-      let playerId = case mres of Right (_, b) -> b+1; _ -> -1 -- playerIds are 1 and 2, we receive 0 or
-      print ("Sent player id", playerId)
+      --let fromServerFirst = fromSocket sock 4096 -- :: Producer ByteString IO ()
+      --print "Send player id"
+      --(mres, _) <- StrictState.runStateT decodeId fromServerFirst
+      --let playerId = case mres of Right (_, b) -> b+1; _ -> -1 -- playerIds are 1 and 2, we receive 0 or
+      --print ("Sent player id", playerId)
 
       eventsChan <- newTQueueIO :: IO (TQueue Event)
 
@@ -143,28 +149,44 @@ main = withSocketsDo $ do
           (fbWidth, fbHeight) <- GLFW.getFramebufferSize win
 
           -- generate map from tiled
-          game <- newGame "TheGame"
+          --game <- newGame "TheGame"
 
-          rc <- Render.newRenderContext playerId game
+          --rc <- Render.newRenderContext playerId game
           -- default render context
-          renderContext <- newTVarIO rc
+          --renderContext <- newTVarIO rc
 
-          _ <- async $ do
-            _ <- runEffect $ for (actionProducer actionsChan playerId) PB.encode >-> toServer
-            performGC
+          --_ <- async $ do
+          --  _ <- runEffect $ for (actionProducer actionsChan playerId) PB.encode >-> toServer
+          --  performGC
 
-          _ <- forkIO $ do
+          --_ <- forkIO $ do
             --(world, manager) <- newWorldFromTiled tMap
-            _ <- runEffect $ decodeSteps fromServer >-> 
-                consumeClientWorld renderContext game
-            performGC
+            --_ <- runEffect $ decodeSteps fromServer >-> 
+                --consumeClientWorld renderContext game
+            --performGC
+
+          triangleRenderer <- newTriangleRenderer
+            [Triangle ((-50, -50), (1, 0, 0, 1)) ((50, -50), (0, 1, 0, 1)) ((50, 50), (0, 0, 1, 1))
+            ]
+
+
+          fontMgr <- newFontManager
+          font <- newFont fontMgr "data/font.otf" 16
+          textAtlas <- newFontAtlas font
+          fontRenderer <- StrictState.evalStateT (newFontRenderer textAtlas) newRenderManager
+          deleteFontManager fontMgr
+
+          GL.blendFunc GL.$= (GL.SrcAlpha, GL.OneMinusSrcAlpha)
+          GL.blend GL.$= GL.Enabled
 
           let 
               env = Env
                 { envEventsChan    = eventsChan
-                , envActionChan = actionsChan
+                --, envActionChan = actionsChan
                 , envWindow        = win
-                , envRenderContext = renderContext
+                , envTriangleRenderer = triangleRenderer
+                , envFontRenderer = fontRenderer
+                --, envRenderContext = renderContext
                 }
               state = State
                 { stateWindowWidth     = fbWidth
@@ -177,6 +199,7 @@ main = withSocketsDo $ do
       --mapM_ wait [a1]
 
       putStrLn "ended!"
+    return ()
 
 --------------------------------------------------------------------------------
 
@@ -269,9 +292,9 @@ run i session w = do
 
     state <- get
 
-    userTime2 <- liftIO GLFW.getTime
+    --userTime2 <- liftIO GLFW.getTime
 
-    let userTime = case userTime2 of Just time -> realToFrac time; Nothing -> 0
+    --let userTime = case userTime2 of Just time -> realToFrac time; Nothing -> 0
 
     --(xl, yl, lt, xr, yr, rt, px, py, buttons) <- liftIO $ getJoystickData GLFW.Joystick'1
 
@@ -292,17 +315,17 @@ run i session w = do
 
     (actions@(InputActions as), session', w') <- liftIO $ stepInput w session input
 
-    ac <- asks envActionChan
-    let evaluatedActions = (userTime, actions)
-    let stm = writeTQueue ac evaluatedActions
-    unless (null (Set.toList as)) $ liftIO . atomically $ stm
+    --ac <- asks envActionChan
+    --let evaluatedActions = (userTime, actions)
+    --let stm = writeTQueue ac evaluatedActions
+    --unless (null (Set.toList as)) $ liftIO . atomically $ stm
 
     -- update camera
     q <- liftIO $ GLFW.windowShouldClose win
 
     -- time
     Just end <- liftIO GLFW.getTime
-    _ <- liftIO $ appendFile "timelog" ("Time: " ++ show i ++ " / " ++ show (end - start) ++ "\n")
+    --_ <- liftIO $ appendFile "timelog" ("Time: " ++ show i ++ " / " ++ show (end - start) ++ "\n")
 
     -- delay
     liftIO $ threadDelay $ 1000 * (1000 `div` 60 - 1000 * round (end - start))
@@ -375,24 +398,35 @@ draw = do
   win <- asks envWindow
   state <- get
 
-  rcVar <- asks envRenderContext
+  lift $ clearWindow win
 
-  let oldSet1 = rcWorldRenderContext.wrcWorld.R.mapUpdateLayers
-  let oldSet2 = rcUIRenderContext.wrcWorld.R.mapUpdateLayers
+  triangleRenderer <- asks envTriangleRenderer
+  fontRenderer <- asks envFontRenderer
 
-  rc <- lift $ atomically $ do
-    rc <- readTVar rcVar
-    writeTVar rcVar $ rc
-      & oldSet1 .~ Set.empty
-      & oldSet2 .~ Set.empty
+  let cam = stateCam state
 
-    return rc
+  --lift $ renderTriangles triangleRenderer cam
+  lift $ renderText fontRenderer cam
+
+  --rcVar <- asks envRenderContext
+
+  --let oldSet1 = rcWorldRenderContext.wrcWorld.R.mapUpdateLayers
+  --let oldSet2 = rcUIRenderContext.wrcWorld.R.mapUpdateLayers
+
+  --rc <- lift $ atomically $ do
+  --  rc <- readTVar rcVar
+  --  writeTVar rcVar $ rc
+  --    & oldSet1 .~ Set.empty
+  --    & oldSet2 .~ Set.empty
+
+    --return rc
 
   let cam = asks stateCam state
 
-  newCam <- lift $ Render.render win rc cam
-  modify $ \s -> s { stateCam = newCam }
-  modify $ \s -> s { stateInput = stateInput s >> inputSetCamera newCam }
+  --rc <- lift $ newRenderContext 0 (newGame "Nothing")
+  --newCam <- lift $ Render.render win rc cam
+  --modify $ \s -> s { stateCam = newCam }
+  --modify $ \s -> s { stateInput = stateInput s >> inputSetCamera newCam }
 
   return ()
 

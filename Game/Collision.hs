@@ -1,23 +1,24 @@
 {-# LANGUAGE TemplateHaskell, TypeFamilies, BangPatterns #-}
-module Game.Collision where
+module Game.Collision 
+( newOctree
+, newBoundary
+, GameOctree
+)
+where
 
 -- * Note: we query using the maximum boundary diameter of all objects
 -- *  so adding one big object may slow down the query
 
 --import qualified Data.Octree as O
-import Debug.Trace
 import qualified Data.SpacePart.QuadTree as SP
 import qualified Data.SpacePart.AABB as SP
-import Data.Octree (Vector3(..), Octree)
-import Data.Maybe
+import Data.Octree (Vector3(..))
 import GHC.Float
-import Control.Monad
 import Control.Monad.State.Strict
 import Control.Lens
 import Game.World.Objects
 import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
-import Data.List
+import qualified Control.Arrow as A
 
 -- Axis aligned box (2D for now, z ignored)
 data Boundary = Boundary
@@ -50,7 +51,7 @@ vectorXY = lens
 	(\(Vector3 _ _ z) (x, y) -> Vector3 x y z)
 
 toFloat :: Getter (Double, Double) (Float, Float)
-toFloat = to (\(x, y) -> (double2Float x, double2Float y))
+toFloat = to (double2Float A.*** double2Float)
 
 newRealBoundary :: RealBoundary
 newRealBoundary = RealBoundary []
@@ -78,7 +79,9 @@ makeLenses ''RealBoundary
 makeLenses ''OctreeObject
 makeLenses ''GameOctree
 
-boundaries_intersect b1 b2 = 
+-- | test two boundaries for intersection
+boundariesIntersect :: Boundary -> Boundary -> Bool
+boundariesIntersect b1 b2 = 
 		   ox1 + w1 > ox2
 		&& ox2 + w2 > ox1
 		&& oy1 + h1 > oy2
@@ -99,13 +102,14 @@ instance SP.HasBoundary Boundary where
 		, (ox + max w h, oy + max w h)
 		)
 		where
-			Vector3 ox oy _ = (boundary^.boundaryOrigin)
-			Vector3 w h _ = (boundary^.boundarySize)
+			Vector3 ox oy _ = boundary^.boundaryOrigin
+			Vector3 w h _ = boundary^.boundarySize
 	boundary_square boundary = SP.Boundary (ox, oy) (max w h)
 		where
-			Vector3 ox oy _ = (boundary^.boundaryOrigin)
-			Vector3 w h _ = (boundary^.boundarySize)
+			Vector3 ox oy _ = boundary^.boundaryOrigin
+			Vector3 w h _ = boundary^.boundarySize
 
+-- | 
 octreeObjectPoints :: Getter OctreeObject OctreeObject
 octreeObjectPoints = to points
 	where
@@ -116,6 +120,7 @@ instance SP.HasBoundary OctreeObject where
 	boundary_extents obj = SP.boundary_extents (obj^.ooBoundary)
 	boundary_square obj = SP.boundary_square (obj^.ooBoundary)
 
+-- | create a new empty octree
 newOctree :: GameOctree
 newOctree = GameOctree
 	{ _goMaxDiameter = 0
@@ -148,6 +153,7 @@ octreeAddStatics objects = do
 		octreeAddStatic object =
 			goStaticObjects %= Map.insert (object^.ooObjectId) object
 
+-- | remove an object from the octree
 octreeRemoveObject :: ObjectId -> GameOctree -> GameOctree
 octreeRemoveObject oId oldOctree = oldOctree
 	& goUpdatableObjects %~ Map.delete oId
@@ -155,6 +161,7 @@ octreeRemoveObject oId oldOctree = oldOctree
 	& goNeedsUpdate .~ True
 	--xrn--e
 
+-- | update or insert an object
 octreeUpdate :: [(ObjectId, [(Float, Float)])] -> State GameOctree ()
 octreeUpdate [] = return ()
 octreeUpdate objects = do
@@ -166,6 +173,7 @@ octreeUpdate objects = do
 		octreeObjects :: [OctreeObject]
 		octreeObjects = map (uncurry octreeObjectFromPoints) objects
 
+-- | query intersections with object
 octreeQueryObject :: ObjectId -> State GameOctree [ObjectId]
 octreeQueryObject oId = do 
 	--needUpdate <- traceShow ("needs update") $ use goNeedsUpdate
@@ -188,10 +196,10 @@ octreeQueryObject oId = do
 	statics <- use goStaticObjects
 	objs <- use goUpdatableObjects
 
-	let intersections = filter (\obj -> obj^.ooObjectId /= oId && (obj^.ooBoundary) `boundaries_intersect` (queryObject^.ooBoundary)) 
+	let intersections = filter (\obj -> obj^.ooObjectId /= oId && (obj^.ooBoundary) `boundariesIntersect` (queryObject^.ooBoundary)) 
 		$ map snd $ Map.toList statics ++ Map.toList objs
 
-	let searchBoundaryPoints = (queryObject^..ooRealBoundary.rbLines.traverse.vectorXY)
+	let searchBoundaryPoints = queryObject^..ooRealBoundary.rbLines.traverse.vectorXY
 
 	let realIntersections = filter (\obj ->
 			all (\p -> pointInConvexHull p (obj^..ooRealBoundary.rbLines.traverse.vectorXY)) searchBoundaryPoints
@@ -200,6 +208,7 @@ octreeQueryObject oId = do
 	return $ map (^.ooObjectId) realIntersections
 
 
+-- | list of points to list of lines
 objectLines :: [(Float, Float)] -> [((Float, Float), (Float, Float))]
 objectLines points = zip points (tail points ++ [head points])
 
@@ -213,6 +222,7 @@ pointInConvexHull (px, py) convexHullLines = isInside
 		!isInside = all (\((ox, oy), (x, y)) -> x*(px - ox) + y*(py - oy) > 0) $ zip convexHullLines normals
 
 
+-- |  tests
 testCollision :: [ObjectId]
 testCollision = evalState (do
 		octreeAddStatics 

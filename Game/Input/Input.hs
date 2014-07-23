@@ -1,7 +1,10 @@
 {-# LANGUAGE Arrows, TemplateHaskell, BangPatterns #-}
 {-# OPTIONS -Wall #-}
 
-module Game.Input.Input where
+module Game.Input.Input 
+    ( userInput
+    )
+    where
 	--(
 	---- * Input
 	--  UserInput
@@ -44,12 +47,14 @@ import Control.Lens
 
 data XCButtons = 
 	  XC'A | XC'B | XC'X | XC'Y
-	| XC'RB | XC'LB | XC'Home | XC'Back | XC'Start
+	| XC'RB | XC'LB | XCHome | XCBack | XCStart
 	| XC'LS | XC'RS
 	deriving (Show, Ord, Eq)
 
-buttons = [XC'A, XC'B, XC'X, XC'Y, XC'LB, XC'RB, XC'Back, XC'Start, XC'Home, XC'LS, XC'RS]
-makeSet ls = foldr (\(s, b) set -> if s == GLFW.JoystickButtonState'Pressed then Set.insert b set else set)
+buttons :: [XCButtons]
+buttons = [XC'A, XC'B, XC'X, XC'Y, XC'LB, XC'RB, XCBack, XCStart, XCHome, XC'LS, XC'RS]
+makeSet :: [GLFW.JoystickButtonState] -> Set.Set XCButtons
+makeSet ls = foldr (\(s, b) mySet -> if s == GLFW.JoystickButtonState'Pressed then Set.insert b mySet else mySet)
 	Set.empty $ zip ls buttons
 
 data XboxController = XboxController
@@ -61,6 +66,7 @@ data XboxController = XboxController
 	, _xcButtons :: !(Set.Set XCButtons)
 	} deriving (Show)
 
+newXboxController :: XboxController
 newXboxController = XboxController
 	{ _xcLeftTrigger = 0
 	, _xcRightTrigger = 0
@@ -193,7 +199,10 @@ movement = void (W.when (\(V2 dx dy) -> abs dx < 0.005 && abs dy < 0.005)) . lif
     W.--> moveAction . liftA2 (+) directionX directionY
     W.--> stopMoveAction W.--> movement
 
+directionController :: InputWire a (V2 Float)
 directionController = inputGet (liftM (\is -> (\(dx, dy) -> V2 (double2Float dx) (double2Float dy)) $ inputJoystick is ^. xcLeftStick) ask)
+
+movementController :: InputWire a ()
 movementController = void (W.when (\(V2 dx dy) -> abs dx < 0.005 && abs dy < 0.005)) . directionController
  	W.--> moveAction . W.when (\(V2 dx dy) -> abs dx > 0.005 || abs dy > 0.005) . directionController
     W.--> stopMoveAction W.--> movementController
@@ -258,8 +267,8 @@ spawnAction = mkGenN $ \_ -> do
 		(double2Float mx) (double2Float my)
 
 	let (lsx, lsy) = inputJoystick is ^. xcLeftStick
-	if abs lsx > 0.1 || abs lsy > 0.1 then 
-		writer ((), newInputAction (ActionSpawnArrow (-double2Float lsx) (-double2Float lsy)))
+	writer $ if abs lsx > 0.1 || abs lsy > 0.1 then 
+		((), newInputAction (ActionSpawnArrow (-double2Float lsx) (-double2Float lsy)))
 	else
-		writer ((), newInputAction (ActionSpawnArrow x y))
+		((), newInputAction (ActionSpawnArrow x y))
 	return (Right (Event ()), never)

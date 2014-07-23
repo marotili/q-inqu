@@ -1,5 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
-module Game.Render.Light where
+module Game.Render.Light 
+(
+)
+where
 
 --import qualified Graphics.Rendering.OpenGL as GL
 --import Graphics.Rendering.OpenGL (($=))

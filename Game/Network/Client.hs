@@ -37,9 +37,7 @@ type ProdDecoder a = (Monad m)
 
 
 decodeSteps :: ProdDecoder ([(PlayerId, A.Action)], Rational)
-decodeSteps = \bytes -> bytes^.decoded -- decodeMany
-
-
+decodeSteps bytes = bytes^.decoded -- decodeMany
 
 consumeClientWorld :: 
 	  TVar RenderContext
@@ -51,9 +49,8 @@ consumeClientWorld renderContextVar game = do
 
 	let manager2 = worldManagerUpdate (game^.gameWorldManager) actions
 
-	rc <- lift $ atomically $ do
-		renderContext <- readTVar renderContextVar
-		return renderContext
+	rc <- lift $ atomically $
+		readTVar renderContextVar
 
 	let game' = game -- & gameRenderWorld .~ (rc^.rcWorldRenderContext.wrcWorld)
 
@@ -64,11 +61,10 @@ consumeClientWorld renderContextVar game = do
 
 	--(w', (manager', delta)) <- lift $ clientStepWorld w world manager2 dt
 
-	lift $ atomically $ do
+	lift $ atomically $
 		--renderContext <- readTVar renderContextVar
-		writeTVar renderContextVar (rc 
+		writeTVar renderContextVar rc 
 				-- & rcWorldRenderContext.wrcWorld .~ (newGame^.gameRenderWorld)
-			)
 
 	--lift $ performGC
 

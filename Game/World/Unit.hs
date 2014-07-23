@@ -1,5 +1,8 @@
 {-# LANGUAGE FlexibleContexts, Rank2Types, TemplateHaskell, Arrows #-}
-module Game.World.Unit where
+module Game.World.Unit 
+(
+)
+where
 
 import Control.Monad.Writer
 import Game.World.Common

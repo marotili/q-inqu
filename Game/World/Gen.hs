@@ -1,5 +1,8 @@
 {-# LANGUAGE NamedFieldPuns #-}
-module Game.World.Gen where
+module Game.World.Gen 
+(
+)
+where
 
 import Control.Lens
 import Game.World.Gen.Types

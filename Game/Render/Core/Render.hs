@@ -1,9 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Game.Render.Core.Render 
 	(
-	  setupShaders
-	, uploadFromVec, updateFromVec, updateNewFromVec
-    , uniformInfo
 	) where
 
 import Data.List
@@ -77,14 +74,18 @@ updateNewFromVec target buf vec = do
 
 setupShaders :: String -> String -> IO Program
 setupShaders vertName fragName = do
-    vs <- loadShader GL.VertexShader $ "data" </> vertName
+    vs <- loadShader GL.VertexShader $ "data" </> "shaders" </> vertName
     logGL "setupShaders: loadShader"
-    fs <- loadShader GL.FragmentShader $ "data" </> fragName
+    fs <- loadShader GL.FragmentShader $ "data" </> "shaders" </> fragName
     logGL "setupShaders: loadShader"
-    linkShaderProgramWith [vs, fs]
-	--(get $ shaderInfoLog vs) >>= print
-	--(get $ shaderInfoLog fs) >>= print
-	--(get $ programInfoLog prog) >>= print
+    prog <- linkShaderProgramWith [vs, fs]
+
+    (get $ shaderInfoLog vs) >>= print
+    (get $ shaderInfoLog fs) >>= print
+
+    (get $ programInfoLog prog) >>= print
+
+    return prog
 
 data UniformInfo = UniformInfo
     { _uiName :: String

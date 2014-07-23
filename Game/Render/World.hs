@@ -1,8 +1,6 @@
 {-# LANGUAGE FlexibleContexts, OverloadedStrings, TypeSynonymInstances, FlexibleInstances, TemplateHaskell, Rank2Types, NamedFieldPuns #-}
 module Game.Render.World
 (
-  emptyRenderWorld
-  , RenderWorld ()
 ) where
 
 import Control.Monad.State.Strict

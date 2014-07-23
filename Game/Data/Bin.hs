@@ -1,9 +1,19 @@
-{-# LANGUAGE TemplateHaskell #-}
-module Game.Data.Bin where
+{-# LANGUAGE TemplateHaskell, Rank2Types #-}
+module Game.Data.Bin
+(
+	newRect,
+	packRects,
+	atlasRect
+)
+
+where
+
+-- | 
 
 import Control.Lens
-import Data.Monoid
+--import Data.Monoid
 import qualified Data.Map as Map
+import Data.Maybe
 
 type RectId = Int
 type Position = (Int, Int)
@@ -14,12 +24,18 @@ data Rect = Rect
 	, _rectHeight :: Int
 	} deriving (Show, Eq)
 
-newRect rId w h = Rect rId w h
+-- | create a new axis aligned rectangle
+newRect :: RectId -> Int -> Int -> Rect
+newRect = Rect
 
 data Atlas = Atlas
 	{ _atlasRects :: Map.Map RectId Position
 	} deriving (Show)
+makeLenses ''Atlas
 
+-- | get the position of the given rect
+atlasRect :: RectId -> Getter Atlas (Maybe Position)
+atlasRect rId = to (\atlas -> atlas^.atlasRects.at rId)
 
 data PackTree =
 	  PackHorizontalNode PackTree PackTree
@@ -33,21 +49,25 @@ data PackTree =
 	| PackLeafRect RectId Int Int
 	deriving (Show)
 
---instance Show PackTree where
---	show (PackHorizontalNode l r) = "PackHorizontalNode " ++ show l ++ " / " ++ show r
---	show (PackVerticalNode l r) = "PackVerticalNode" ++ show l ++ " / " ++ show r
---	show (PackLeafEmpty w h)  = "PackLeafEmpty " ++ show w ++ " " ++ show h
---	show (PackLeafRect rId) = "PackLeafRect " ++ show rId
-
 data Bin = Bin
 	{ _binWidth :: Int
 	, _binHeight :: Int
 	} deriving (Show)
 
+-- | create a new bin with the given size
+newBin :: Int -> Int -> Bin
+newBin = Bin
+
 makeLenses ''Rect
-makeLenses ''PackTree
-makeLenses ''Atlas
 makeLenses ''Bin
+
+-- | pack multiple rectangles into an atlas
+-- | TODO: correct error handling
+packRects :: (Int, Int) -> [Rect] -> Atlas
+packRects _ [] = error "packRects expects non empty list"
+packRects (width, height) (rect:rects) = atlasFromTree $ foldr (\r a ->
+		fromMaybe (error "building bin packing tree failed") (updateTree r a Nothing)
+			) (fromMaybe (error "mkroot failed") $ mkRoot rect (newBin width height)) rects
 
 instance Ord Rect where
 	r1 `compare` r2 
@@ -57,30 +77,24 @@ instance Ord Rect where
 		| r2^.rectWidth > r2^.rectWidth = GT
 		| otherwise = EQ
 
-				
-
+-- | helper: flatten the tree
 packTree :: Getter PackTree [PackTree]
 packTree = let
 		get n@(PackHorizontalNode l r) = n : (l^.packTree ++ r^.packTree)
 		get n@(PackVerticalNode l r) = n : (l^.packTree ++ r^.packTree)
-		get n@(PackLeafEmpty _ _ _ _) = n : []
-		get n@(PackLeafRect _ _ _) = n : []
+		get n@(PackLeafEmpty {}) = [n]
+		get n@(PackLeafRect {}) = [n]
 	in to get
 
-atlasFromTree pt = Atlas $ foldr (\pt m -> case pt of
+-- | create an atlas from the pack tree
+atlasFromTree :: PackTree -> Atlas
+atlasFromTree pTree = Atlas $ foldr (\pt m -> case pt of
 		PackLeafRect rId w h -> Map.insert rId (w, h) m
 		_ -> m
-	) Map.empty (pt^.packTree)
+	) Map.empty (pTree^.packTree)
 
-foldTree :: Rect -> PackTree -> Maybe PackTree
-foldTree rect pt = unOne $ foldl (\mo tree -> case tree of
-		node@(PackLeafEmpty w h _ _) -> 
-			if w > (rect^.rectWidth) && h > (rect^.rectHeight)
-				then mo `mappend` (One node)
-				else mo `mappend` None 
-		_ -> mappend mo None
-	) None (pt^.packTree)
 
+-- | update the tree and insert a new node
 updateTree :: Rect -> PackTree -> Maybe PackTree -> Maybe PackTree
 updateTree rect n@(PackHorizontalNode l r) _ = case updateTree rect l (Just n) of 
 	Nothing -> case updateTree rect r (Just n) of
@@ -94,20 +108,20 @@ updateTree rect n@(PackVerticalNode l r) _ = case updateTree rect l (Just n) of
 		Just r' -> Just $ PackVerticalNode l r'
 	Just l' -> Just $ PackVerticalNode l' r
 
-updateTree rect n@(PackLeafEmpty w h x y) (Just (PackVerticalNode _ _)) = 
+updateTree rect (PackLeafEmpty w h x y) (Just (PackVerticalNode _ _)) = 
 	if rect^.rectWidth <= w && rect^.rectHeight <= h 
-		then if (w - rect^.rectWidth == 0) then
-			if (h - rect^.rectHeight == 0) then
-				Just $ PackLeafRect (rect^.rectId) x y
-			else Just $ PackHorizontalNode (
+		then 
+			Just $ if w - rect^.rectWidth == 0 then
+				if h - rect^.rectHeight == 0 then
+					PackLeafRect (rect^.rectId) x y
+				else PackHorizontalNode 
 					(PackLeafRect (rect^.rectId) x y)
-				) 
-				(PackLeafEmpty w (h - rect^.rectHeight) x (y + rect^.rectHeight))
-		else if (h - rect^.rectHeight == 0) then
-				Just $ PackVerticalNode
+					(PackLeafEmpty w (h - rect^.rectHeight) x (y + rect^.rectHeight))
+			else if h - rect^.rectHeight == 0 then
+				PackVerticalNode
 					(PackLeafRect (rect^.rectId) x y)
 					(PackLeafEmpty (w - rect^.rectWidth) (rect^.rectHeight) (x + rect^.rectWidth) y)
-			else Just $ PackHorizontalNode (
+			else PackHorizontalNode (
 				PackVerticalNode
 					(PackLeafRect (rect^.rectId) x y)
 					(PackLeafEmpty (w - rect^.rectWidth) (rect^.rectHeight) (x + rect^.rectWidth) y)
@@ -115,22 +129,22 @@ updateTree rect n@(PackLeafEmpty w h x y) (Just (PackVerticalNode _ _)) =
 				(PackLeafEmpty w (h - rect^.rectHeight) x (y + rect^.rectHeight))
 		else Nothing
 
-updateTree rect n@(PackLeafEmpty w h x y) (Just (PackHorizontalNode _ _)) = 
+updateTree rect (PackLeafEmpty w h x y) (Just (PackHorizontalNode _ _)) = 
 	if rect^.rectWidth <= w && rect^.rectHeight <= h 
-		then if (w - rect^.rectWidth == 0) then
-			if (h - rect^.rectHeight == 0) then
-				Just $ PackLeafRect (rect^.rectId) x y	
+		then Just $ if w - rect^.rectWidth == 0 then
+			if h - rect^.rectHeight == 0 then
+				PackLeafRect (rect^.rectId) x y	
 			else
-				Just $ PackHorizontalNode
+				PackHorizontalNode
 					(PackLeafRect (rect^.rectId) x y)
 					(PackLeafEmpty (rect^.rectWidth) (h - rect^.rectHeight) x (y + rect^.rectHeight))
 		else
-			if (h - rect^.rectHeight == 0) then
-				Just $ PackVerticalNode
+			if h - rect^.rectHeight == 0 then
+				PackVerticalNode
 					(PackLeafRect (rect^.rectId) x y)
 					(PackLeafEmpty (w - rect^.rectWidth) h (x + rect^.rectWidth) y)
 			else
-				Just $ PackVerticalNode (
+				PackVerticalNode (
 					PackHorizontalNode
 						(PackLeafRect (rect^.rectId) x y)
 						(PackLeafEmpty (rect^.rectWidth) (h - rect^.rectHeight) x (y + rect^.rectHeight))
@@ -142,6 +156,7 @@ updateTree rect n@(PackLeafEmpty w h x y) (Just (PackHorizontalNode _ _)) =
 
 updateTree _ _ _ = Nothing
 
+-- | make a new root with the first rect and a bin
 mkRoot :: Rect -> Bin -> Maybe PackTree
 mkRoot rect bin =
 	let 
@@ -158,25 +173,3 @@ mkRoot rect bin =
 					(PackLeafEmpty (bin^.binWidth) spaceBottom 0 (rect^.rectHeight))
 				
 	in root
-
-test :: IO ()
-test = do
-	let Just root = mkRoot (Rect 0 20 20) (Bin 1024 768)
-	let Just ft = updateTree (Rect 1 15 15) root Nothing
-	let ft' = updateTree (Rect 5 15 15) ft Nothing
-	print ft'
---	print $ packOne (Rect 1 15 15) root
-
---fold :: (a -> b -> b) -> b -> [a]
-
-data One a = One a | None deriving (Show)
-unOne (One a) = Just a
-unOne None = Nothing
-
-instance Monoid (One a) where
-	mempty = None
-	mappend (One a) None = One a
-	mappend None (One a) = One a
-	mappend None None = None
-	mappend (One a) _ = One a
-

@@ -1,9 +1,11 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 
-module Game.World.Gen.Terrain where
+module Game.World.Gen.Terrain 
+(
+)
+where
 
-import Debug.Trace
 import Control.Lens
 import Data.List
 import qualified Data.Map as Map

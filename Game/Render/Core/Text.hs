@@ -1,13 +1,14 @@
 {-# LANGUAGE TemplateHaskell, Rank2Types, ImpredicativeTypes #-}
 module Game.Render.Core.Text
 (
-    newFontManager
-    , newFont
-    , newFontAtlas
-    , TextAtlas
-    , atlasImage
 )
 where
+
+import Data.Char
+import Debug.Trace
+import qualified Data.Vector.Storable as V
+import Foreign.C.Types
+import Data.Binary.IEEE754
 
 -- | TODO: Resource management (Fonts etc.)
 
@@ -47,7 +48,10 @@ data TextAtlas = TextAtlas
     { _atlasCharGlyphs :: Map.Map Char Glyph
     , _atlasCharCoords :: Map.Map Char (Int, Int)
     , _atlasImage :: DynamicImage
+    , _atlasSize :: (Int, Int)
     }
+
+
 
 type FontSize = Int
 data Font = Font
@@ -68,10 +72,31 @@ data Glyph = Glyph
     , _glyphChar :: Char
     }
 
-makeLenses ''Glyph
 makeLenses ''TextAtlas
+makeLenses ''Glyph
 makeLenses ''Font
 makeLenses ''FontManager
+
+
+chars = map chr [0..128] -- "1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+
+
+-- | flatten atlas for use in uniform (text.vert)
+atlasToStorable :: TextAtlas -> V.Vector Word32
+atlasToStorable ta = traceShow (concatMap getMesh chars, imageWidth, imageHeight) $ V.fromList $ map floatToWord $ concatMap getMesh chars
+    where
+        (imageWidth, imageHeight) = (fromIntegral $ ta^.atlasSize._1, fromIntegral $ ta^.atlasSize._2)
+        getMesh :: Char -> [Float]
+        getMesh char =
+            let Just glyph = ta^.atlasCharGlyphs.at char
+                Just coords = ta^.atlasCharCoords.at char
+                width = glyph^.glyphWidth
+                height = glyph^.glyphHeight
+            in [ fromIntegral (coords^._1) / imageWidth
+               , fromIntegral (coords^._2) / imageHeight
+               , fromIntegral width / imageWidth
+               , fromIntegral height / imageHeight
+               ]
 
 newFontManager :: IO FontManager
 newFontManager = do
@@ -95,7 +120,7 @@ newFont fontManager path fontSize = do
     _ <- newFace path facePtr ftLib
 
     let hrez = 100
-    let vrez = 72
+    let vrez = 100
 
     face <- peek facePtr
     ft_Set_Char_Size face 0 (fromIntegral fontSize*64) (hrez*vrez) vrez
@@ -125,9 +150,9 @@ newFontAtlas font = do
     let facePtr = (font^.fontFace)
     face <- peek facePtr
 
-    let fullString = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+    let fullString = chars
 
-    hb_lang <- withCString "en" $ \lang -> c'hb_language_from_string lang 2    
+    hb_lang <- withCString "en" $ \lang -> c'hb_language_from_string lang 3
 
     buf <- c'hb_buffer_create
     c'hb_buffer_set_direction buf c'HB_DIRECTION_LTR
@@ -172,7 +197,7 @@ newFontAtlas font = do
         let maxWidth = maximum $ map (\bitmap -> bitmap^.glyphWidth) bitmapList
         let maxHeight = maximum $ map (^.glyphHeight) bitmapList
 
-        let atlasSize = 256
+        let atlasSize = 1024
         let bitmapsPerRow = atlasSize `div` maxWidth
         let bitmapsPerColumn = atlasSize `div` maxHeight
 
@@ -183,7 +208,7 @@ newFontAtlas font = do
                         Map.insert (x, y) ((bitmap^.glyphData)!!((y - offset^._2)*(fromIntegral $ bitmap^.glyphPitch) + (x - offset^._1))) pointMap'
                     else
                         Map.insert (x, y) (0) pointMap'
-                        ) pointMap [(x, y) | x <- [offset^._1..(offset^._1 + maxWidth)], y <- [offset^._2..(offset^._2 + maxHeight)]]
+                        ) pointMap [(x, y) | x <- [offset^._1..(offset^._1 + maxWidth - 1)], y <- [offset^._2..(offset^._2 + maxHeight - 1)]]
                 ) Map.empty (zip bitmapList offsets)
 
         let img = generateImage (\x y -> if Map.member (x,y) imgData then imgData Map.! (x,y) else 0) atlasSize atlasSize
@@ -191,7 +216,7 @@ newFontAtlas font = do
         let atlas = foldr (\(glyph, offset) atlas ->
                 (atlas & atlasCharGlyphs %~ Map.insert (glyph^.glyphChar) glyph
                        & atlasCharCoords %~ Map.insert (glyph^.glyphChar) offset)
-                ) (TextAtlas Map.empty Map.empty (ImageY8 img)) (zip bitmapList offsets)
+                ) (TextAtlas Map.empty Map.empty (ImageY8 img) (atlasSize, atlasSize)) (zip bitmapList offsets)
 
         saveBmpImage ("test" ++ show 0 ++ ".bmp") (ImageY8 img)
         return atlas

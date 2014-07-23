@@ -1,5 +1,8 @@
 {-# LANGUAGE TemplateHaskell, Arrows #-}
-module Game.World.UnitWires where
+module Game.World.UnitWires 
+(
+)
+where
 
 import Game.World.Common
 import Game.World.Objects

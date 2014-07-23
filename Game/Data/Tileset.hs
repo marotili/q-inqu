@@ -1,42 +1,42 @@
 {-# LANGUAGE TemplateHaskell, FlexibleInstances, OverloadedStrings #-}
-module Game.Data.Tileset where
+module Game.Data.Tileset 
+(
+)
+where
 
 import Data.Maybe
-import Debug.Trace
-import Game.Data.Bin
 import Control.Lens
 import qualified Control.Lens as L
 import Data.Aeson
 import Data.Aeson.Types
-import Data.Aeson.Encode.Pretty
 import qualified Data.Aeson as A
-import Data.List
 import Control.Applicative
 import Control.Monad
 import Control.Monad.State
 import qualified Data.Text as T
-import qualified Data.ByteString.Lazy as B
-import Filesystem.Path
 import qualified Filesystem.Path as FP
 import qualified Filesystem.Path.CurrentOS as FP
-import Text.Regex
-import Control.Monad.Trans.Resource
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.HashMap.Strict as HashMap
-import qualified Data.Vector as V
 
+-- | We use a tileset definition file that will be compiled
+
+-- | A sprite may have multiple boundaries. Each boundary has a name and a list of points (clockwise)
 data Boundary = Boundary
 	{ _boundaryName :: T.Text
 	, _boundaryPolyline :: [(Int, Int)]
 	} deriving (Show)
 
+-- | Most of the time sprite frames share boundaries etc.
+-- | a group represents sprites with same attributes
 data Group = Group
 	{ _groupName :: T.Text
 	, _groupOrigin :: (Int, Int)
 	, _groupBoundaries :: Map.Map T.Text Boundary
 	} deriving (Show)
 
+-- | Data for one tile / sprite
 data TileSetData = TileSetData
 	{ _tsdFilename :: FP.FilePath
 	, _tsdName :: T.Text
@@ -49,6 +49,7 @@ data TileSetData = TileSetData
 	, _tsdBoundaries :: Map.Map T.Text Boundary
 	} deriving (Show)
 
+-- | derived sprite transformations
 data Transformation = 
 	  TransFlipHorizontal
 	| TransFlipVertical
@@ -56,6 +57,7 @@ data Transformation =
 	| TransEmpty
 	deriving (Show)
 
+-- | name of derived sprite
 data TileSetDerivedData = TileSetDerivedData
 	{ _tsddName :: T.Text
 	, _tsddSourceName :: T.Text
@@ -90,6 +92,7 @@ data ObjectAnimation = ObjectAnimation
 	, _oaSequence :: [AnimSequence]
 	} deriving (Show)
 
+-- | the full tileset
 data TileSet = TileSet
 	{ _tsName :: T.Text
 	, _tsFilename :: FP.FilePath
@@ -130,9 +133,9 @@ makeLenses ''TileSetDerivedData
 makeLenses ''TileSetCompiled
 
 getCompiledTileSets :: Getter TileSets [TileSetCompiled]
-getCompiledTileSets = to get
+getCompiledTileSets = to getCompiled
 	where
-		get ts = map (\ts' -> TileSetCompiled
+		getCompiled ts = map (\ts' -> TileSetCompiled
 				{ _tscFilename = ts'^.tsFilename
 				, _tscName = ts'^.tsName
 				, _tscBaseDirectory = ts'^.tsBaseDirectory
@@ -185,149 +188,163 @@ instance ToJSON TileSetData where
 instance FromJSON TileSets where
 	parseJSON (Object v) = do
 		let ts = TileSets Map.empty Map.empty Map.empty Map.empty Map.empty
-		ts' <- execStateT (do
+		execStateT (do
 				parseTileSets (Object v)			
 				parseObjects (Object v)
 				parseAnimations (Object v)
 				parseObjectAnimations (Object v)
 			) ts
+	parseJSON _ = mzero
 
-		return $ ts'
+parseObjects :: Value -> StateT TileSets Parser ()
+parseObjects (Object v) = do
+	objs <- lift $ v .: "objects"
+	mapM_ (\(Object v2) -> do
+			obj <- lift $ parseJSON (Object v2)
+			existingObj <- use $ rootObjects . at (obj^.objName)
+			case existingObj of
+				Just _ -> error "object name not unique"
+				Nothing -> return ()
 
-		where
-			parseObjects (Object v) = do
-				objs <- lift $ v .: "objects"
-				mapM (\(Object v) -> do
-						obj <- lift $ parseJSON (Object v)
-						existingObj <- use $ rootObjects . at (obj^.objName)
-						case existingObj of
-							Just _ -> error "object name not unique"
-							Nothing -> return ()
+			rootObjects.at (obj^.objName) L..= Just obj
+		) objs
+parseObjects _ = mzero
 
-						rootObjects.at (obj^.objName) L..= Just obj
-					) objs
+parseAnimations :: Value -> StateT TileSets Parser ()
+parseAnimations (Object v) = do
+	animations <- lift $ v .: "animations"
+	mapM_ (\(String animName) -> do
+			existingAnim <- use $ rootAnimations . at animName
+			case existingAnim of
+				Just _ -> error "animation name not unique"
+				Nothing -> return ()
 
-			parseAnimations (Object v) = do
-				animations <- lift $ v .: "animations"
-				mapM (\(String animName) -> do
-						existingAnim <- use $ rootAnimations . at animName
-						case existingAnim of
-							Just _ -> error "animation name not unique"
-							Nothing -> return ()
+			rootAnimations . at animName L..= Just (Animation animName)
+		) animations
+parseAnimations _ = mzero
 
-						rootAnimations . at animName L..= Just (Animation animName)
-					) animations
+parseObjectAnimations :: Value -> StateT TileSets Parser ()
+parseObjectAnimations  (Object v) = do
+	objAnims <- lift $ v .: "objectAnimations"
+	mapM_ (\(Object v2) -> do
+			objAnim <- fmap (\a -> a ([]::[AnimSequence])) $ lift $ parseJSON (Object v2)
+			existingObj <- use $ rootObjects . at (objAnim^.oaObjName)
+			existingAnim <- use $ rootAnimations . at (objAnim^.oaAnimName)
+			case existingObj of Nothing -> error "object for animation does not exist"; _ -> return ()
+			case existingAnim of Nothing -> error "animation for animation does not exist"; _ -> return ()
 
-			parseObjectAnimations  (Object v) = do
-				objAnims <- lift $ v .: "objectAnimations"
-				mapM (\(Object v) -> do
-						objAnim <- fmap (\a -> a ([]::[AnimSequence])) $ lift $ parseJSON (Object v)
-						existingObj <- use $ rootObjects . at (objAnim^.oaObjName)
-						existingAnim <- use $ rootAnimations . at (objAnim^.oaAnimName)
-						case existingObj of Nothing -> error "object for animation does not exist"; _ -> return ()
-						case existingAnim of Nothing -> error "animation for animation does not exist"; _ -> return ()
+			rootObjAnims . at (objAnim^.oaObjName, objAnim^.oaAnimName) L..= Just objAnim
 
-						rootObjAnims . at (objAnim^.oaObjName, objAnim^.oaAnimName) L..= Just objAnim
+			seqData <- lift $ v2 .: "sequence"
+			mapM_ (parseSequence objAnim) seqData
+		) objAnims
+parseObjectAnimations _ = mzero
 
-						seqData <- lift $ v .: "sequence"
-						mapM_ (parseSequence objAnim) seqData
-					) objAnims
+parseSequence :: ObjectAnimation -> Value -> StateT TileSets Parser ()
+parseSequence objAnim (Object v) = do
+	seqData <- lift . parseJSON $ Object v
 
-			parseSequence objAnim (Object v) = do
-				seqData <- lift . parseJSON $ (Object v)
+	mapM_ (\seqD -> do
+			existingTile <- use $ rootTiles . at (seqD^.asdTileName)
+			case existingTile of Nothing -> error "tile does not exist"; _ -> return ()
+		) (seqData^.asData) 
 
-				mapM_ (\seqD -> do
-						existingTile <- use $ rootTiles . at (seqD^.asdTileName)
-						case existingTile of Nothing -> error "tile does not exist"; _ -> return ()
-					) (seqData^.asData) 
+	rootObjAnims . at (objAnim^.oaObjName, objAnim^.oaAnimName) . _Just . oaSequence %= (:) seqData
+parseSequence _ _ = mzero
 
-				rootObjAnims . at (objAnim^.oaObjName, objAnim^.oaAnimName) . _Just . oaSequence %= (:) seqData
+parseTileSets :: Value -> StateT TileSets Parser ()
+parseTileSets (Object v) = do
+	parsedTileSets <- lift $ v .: "tileset"
+	mapM_ parseTileSet parsedTileSets
+parseTileSets _ = mzero
 
-			parseTileSets (Object v) = do
-				tileSets <- lift $ v .: "tileset"
-				mapM_ parseTileSet tileSets
+parseTileSet :: Value -> StateT TileSets Parser ()
+parseTileSet (Object v) =
+	do
+		tsHead <- fmap (\a -> a (Set.empty::Set.Set TileId) (Map.empty::Map.Map T.Text Group) ([]::[TileSetDerivedData])) $
+			lift $ parseJSON (Object v)	
+		existingTs <- use $ tileSets . at (tsHead^.tsName)
+		case existingTs of
+			Just _ -> error "tilset name should be unique"
+			Nothing -> tileSets . at (tsHead^.tsName) L..= Just tsHead
 
-			parseTileSet (Object v) =
-				do
-					tsHead <- fmap (\a -> a (Set.empty::Set.Set TileId) (Map.empty::Map.Map T.Text Group) ([]::[TileSetDerivedData])) $
-						lift $ parseJSON (Object v)	
-					existingTs <- use $ tileSets . at (tsHead^.tsName)
-					case existingTs of
-						Just _ -> error "tilset name should be unique"; _ -> return ()
-						Nothing -> tileSets . at (tsHead^.tsName) L..= Just tsHead
+		tileSets . at (tsHead^.tsName) L..= Just tsHead
 
-					tileSets . at (tsHead^.tsName) L..= Just tsHead
+		tsGroup' <- lift $ v .:? "group_data"
+		tsData' <- lift $ v.: "source_data"
+		tsDerivedData' <- lift $ v.: "derived_data"
 
-					tsGroup' <- lift $ v .:? "group_data"
-					tsData <- lift $ v.: "source_data"
-					tsDerivedData <- lift $ v.: "derived_data"
+		case tsGroup' of
+			Just tsGroup -> do
+				let groupNames = HashMap.keys tsGroup
 
-					case tsGroup' of
-						Just tsGroup -> do
-							let groupNames = HashMap.keys tsGroup
+				mapM_ (\name -> do
+						Object group <- lift $ tsGroup .: name
+						origin <- lift $ group .: "origin" 
+						Object boundaries <- lift $ group .: "boundaries"
 
-							mapM_ (\name -> do
-									Object group <- lift $ tsGroup .: name
-									origin <- lift $ group .: "origin" 
-									Object boundaries <- lift $ group .: "boundaries"
+						tileSets.at (tsHead^.tsName)._Just.
+							tsGroups.at name L..= (Just $ Group name (head origin, origin!!1) Map.empty)
 
-									tileSets.at (tsHead^.tsName)._Just.
-										tsGroups.at name L..= (Just $ Group name (origin!!0, origin!!1) Map.empty)
+						mapM_ (\boundaryName' -> do
+								polyLine <- lift $ boundaries .: boundaryName'
+								tileSets.at (tsHead^.tsName)._Just.
+									tsGroups.at name._Just.groupBoundaries.at boundaryName' L..=
+										(Just $ Boundary boundaryName' $ foldr (\[x, y] ls -> (x,y):ls) [] polyLine)
+							) $ HashMap.keys boundaries
+					) groupNames
+			_ -> return ()
 
-									mapM_ (\boundaryName -> do
-											polyLine <- lift $ boundaries .: boundaryName
-											tileSets.at (tsHead^.tsName)._Just.
-												tsGroups.at name._Just.groupBoundaries.at boundaryName L..=
-													(Just $ Boundary boundaryName $ foldr (\[x, y] ls -> (x,y):ls) [] polyLine)
-										) $ HashMap.keys boundaries
-								) groupNames
-						_ -> return ()
+		mapM_ (parseTsData (tsHead^.tsName)) tsData'
+		mapM_ (parseDerivedData (tsHead^.tsName)) tsDerivedData'
+parseTileSet _ = mzero
 
-					mapM_ (parseTsData (tsHead^.tsName)) tsData
-					mapM_ (parseDerivedData (tsHead^.tsName)) tsDerivedData
+parseTsData :: T.Text -> Value -> StateT TileSets Parser ()
+parseTsData tileSetName (Object v) = do
+	tileData' <- lift $ parseJSON (Object v)
+	existingTsData <- use $ rootTiles . at (tileData'^.tsdName)
 
-			parseTsData tileSetName (Object v) = do
-				tileData' <- lift $ parseJSON (Object v)
-				existingTsData <- use $ rootTiles . at (tileData'^.tsdName)
+	tileData <- case tileData' ^. tsdGroupName of
+		Just groupName' -> do
+			Just ts <- use $ tileSets.at tileSetName
+			let Just group = ts^.tsGroups.at groupName'
 
-				tileData <- case tileData' ^. tsdGroupName of
-					Just groupName -> do
-						Just ts <- use $ tileSets.at (tileSetName)
-						let Just group = ts^.tsGroups.at groupName
+			return $ tileData'
+				& tsdOrigin .~ (group^.groupOrigin)
+				& tsdBoundaries .~ (group^.groupBoundaries)
+		Nothing ->
+			return tileData'
 
-						return $ tileData'
-							& tsdOrigin .~ (group^.groupOrigin)
-							& tsdBoundaries .~ (group^.groupBoundaries)
-					Nothing ->
-						return tileData'
+	case existingTsData of
+		Just _ -> error "tileIds must be unique"
+		Nothing -> do
+			tileSets . at tileSetName . _Just . tsData %= Set.insert (tileData^.tsdName)
+			rootTiles . at (tileData^.tsdName) L..= Just tileData
+parseTsData _ _ = mzero
 
-				case existingTsData of
-					Just _ -> error "tileIds must be unique"
-					Nothing -> do
-						tileSets . at (tileSetName) . _Just . tsData %= Set.insert (tileData^.tsdName)
-						rootTiles . at (tileData^.tsdName) L..= Just tileData
+parseDerivedData :: T.Text -> Value -> StateT TileSets Parser ()
+parseDerivedData tileSetName (Object v) = do
+	derivedData <- lift $ parseJSON (Object v)
+	existingTile <- use $ rootTiles . at (derivedData^.tsddName)
+	existingSourceTile <- use $ rootTiles . at (derivedData^.tsddSourceName)
 
-			parseDerivedData tileSetName (Object v) = do
-				derivedData <- lift $ parseJSON (Object v)
-				existingTile <- use $ rootTiles . at (derivedData^.tsddName)
-				existingSourceTile <- use $ rootTiles . at (derivedData^.tsddSourceName)
+	case existingTile of
+		Just _ -> error "tileIds must be unique (derived)"
+		_ -> return ()
 
-				case existingTile of
-					Just _ -> error "tileIds must be unique (derived)"
-					_ -> return ()
+	case existingSourceTile of
+		Nothing -> error "source tile doesn't exist"
+		_ -> return ()
 
-				case existingSourceTile of
-					Nothing -> error "source tile doesn't exist"
-					_ -> return ()
-
-				tileSets . at (tileSetName) . _Just . tsDerivedData %= (:) derivedData
-				--rootTiles . at (derivedData^.tsddName) L..= Just derivedData
+	tileSets . at tileSetName . _Just . tsDerivedData %= (:) derivedData
+	--rootTiles . at (derivedData^.tsddName) L..= Just derivedData
+parseDerivedData _ _ = mzero
 
 instance FromJSON (Set.Set TileId -> Map.Map T.Text Group -> [TileSetDerivedData] -> TileSet) where
 	parseJSON (Object v) = TileSet <$>
 		v .: "name" <*>
-		v .: "filename" <*> 
-		v .: "base_directory"
+		fmap FP.fromText (v .: "filename") <*>
+		fmap FP.fromText (v .: "base_directory")
 	parseJSON _ = mzero
 
 instance FromJSON ([AnimSequence] -> ObjectAnimation) where
@@ -385,12 +402,13 @@ instance FromJSON Direction where
 		"Right" -> DirRight
 		"Front" -> DirFront
 		"Back" -> DirBack
+		_ -> error "wrong direction format"
 	parseJSON _ = mzero
 
 
 instance FromJSON TileSetData where
 	parseJSON (Object v) = TileSetData <$>
-		v .: "filename" <*>
+		fmap FP.fromText (v .: "filename") <*>
 		v .: "tileId" <*>
 		v .: "size" <*> 
 		pure (0, 0) <*>  -- base offset
@@ -402,13 +420,13 @@ instance FromJSON TileSetData where
 		pure Map.empty -- boundaries
 
 		where
-			test v = do
-				origin <- v .:? "origin" :: Parser (Maybe [Int])
+			test originV = do
+				origin <- originV .:? "origin" :: Parser (Maybe [Int])
 				case origin of
 					Just [x, y] -> pure (x, y)
 					_ -> do
-						originX <- v.:? "originX" :: Parser (Maybe Int)
-						originY <- v.:? "originY" :: Parser (Maybe Int)
+						originX <- originV.:? "originX" :: Parser (Maybe Int)
+						originY <- originV.:? "originY" :: Parser (Maybe Int)
 						case originX of
 							Just x -> pure (x, fromJust originY)
 							_ -> pure (0, 0)
@@ -416,39 +434,40 @@ instance FromJSON TileSetData where
 
 
 
-instance FromJSON FP.FilePath where
-	parseJSON (String v) = return $ FP.fromText v
-	parseJSON _ = mzero
+--instance FromJSON FP.FilePath where
+--	parseJSON (String v) = return $ FP.fromText v
+--	parseJSON _ = mzero
 
-findOffset :: String -> (Int, Int)
-findOffset str = case matches of
-		Just [l, r] -> (read l, read r)
-		_ -> (0, 0)
-	where
-		r = mkRegex "Origin geometry: \\+([0-9]+)\\+([0-9]+)"
-		matches = matchRegex r str
+--findOffset :: String -> (Int, Int)
+--findOffset str = case matches of
+--		Just [l, r] -> (read l, read r)
+--		_ -> (0, 0)
+--	where
+--		r = mkRegex "Origin geometry: \\+([0-9]+)\\+([0-9]+)"
+--		matches = matchRegex r str
 
-fillBin :: Bin -> [Rect] -> Maybe PackTree
-fillBin _ [] = Nothing
+--fillBin :: Bin -> [Rect] -> Maybe PackTree
+--fillBin _ [] = Nothing
 
-fillBin bin rects = 
-	let 
-		(first:sortedRects) = reverse . sort $ rects 
-		Just treeRoot = mkRoot first bin
+--fillBin bin rects = 
+--	let 
+--		(first:sortedRects) = reverse . sort $ rects 
+--		Just treeRoot = mkRoot first bin
 
-		finalTree = foldr (\rect mtree -> mtree >>= \tree -> updateTree rect tree mtree) (Just treeRoot) $ reverse sortedRects
-	in finalTree
+--		finalTree = foldr (\rect mtree -> mtree >>= \tree -> updateTree rect tree mtree) (Just treeRoot) $ reverse sortedRects
+--	in finalTree
 
-mkRects :: [(Int, Int)] -> [Rect]
-mkRects sizes = rects
-	where
-		rects = map (\((w, h), rId) -> newRect rId w h) $ zip sizes [0..]
+--mkRects :: [(Int, Int)] -> [Rect]
+--mkRects sizes = rects
+--	where
+--		rects = map (\((w, h), rId) -> newRect rId w h) $ zip sizes [0..]
 
-getOffsets :: Bin -> [(Int, Int)] -> [(Int, Int)]
-getOffsets bin sizes = let
-		rects = mkRects sizes
-		tree = fromJust $ fillBin bin rects
-		atlas = atlasFromTree tree
-	in
-		map (\rect -> fromJust $ atlas^.atlasRects . at (rect^.rectId)) rects
+--getOffsets :: Bin -> [(Int, Int)] -> [(Int, Int)]
+--getOffsets bin sizes = let
+--		rects = mkRects sizes
+
+--		tree = fromJust $ fillBin bin rects
+--		atlas = atlasFromTree tree
+--	in
+--		map (\rect -> fromJust $ atlas^.atlasRects . at (rect^.rectId)) rects
 

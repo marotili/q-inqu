@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, RankNTypes, BangPatterns #-}
 
-module Main where
+module Main (main) where
 
 import Debug.Trace
 import Game.World
@@ -50,7 +50,7 @@ type ProdDecoder a = (Monad m)
 	-> Producer (PB.ByteOffset, a) m (Either (PB.DecodingError, Producer B.ByteString m r) r)
 decodeAction :: ProdDecoder FromClientData
 -- decodeAction = PB.decodeMany
-decodeAction = \bytes -> bytes^.PB.decoded -- decodeMany
+decodeAction bytes = bytes^.PB.decoded -- decodeMany
 
 
 
@@ -80,9 +80,9 @@ produceWorld session' lastDt total = do
 
 
 	let steps = [16.0/1000 | _ <- [0..(floor (finalTime/16*1000) - 1)]]
-	let final = foldr (\_ time -> if time > 16/1000.0 then (time - 16/1000.0) else time) finalTime [0..floor (finalTime/16*1000)]
+	let final = foldr (\_ time -> if time > 16/1000.0 then time - 16/1000.0 else time) finalTime [0..floor (finalTime/16*1000)]
 
-	mapM_ (\time -> P.yield (actions, realToFrac time)) $ steps
+	mapM_ (\time -> P.yield (actions, realToFrac time)) steps
 	let total' = if length steps > 1 then
 		total + 1 else total
 	lift $ writeFile "time.log" (show total')
@@ -113,8 +113,8 @@ fakeClient !game = do
 				worldDelta <- use gameLastDelta
 				manager <- use gameWorldManager
 
-				let !(A.InputActions aiInput1) = runAI 3 world worldDelta dt
-				let !(A.InputActions aiInput2) = runAI 4 world worldDelta dt
+				let (A.InputActions aiInput1) = runAI 3 world worldDelta dt
+				let (A.InputActions aiInput2) = runAI 4 world worldDelta dt
 				return (aiInput1, aiInput2)
 			) game
 
@@ -145,9 +145,6 @@ runGame recvEvents output = do
 eventUpdate n = do
 	P.yield (0, -1, A.ActionUpdateGameState)
 	let n' = if n > 10 then 0 else n + 1
-	if n' == 0 then return ()
-		--lift $ performGC
-		else return ()
 	lift $ threadDelay (1000000 `div` 60)
 	eventUpdate n'
 
@@ -179,7 +176,7 @@ main = withSocketsDo $ do
 		runEffect $ runFakeClient input3 sendEvents1 game
 		performGC
 
-	_ <- async $ do
+	_ <- async $
 		serve HostIPv4 "5002" (connCb (numClient, sendEvents1, input1, input1))
 
 	mapM_ wait [a2]
@@ -233,7 +230,7 @@ connCb (numClient, sendEvents, input1, input2) (sock, _) = do
 		--runEffect $ (P.yield "Test" >-> cons)
 		_ <- async $ do
 			-- runEffect $ fromInput (if cl == 0 then input1 else input2) >-> toClient
-			runEffect $ fromInput (input1) >-> toClient
+			runEffect $ fromInput input1 >-> toClient
 			performGC
 		a2 <- async $ do
 			runEffect $ testX >-> forward >-> toOutput sendEvents

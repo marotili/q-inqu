@@ -1,5 +1,8 @@
 {-# LANGUAGE FlexibleInstances, NamedFieldPuns, TemplateHaskell, Rank2Types #-}
-module Game.World.Objects where
+module Game.World.Objects 
+(
+)
+where
 	--( 
 	--  ObjectId, ObjectIds, DoorId, DoorControllerId, SwitchId
 	--, PlayerId, WallId, BoulderId

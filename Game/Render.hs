@@ -1,5 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
-module Game.Render where
+module Game.Render 
+( clearWindow
+)
+where
 
 import Graphics.Rendering.OpenGL
 import qualified Graphics.Rendering.OpenGL as GL
@@ -40,7 +43,7 @@ newRenderContext playerId game = do
 
 	--let uiWorld = mkUIWorld game
 	program <- setupShaders "shader.vert" "shader.frag"
-	_ <- uniformInfo program
+	--_ <- uniformInfo program
 	--wrc <- newWorldRenderContext nWorld program
 	--uirc <- newWorldRenderContext uiWorld program
 	--lc <- newLightContext

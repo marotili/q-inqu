@@ -1,8 +1,7 @@
 module Game.Input.Actions 
 	(
 	-- * Actions
-	  Action(..), Direction(..), InputActions(..)
-	, newInputAction
+	newInputAction
 	, movingDirection, newMoveAction
 	) where
 
@@ -10,6 +9,8 @@ import Data.Binary
 import Data.Monoid
 import Linear
 import qualified Data.Set as Set
+
+-- | TODO: replace with a DSL
 
 data Direction = 
 	  DirNorth

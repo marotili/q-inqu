@@ -1,5 +1,34 @@
 {-# LANGUAGE TemplateHaskell, FlexibleInstances, ExistentialQuantification, Rank2Types, TypeSynonymInstances #-}
-module Game.World.Common where
+module Game.World.Common 
+( World
+, WorldDelta
+, ObjectProp
+
+, wCommon
+, wUnitManager
+, wObjects
+, wCollisionFilter
+, wTileBoundary
+
+, wcDelta
+
+, wcPositions
+, wcRotations
+, wcPhysics
+, wcAnimations
+, wcBoundaries
+, wcCollisionEvents
+, wcWires
+, wcOrientation
+, wcStaticCollidable
+, wcRealm
+
+, wdCommon
+, wdUnitManager
+, wdObjects
+, wdCollisionFilter
+)
+where
 
 import Data.Maybe
 import Game.World.Objects
@@ -169,6 +198,8 @@ data UnitManager = UnitManager
     { _umUnits :: !(ObjectProp Unit)
     , _umItems :: !(ObjectProp Item)
     } deriving (Show)
+
+newUnitManager :: UnitManager
 newUnitManager = UnitManager
     { _umUnits = Map.empty
     , _umItems = Map.empty

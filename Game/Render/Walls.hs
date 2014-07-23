@@ -1,5 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
-module Game.Render.Walls where
+module Game.Render.Walls 
+(
+)
+where
 
 import Debug.Trace
 import qualified Data.Map as Map

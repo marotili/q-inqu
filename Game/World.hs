@@ -1,13 +1,6 @@
-{-# LANGUAGE BangPatterns, FlexibleContexts, Arrows, NamedFieldPuns, Rank2Types #-}
+{-# LANGUAGE FlexibleContexts, Arrows, NamedFieldPuns, Rank2Types #-}
 module Game.World 
 	(
-	-- * World
-	  WorldWire, WorldSession, WorldContext
-	, World, WorldManager, WorldDelta
-
-	-- * To remove
-	--, newWorldFromTiled
-	, testwire
 	) where
 
 import Game.World.ObjectData
@@ -51,7 +44,7 @@ moveArrow direction = proc oId -> do
 	let anim = arrowAnimation
 	_ <- animateR -< (oId, anim)
 
-	_ <- rotate (6.28) -< oId
+	_ <- rotate 6.28 -< oId
 	returnA -< ()
 
 	where
@@ -65,7 +58,7 @@ moveArrow direction = proc oId -> do
 		removeArrow = untilV removeObject W.--> void exit
 
 		handleCollision = proc oId -> do
-			collisions <- asSoonAs . (wLiftE objectCollided) -< oId
+			collisions <- asSoonAs . wLiftE objectCollided -< oId
 			unitCollisions <- wLiftF (\cols -> do
 					world <- ask
 					return $ filter (\oId -> world^.isUnit oId) cols
@@ -83,9 +76,9 @@ stun = proc oId -> do
 
 objectCollided oId = do
 	collisions <- view (collisionEvent oId)
-	if null collisions
-		then return (False, [])
-		else return (True, collisions)
+	return $ if null collisions
+		then (False, [])
+		else (True, collisions)
 
 data Arrow = Arrow
 instance Spawnable Game.World.Arrow where
@@ -104,7 +97,7 @@ instance Spawnable Game.World.Arrow where
 				else -(acos dx)
 		returnA -< arrowData^.bdBoundary rotation
 
-	spawnAnimation _ = pure $ arrowAnimation
+	spawnAnimation _ = pure arrowAnimation
 
 
 class Spawnable a where

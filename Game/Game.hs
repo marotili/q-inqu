@@ -1,5 +1,7 @@
 {-# LANGUAGE TemplateHaskell, Arrows, BangPatterns #-}
-module Game.Game where
+module Game.Game 
+()
+where
 
 import Control.Lens
 import Debug.Trace
@@ -119,17 +121,17 @@ updateRender delta oldWorld newWorld renderWorld renderablesIn =
 		in x `seq` (renderWorld3, x)
 	where
 		-- remove objects from renderer
-		(_, !renderWorld2', !removeRenderables) = runRWS (do
+		(_, !renderWorld2', !removeRenderables) = runRWS
 				U.removeRenderObjects
-			) (oldWorld, delta, renderablesIn) renderWorld
+			(oldWorld, delta, renderablesIn) renderWorld
 
 		!newRenderablesDeleted = Set.toList $ Set.difference (Set.fromList renderablesIn) (Set.fromList removeRenderables)
 
 		-- add objects to renderer
-		(_, !renderWorld2, !newRenderables) = runRWS (do
+		(_, !renderWorld2, !newRenderables) = runRWS
 				--updateTiled
 				U.newRenderObjects
-			) (newWorld, delta, newRenderablesDeleted) renderWorld2'
+			(newWorld, delta, newRenderablesDeleted) renderWorld2'
 
 		-- update render objects
 		(_, !renderWorld3, _) = runRWS U.update
@@ -138,9 +140,9 @@ updateRender delta oldWorld newWorld renderWorld renderablesIn =
 updateOnlyGame :: Rational -> State Game ()
 updateOnlyGame dt = do
 	game <- get
-	world <- use $ gameLogicWorld
-	worldWire <- use $ gameWire
-	oldManager <- use $ gameWorldManager
+	world <- use gameLogicWorld
+	worldWire <- use gameWire
+	oldManager <- use gameWorldManager
 
 	let (!newWire, (!newManager, !newDelta)) = gameStepWorld worldWire world oldManager dt
 	let !newWorld = G.applyDelta world newDelta
@@ -152,23 +154,21 @@ updateOnlyGame dt = do
 
 updateGame :: Rational -> State Game ()
 updateGame dt = do
-	game <- get
-	renderablesIn <- use $ gameRenderObjects
-	world <- use $ gameLogicWorld
-	worldWire <- use $ gameWire
-	oldManager <- use $ gameWorldManager
-	renderWorld <- use $ gameRenderWorld
+	world <- use gameLogicWorld
 
-	let (!newWire, (!newManager, !newDelta)) = gameStepWorld worldWire world oldManager dt
-	let !newWorld = G.applyDelta world newDelta
+	renderablesIn <- use gameRenderObjects
+	renderWorld <- use gameRenderWorld
+
+
+	updateOnlyGame dt
+
+	newDelta <- use gameLastDelta
+	newWorld <- use gameLogicWorld
+
 	let (!newRenderWorld, !newRenderables) = updateRender newDelta world newWorld renderWorld renderablesIn
 
 	gameRenderObjects .= newRenderables
 	gameRenderWorld .= newRenderWorld
-	gameLogicWorld .= newWorld
-	gameLastDelta .= newDelta
-	gameWorldManager .= newManager
-	gameWire .= newWire
 
 	return ()
 
@@ -226,17 +226,17 @@ mkGameWorld tiledMap startPos genMap = do
 			{ _wTileBoundary = tiledMap^.T.mapTileSize
 			}
 
-		initWalls [] = proc input -> do
+		initWalls [] = proc input ->
 			returnA -< ()
 		initWalls (((ox, oy), (px, py)):wallsData) = proc input -> do
 
 			wallsId <- spawnObjectAt "Wall" (ox, -oy) -< input
-			_ <- wLiftSetOnce setBoundary (
+			_ <- wLiftSetOnce setBoundary
 					[ (0, -py + oy)
 					, (0, 0)
 					, (px-ox, 0)
 					, (px-ox, -py + oy)]
-				) -< wallsId
+				 -< wallsId
 			_ <- wLiftSetOnceVoid setStaticCollidable -< wallsId
 
 			_ <- initWalls wallsData -< input

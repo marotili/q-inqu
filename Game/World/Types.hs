@@ -1,5 +1,8 @@
 --{-# LANGUAGE  TemplateHaskell, NamedFieldPuns, Rank2Types #-}
-module Game.World.Types where
+module Game.World.Types 
+(
+)
+where
 --    (
 --    -- * World
 --      World(..)

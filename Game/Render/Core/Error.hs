@@ -1,4 +1,7 @@
-module Game.Render.Core.Error where
+module Game.Render.Core.Error 
+(
+)
+where
 
 import System.Log.Logger
 import Control.Monad
