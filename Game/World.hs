@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleContexts, Arrows, NamedFieldPuns, Rank2Types #-}
 module Game.World 
-	(
+	( testwire
 	) where
 
 import Game.World.ObjectData

@@ -75,6 +75,7 @@ library
     build-depends:
         base,
         linear,
+        primitive,
         containers >= 0.5,
         freetype2 == 2.5.3.0,
         lens >= 4.0,

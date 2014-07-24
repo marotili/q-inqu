@@ -2,7 +2,9 @@
 
 
 module Game.World.Gen.Terrain 
-(
+( GenMap(..)
+, tileBoundaries
+, mkGenWorld
 )
 where
 

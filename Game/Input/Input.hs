@@ -3,6 +3,9 @@
 
 module Game.Input.Input 
     ( userInput
+
+    -- | TODO: move this somewhere else
+    , untilV
     )
     where
 	--(

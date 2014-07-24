@@ -1,7 +1,33 @@
 {-# LANGUAGE FlexibleContexts, Arrows, Rank2Types, FlexibleInstances, BangPatterns #-}
 module Game.World.Wires 
-(
-)
+	( animateR
+	, move
+	, wLiftE
+	, exit
+	, wLiftF
+	, newObjectWiresR
+	, animate
+	, newObjectWire
+	, stepObjectWires
+	, while
+	, spawnArrowEvent
+	, spawnArrowDirection
+	, removeObject
+	, spawnObjectMakeName
+	, setPosOnceR
+	, wLiftSetOnceR
+	, newObjectWireR
+	, wLift
+	, movingDirectionR
+	, movingDirectionE
+	, wLiftUpdateR
+	, thenDo
+	, moveR
+
+	, spawnObjectAt
+	, wLiftSetOnce
+	, wLiftSetOnceVoid
+	)
 where
 
 import qualified Data.Map.Strict as Map

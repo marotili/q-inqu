@@ -1,7 +1,36 @@
 {-# LANGUAGE FlexibleContexts, Rank2Types, NoMonomorphismRestriction #-}
 module Game.World.Lens 
-(
-)
+    ( objectBoundary
+    , Get
+    , Set
+    , Component(..)
+    , writeProp
+    , compUnit
+
+    , getWires
+    , addWire
+    , addObject
+    , moveObject
+    , isCollidable
+    , getCollisionFilters
+    , setCollisionEvent
+    , getAnimations
+    , setAnimation
+    , setAnimations
+    , deleteObject
+
+    , objectPosition
+
+    , rotateObject
+    , getPositions
+    , collisionEvent
+    , setIgnoreCollision
+    , setBoundary
+    , getItems
+    , getObjects
+    , setOrientation
+    , setStaticCollidable
+    )
 where
 
 import qualified Data.Map.Strict as Map

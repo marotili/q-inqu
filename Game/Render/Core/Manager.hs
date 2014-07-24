@@ -263,3 +263,4 @@ renderText fr cam = do
     --GLRaw.glDrawElements GLRaw.gl_TRIANGLES (fromIntegral $ renderer^.trNumVertices) GLRaw.gl_UNSIGNED_INT nullPtr
     GLRaw.glDrawElements GLRaw.gl_TRIANGLES 12 GLRaw.gl_UNSIGNED_INT nullPtr
     logGL "renderText: glDrawElements"
+

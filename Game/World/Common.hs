@@ -27,6 +27,60 @@ module Game.World.Common
 , wdUnitManager
 , wdObjects
 , wdCollisionFilter
+
+, Unit(..)
+, ModifyContainer
+, Modify(..)
+, UnitId
+, umUnits
+, umdUnits
+, Item
+, ItemId
+, umItems
+, umdItems
+, Rotation
+, ObjectWire
+, Boundary
+, ObjectChangeSet
+
+, alterPos
+, wCollisionManager
+, applyUnitManagerDelta
+
+, WorldContext
+, Condition(..)
+, unitConditions
+, Equipment(..)
+, equipmentSlots
+, EquipmentSlot(..)
+, Inventory(..)
+, invItemInstances
+, invMaxItems
+, UnitHealth(..)
+, uhMax
+, uhCurrent
+, unitId
+, unitHealth
+, unitEquipment
+, unitInventory
+, unitAbilities
+
+, WorldWire
+, WireControl(..)
+, wmNextObjectId
+
+, WorldManager(..)
+, wmPlayerActions
+
+, ItemInstance(..)
+, iiItemId
+
+, emptyWM
+, emptyW
+
+, _wTileBoundary
+
+, worldManagerUpdate
 )
 where
 

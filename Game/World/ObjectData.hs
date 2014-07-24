@@ -1,7 +1,13 @@
 {-# LANGUAGE FlexibleInstances, NamedFieldPuns, TemplateHaskell, Rank2Types #-}
 module Game.World.ObjectData 
-(
-)
+    ( bdBoundary
+    , objectAnimation
+    , arrowAnimation
+    , arrowData
+    , boltAnimation
+    , attackAnimation
+    , playerBoundary
+    )
 where
 
 import qualified Data.Set as Set
@@ -87,10 +93,10 @@ objectAnimation 1 dir = a1
         animName East 3 = "LilaStandRight"
         animName East 4 = "LilaWalk2Right"
 
-        a1 = Animation (3*toInt dir) (animName dir 1) 0.2 a2 0 
-        a2 = Animation (3*toInt dir) (animName dir 2) 0.2 a4 0
-        a3 = Animation (3*toInt dir) (animName dir 3) 0.2 a4 0
-        a4 = Animation (3*toInt dir) (animName dir 4) 0.2 a2 0
+        a1 = Animation (3*orientationToInt dir) (animName dir 1) 0.2 a2 0 
+        a2 = Animation (3*orientationToInt dir) (animName dir 2) 0.2 a4 0
+        a3 = Animation (3*orientationToInt dir) (animName dir 3) 0.2 a4 0
+        a4 = Animation (3*orientationToInt dir) (animName dir 4) 0.2 a2 0
 
 objectAnimation 2 dir = a1
     where
@@ -114,10 +120,10 @@ objectAnimation 2 dir = a1
         animName East 3 = "RosaStandRight"
         animName East 4 = "RosaWalk2Right"
 
-        a1 = Animation (3*toInt dir) (animName dir 1) 0.2 a2 0 
-        a2 = Animation (3*toInt dir) (animName dir 2) 0.1 a4 0
-        a3 = Animation (3*toInt dir) (animName dir 3) 0.2 a4 0
-        a4 = Animation (3*toInt dir) (animName dir 4) 0.2 a1 0
+        a1 = Animation (3*orientationToInt dir) (animName dir 1) 0.2 a2 0 
+        a2 = Animation (3*orientationToInt dir) (animName dir 2) 0.1 a4 0
+        a3 = Animation (3*orientationToInt dir) (animName dir 3) 0.2 a4 0
+        a4 = Animation (3*orientationToInt dir) (animName dir 4) 0.2 a1 0
 
 objectAnimation 3 dir = a1
     where
@@ -141,10 +147,10 @@ objectAnimation 3 dir = a1
         animName East 3 = "WolfStandRight"
         animName East 4 = "WolfRightWalk1"
 
-        a1 = Animation (4*toInt dir) (animName dir 1) 0.25 a2 0 
-        a2 = Animation (4*toInt dir) (animName dir 2) 0.25 a3 0
-        a3 = Animation (4*toInt dir) (animName dir 3) 0.25 a4 0
-        a4 = Animation (4*toInt dir) (animName dir 4) 0.25 a1 0
+        a1 = Animation (4*orientationToInt dir) (animName dir 1) 0.25 a2 0 
+        a2 = Animation (4*orientationToInt dir) (animName dir 2) 0.25 a3 0
+        a3 = Animation (4*orientationToInt dir) (animName dir 3) 0.25 a4 0
+        a4 = Animation (4*orientationToInt dir) (animName dir 4) 0.25 a1 0
 
 objectAnimation 4 dir = a1
     where
@@ -168,18 +174,18 @@ objectAnimation 4 dir = a1
         animName East 3 = "FWTRightStand"
         animName East 4 = "FWTRightWalk2"
 
-        a1 = Animation (4*toInt dir) (animName dir 1) 0.25 a2 0 
-        a2 = Animation (4*toInt dir) (animName dir 2) 0.25 a3 0
-        a3 = Animation (4*toInt dir) (animName dir 3) 0.25 a4 0
-        a4 = Animation (4*toInt dir) (animName dir 4) 0.25 a1 0
+        a1 = Animation (4*orientationToInt dir) (animName dir 1) 0.25 a2 0 
+        a2 = Animation (4*orientationToInt dir) (animName dir 2) 0.25 a3 0
+        a3 = Animation (4*orientationToInt dir) (animName dir 3) 0.25 a4 0
+        a4 = Animation (4*orientationToInt dir) (animName dir 4) 0.25 a1 0
 
 objectAnimation playerId dir = a1
     where
         animName num = "FWTFrontStand"
-        a1 = Animation (playerId*toInt dir) (animName 1) 0.25 a2 0 
-        a2 = Animation (playerId*toInt dir) (animName 2) 0.25 a3 0
-        a3 = Animation (playerId*toInt dir) (animName 3) 0.25 a4 0
-        a4 = Animation (playerId*toInt dir) (animName 4) 0.25 a1 0
+        a1 = Animation (playerId*orientationToInt dir) (animName 1) 0.25 a2 0 
+        a2 = Animation (playerId*orientationToInt dir) (animName 2) 0.25 a3 0
+        a3 = Animation (playerId*orientationToInt dir) (animName 3) 0.25 a4 0
+        a4 = Animation (playerId*orientationToInt dir) (animName 4) 0.25 a1 0
 
 arrowAnimation :: Animation
 arrowAnimation = a1

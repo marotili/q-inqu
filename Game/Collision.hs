@@ -3,6 +3,15 @@ module Game.Collision
 ( newOctree
 , newBoundary
 , GameOctree
+, octreeUpdate
+, octreeRemoveObject
+
+, octreeQueryObject
+, goStaticObjects
+, ooRealBoundary
+, rbLines
+, vectorXY
+, toFloat
 )
 where
 

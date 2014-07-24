@@ -1,6 +1,7 @@
 module Game.Render.Core.Error 
-(
-)
+    ( initLogging
+    , logGL
+    )
 where
 
 import System.Log.Logger

@@ -3,6 +3,8 @@ module Game.Input.Actions
 	-- * Actions
 	newInputAction
 	, movingDirection, newMoveAction
+	, InputActions(..)
+	, Action(..)
 	) where
 
 import Data.Binary

@@ -1,7 +1,19 @@
 {-# LANGUAGE NamedFieldPuns, TemplateHaskell, MultiParamTypeClasses #-}
 module Game.World.Gen.Types 
-(
-)
+    ( RoomSize(..)
+    , RoomType(..)
+    , stateRndGen
+    , GenContext
+    , Corridor
+    , corPoints
+    , Room
+    , DoorIndex
+    , roomDoors
+    , doorPosition
+    , roomSize
+    , newRoom
+    , roomType
+    )
 where
 
 import qualified Data.Map as Map

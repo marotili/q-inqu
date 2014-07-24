@@ -1,6 +1,9 @@
 module Game.Render.Update 
-(
-)
+    ( Renderable(..)
+    , removeRenderObjects
+    , newRenderObjects
+    , update
+    )
 where
 
 import Debug.Trace

@@ -1,7 +1,26 @@
 {-# LANGUAGE FlexibleInstances, NamedFieldPuns, TemplateHaskell, Rank2Types #-}
 module Game.World.Objects 
-(
-)
+    ( Animation(..)
+    , orientationToInt
+    , Orientation(..)
+    , BaseData(..)
+    , bdOrigin
+    , bdBaseBoundary
+    , ObjectId
+    , Position
+    , Object 
+    , PlayerId
+    , objName
+    , One(..)
+    , unOne
+    , Object(..)
+
+    , animNext
+    , animCurrentTime
+    , animTime
+
+    , orientationFromDelta
+    )
 where
 	--( 
 	--  ObjectId, ObjectIds, DoorId, DoorControllerId, SwitchId
@@ -91,15 +110,15 @@ data Orientation =
     | NorthWest
     deriving (Eq)
 
-toInt :: Orientation -> Int
-toInt North = 0
-toInt NorthEast = 1
-toInt East = 2
-toInt SouthEast = 3
-toInt South = 4
-toInt SouthWest = 5
-toInt West = 6
-toInt NorthWest = 7
+orientationToInt :: Orientation -> Int
+orientationToInt North = 0
+orientationToInt NorthEast = 1
+orientationToInt East = 2
+orientationToInt SouthEast = 3
+orientationToInt South = 4
+orientationToInt SouthWest = 5
+orientationToInt West = 6
+orientationToInt NorthWest = 7
 
 instance Show Orientation where
     show North = "N"

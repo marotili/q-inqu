@@ -1,7 +1,9 @@
 {-# LANGUAGE NamedFieldPuns #-}
 module Game.World.Gen.Frequency 
-(
-)
+    ( getDistribution
+    , roomTypeFreqDist
+    , roomSizeFreqDist
+    )
 where
 
 import System.Random

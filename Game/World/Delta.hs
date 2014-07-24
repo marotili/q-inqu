@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts, Rank2Types, NoMonomorphismRestriction, BangPatterns #-}
 module Game.World.Delta 
-()
+	( applyDelta
+	)
 where
 
 import qualified Data.Map as Map

@@ -1,6 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Game.Render 
 ( clearWindow
+, RenderContext
 )
 where
 

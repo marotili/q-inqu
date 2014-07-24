@@ -1,6 +1,9 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Game.Render.Core.Render 
-	(
+	( uploadFromVec
+    , updateFromVec
+    , setupShaders
+    , uniformInfo
 	) where
 
 import Data.List

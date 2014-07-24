@@ -1,7 +1,9 @@
 {-# LANGUAGE TemplateHaskell, Rank2Types, ImpredicativeTypes #-}
 module Game.Render.Core.Text
-(
-)
+    ( TextAtlas
+    , atlasToStorable
+    , atlasImage
+    )
 where
 
 import Data.Char

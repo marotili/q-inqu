@@ -1,7 +1,8 @@
 {-# LANGUAGE FlexibleContexts, Rank2Types, TemplateHaskell, Arrows #-}
 module Game.World.Unit 
-(
-)
+    ( isUnit
+    , makeUnit
+    )
 where
 
 import Control.Monad.Writer

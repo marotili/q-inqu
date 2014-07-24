@@ -1,6 +1,9 @@
 {-# LANGUAGE TemplateHaskell, Arrows, BangPatterns #-}
 module Game.Game 
-()
+	( Game
+	, gameWorldManager
+	, updateGame
+	)
 where
 
 import Control.Lens
@@ -16,8 +19,6 @@ import qualified Game.Render.Update as U
 import Game.Render.Walls 
 import qualified Game.World.Gen as Gen 
 import qualified Game.World.Gen.Terrain as Gen 
-import qualified Game.World.Import.Tiled as T 
-import qualified Data.Tiled as T 
 import Game.World.Wires 
 import Game.World.Lens 
 import qualified Data.Set as Set 
@@ -33,7 +34,7 @@ import System.Random
 
 data GameConfig = GameConfig
 	{ _gameConfigName :: String
-	, _gameInitialTiled :: !T.TiledMap
+	--, _gameInitialTiled :: !T.TiledMap
 	, _gameInitialWire :: !(G.WorldWire () ())
 	}
 
@@ -49,7 +50,7 @@ data GameConfig = GameConfig
 
 data Game = Game
 	{ _gameName :: !String
-	, _gameTiled :: !T.TiledMap
+	--, _gameTiled :: !T.TiledMap
 	, _gamePlayerStartPos :: !(Float, Float)
 	, _gameLogicWorld :: !G.World
 	, _gameRenderWorld :: !R.RenderWorld
@@ -71,9 +72,9 @@ makeLenses ''Game
 
 newGame :: String -> IO Game
 newGame name = do
-	tiledMap <- T.tMap
+	--tiledMap <- T.tMap
 	let genMap = Gen.mkGenWorld
-	(oldWorld, newWorld, delta, manager) <- mkGameWorld tiledMap (50, -200) genMap
+	(oldWorld, newWorld, delta, manager) <- mkGameWorld (50, -200) genMap
 	--print delta 
 
 	--complexTileset <- traceShow (delta, newWorld) $ R.load 
@@ -86,7 +87,6 @@ newGame name = do
 
 	let game = Game
 		{ _gameName = name
-		, _gameTiled = tiledMap
 		, _gamePlayerStartPos = (50, -200)
 		, _gameLogicWorld = newWorld
 		, _gameLastDelta = delta
@@ -172,8 +172,8 @@ updateGame dt = do
 
 	return ()
 
-mkRenderWorld :: T.TiledMap -> G.WorldDelta -> Gen.GenMap -> a -> StdGen -> R.RenderWorld
-mkRenderWorld tiledMap delta genMap complexTileset gen = R.emptyRenderWorld -- nWorld
+mkRenderWorld :: G.WorldDelta -> Gen.GenMap -> a -> StdGen -> R.RenderWorld
+mkRenderWorld delta genMap complexTileset gen = R.emptyRenderWorld -- nWorld
 	where	
 		--renderWorld = R.loadMapFromTiled tiledMap
 			-- & R.wRenderConfig .~ newRenderConfig
@@ -211,7 +211,7 @@ mkRenderWorld tiledMap delta genMap complexTileset gen = R.emptyRenderWorld -- n
 			--) w1 -- renderWorld
 
 --mkGameWorld :: Game -> IO (G.World, Delta, WorldManager)
-mkGameWorld tiledMap startPos genMap = do
+mkGameWorld startPos genMap = do
 	let (worldManager, worldDelta) = execRWS (
 			W.stepWire initWire (W.Timed 0 ()) (Right ())
 		) world G.emptyWM
@@ -222,9 +222,7 @@ mkGameWorld tiledMap startPos genMap = do
 
 	where
 		wallBoundaries = Gen.tileBoundaries genMap
-		world = G.emptyW 
-			{ _wTileBoundary = tiledMap^.T.mapTileSize
-			}
+		world = G.emptyW
 
 		initWalls [] = proc input ->
 			returnA -< ()
